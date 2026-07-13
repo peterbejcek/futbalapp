@@ -46,9 +46,11 @@ Testy a build celého monorepa: `pnpm test`, `pnpm build`.
 | API: verejná registrácia + schvaľovanie | ✅ hotové |
 | API: tréningy, dochádzka, zápasy, nominácie, živý zápis (idempotentný) | ✅ hotové |
 | API: predpisy platieb, generovanie povinností, import banky + párovanie, dlžníci | ✅ hotové |
-| Web: landing, registrácia, login, dashboard, členovia, dlžníci | ✅ hotové |
-| Mobil: login + dashboard (Expo skeleton) | ✅ základ |
-| Chat, push notifikácie, upomienky (joby), futbalnet sync, reporty PDF/XLSX | 🔜 ďalšie fázy (pozri docs/05) |
+| Web: landing, registrácia, login, dashboard, členovia, dlžníci, chat | ✅ hotové |
+| Chat kanály per kategória (automatické členstvo, oprávnenia, oznamy) | ✅ hotové |
+| Mobil: login, dashboard, dochádzka, nominácie, živý zápis zápasu, chat | ✅ hotové |
+| Mobil: offline fronta pre dochádzku a zápis zápasu (idempotentný sync) | ✅ hotové |
+| Push notifikácie, upomienky (joby), futbalnet sync, reporty PDF/XLSX, WebSocket chat | 🔜 ďalšie fázy (pozri docs/05) |
 
 ## Rýchly prehľad
 

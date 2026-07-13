@@ -11,7 +11,9 @@
   },
   "dependencies": {
     "@fkknv/shared": "workspace:*",
+    "@react-native-async-storage/async-storage": "2.1.2",
     "expo": "~53.0.0",
+    "expo-crypto": "~14.1.0",
     "expo-constants": "~17.1.0",
     "expo-linking": "~7.1.0",
     "expo-router": "~5.1.0",

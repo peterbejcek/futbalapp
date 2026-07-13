@@ -15,6 +15,7 @@ const navigation = [
   { href: '/portal', label: 'Prehľad' },
   { href: '/portal/clenovia', label: 'Členovia' },
   { href: '/portal/platby', label: 'Platby' },
+  { href: '/portal/chat', label: 'Komunikácia' },
 ];
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {

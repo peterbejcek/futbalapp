@@ -11,6 +11,7 @@ import { RegistrationModule } from './registration/registration.module';
 import { EventsModule } from './events/events.module';
 import { MatchesModule } from './matches/matches.module';
 import { FinanceModule } from './finance/finance.module';
+import { ChatModule } from './chat/chat.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -24,6 +25,7 @@ import { HealthController } from './health.controller';
     EventsModule,
     MatchesModule,
     FinanceModule,
+    ChatModule,
   ],
   controllers: [HealthController],
   providers: [

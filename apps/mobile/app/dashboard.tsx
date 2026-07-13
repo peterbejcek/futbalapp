@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { api, setToken } from '@/api';
+import { flush } from '@/offline';
 import { colors } from '@/theme';
 
 interface EventItem {
@@ -11,6 +12,7 @@ interface EventItem {
   startAt: string;
   location: string | null;
   teamCategory: { code: string } | null;
+  match: { id: string } | null;
 }
 
 const typeLabels: Record<string, string> = {
@@ -26,6 +28,7 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
+    await flush(); // dopošli offline zápisy z ihriska
     try {
       const from = new Date().toISOString();
       const list = await api<EventItem[]>(`/events?from=${from}`);
@@ -41,8 +44,17 @@ export default function DashboardScreen() {
     void load();
   }, [load]);
 
+  function openEvent(item: EventItem) {
+    if (item.match) router.push(`/match/${item.match.id}`);
+    else if (item.type === 'TRAINING') router.push(`/event/${item.id}/attendance`);
+  }
+
   return (
     <View style={styles.container}>
+      <Pressable style={styles.chatButton} onPress={() => router.push('/chat')}>
+        <Text style={styles.chatButtonText}>💬 Kanály a správy</Text>
+      </Pressable>
+
       <Text style={styles.heading}>Najbližšie udalosti</Text>
       <FlatList
         data={events}
@@ -59,7 +71,7 @@ export default function DashboardScreen() {
         }
         ListEmptyComponent={<Text style={styles.empty}>Žiadne naplánované udalosti.</Text>}
         renderItem={({ item }) => (
-          <View style={styles.card}>
+          <Pressable style={styles.card} onPress={() => openEvent(item)}>
             <Text style={styles.badge}>
               {typeLabels[item.type] ?? item.type}
               {item.teamCategory ? ` · ${item.teamCategory.code}` : ''}
@@ -69,7 +81,10 @@ export default function DashboardScreen() {
               {new Date(item.startAt).toLocaleString('sk-SK')}
               {item.location ? ` · ${item.location}` : ''}
             </Text>
-          </View>
+            <Text style={styles.cardAction}>
+              {item.match ? 'Otvoriť zápas →' : item.type === 'TRAINING' ? 'Dochádzka →' : ''}
+            </Text>
+          </Pressable>
         )}
       />
       <Pressable
@@ -87,6 +102,14 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.club50, padding: 16 },
+  chatButton: {
+    backgroundColor: colors.club800,
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  chatButtonText: { color: colors.white, fontWeight: '700' },
   heading: { fontSize: 18, fontWeight: '700', color: colors.club900, marginBottom: 12 },
   empty: { color: colors.gray, textAlign: 'center', marginTop: 32 },
   card: {
@@ -100,6 +123,7 @@ const styles = StyleSheet.create({
   badge: { color: colors.club600, fontSize: 12, fontWeight: '600', marginBottom: 4 },
   cardTitle: { fontSize: 16, fontWeight: '600', color: colors.club900 },
   cardMeta: { color: colors.gray, fontSize: 13, marginTop: 4 },
+  cardAction: { color: colors.club600, fontSize: 13, fontWeight: '600', marginTop: 6 },
   logout: { padding: 14, alignItems: 'center' },
   logoutText: { color: colors.club600, fontWeight: '600' },
 });
