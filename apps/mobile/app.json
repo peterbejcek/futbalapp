@@ -19,7 +19,11 @@
         "backgroundColor": "#1b4a25"
       }
     },
-    "plugins": ["expo-router", "expo-secure-store"],
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      ["expo-notifications", { "color": "#1b4a25" }]
+    ],
     "extra": {
       "apiUrl": "https://api.fkknv.sk/api/v1"
     }

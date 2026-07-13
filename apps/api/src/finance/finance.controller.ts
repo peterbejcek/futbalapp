@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
 import { FinanceService, type BankRow } from './finance.service';
+import { DunningService } from './dunning.service';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { ZodValidationPipe } from '../common/zod.pipe';
@@ -33,8 +34,16 @@ const bankImportSchema = z.object({
 export class FinanceController {
   constructor(
     private readonly financeService: FinanceService,
+    private readonly dunningService: DunningService,
     private readonly prisma: PrismaService,
   ) {}
+
+  /** Manuálne spustenie upomienok (inak bežia denne o 8:00). */
+  @Post('dunning/run')
+  @Roles('ADMIN', 'MANAGER')
+  runDunning() {
+    return this.dunningService.run();
+  }
 
   @Get('fee-plans')
   @Roles('ADMIN', 'MANAGER')

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -12,12 +13,16 @@ import { EventsModule } from './events/events.module';
 import { MatchesModule } from './matches/matches.module';
 import { FinanceModule } from './finance/finance.module';
 import { ChatModule } from './chat/chat.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { ReportsModule } from './reports/reports.module';
 import { HealthController } from './health.controller';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     PrismaModule,
+    NotificationsModule,
     AuthModule,
     MembersModule,
     SeasonsModule,
@@ -26,6 +31,7 @@ import { HealthController } from './health.controller';
     MatchesModule,
     FinanceModule,
     ChatModule,
+    ReportsModule,
   ],
   controllers: [HealthController],
   providers: [

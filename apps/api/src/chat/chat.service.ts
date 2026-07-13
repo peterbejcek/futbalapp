@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../notifications/push.service';
 import type { AuthUser } from '../auth/current-user.decorator';
 
 function isStaff(user: AuthUser): boolean {
@@ -8,7 +9,10 @@ function isStaff(user: AuthUser): boolean {
 
 @Injectable()
 export class ChatService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pushService: PushService,
+  ) {}
 
   /** Kanály, do ktorých má používateľ prístup. Vedenie vidí všetky. */
   async myChannels(user: AuthUser) {
@@ -71,11 +75,29 @@ export class ChatService {
   }
 
   async post(channelId: string, user: AuthUser, body: string) {
-    await this.assertAccess(channelId, user, true);
-    return this.prisma.message.create({
+    const channel = await this.assertAccess(channelId, user, true);
+    const message = await this.prisma.message.create({
       data: { channelId, senderId: user.id, body },
       include: { sender: { select: { id: true, firstName: true, lastName: true } } },
     });
+
+    // Push ostatným členom kanála (odosielateľ notifikáciu nedostane).
+    // Zámerne bez await v ceste odpovede by hrozila strata chýb — radšej
+    // počkáme, PushService nikdy nevyhodí výnimku.
+    const members = await this.prisma.channelMember.findMany({
+      where: { channelId, userId: { not: user.id }, muted: false },
+      select: { userId: true },
+    });
+    await this.pushService.notifyUsers(
+      members.map((m) => m.userId),
+      {
+        title: channel.name,
+        body: `${message.sender.firstName} ${message.sender.lastName}: ${body.slice(0, 120)}`,
+        data: { type: 'chat', channelId },
+      },
+    );
+
+    return message;
   }
 
   /**

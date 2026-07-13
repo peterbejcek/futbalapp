@@ -3,6 +3,7 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'rea
 import { useRouter } from 'expo-router';
 import { api, setToken } from '@/api';
 import { flush } from '@/offline';
+import { registerForPushNotifications } from '@/notifications';
 import { colors } from '@/theme';
 
 interface EventItem {
@@ -42,6 +43,7 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     void load();
+    void registerForPushNotifications();
   }, [load]);
 
   function openEvent(item: EventItem) {

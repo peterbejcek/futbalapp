@@ -50,7 +50,10 @@ Testy a build celého monorepa: `pnpm test`, `pnpm build`.
 | Chat kanály per kategória (automatické členstvo, oprávnenia, oznamy) | ✅ hotové |
 | Mobil: login, dashboard, dochádzka, nominácie, živý zápis zápasu, chat | ✅ hotové |
 | Mobil: offline fronta pre dochádzku a zápis zápasu (idempotentný sync) | ✅ hotové |
-| Push notifikácie, upomienky (joby), futbalnet sync, reporty PDF/XLSX, WebSocket chat | 🔜 ďalšie fázy (pozri docs/05) |
+| Push notifikácie (Expo Push): nové správy, nominácie, upomienky | ✅ hotové |
+| Automatické upomienky dlžníkom (denný cron, 3 úrovne eskalácie) | ✅ hotové |
+| PDF podklad pre športový príspevok (§ 152b ZP) — web na stiahnutie | ✅ hotové |
+| Futbalnet sync, exporty XLSX, e-mail kanál upomienok, WebSocket chat | 🔜 ďalšie fázy (pozri docs/05) |
 
 ## Rýchly prehľad
 

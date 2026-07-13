@@ -35,6 +35,19 @@ model User {
   member       Member?
   messages     Message[]
   channelMemberships ChannelMember[]
+  pushTokens   PushToken[]
+}
+
+model PushToken {
+  id        String   @id @default(cuid())
+  userId    String
+  /// Expo push token (ExponentPushToken[...])
+  token     String   @unique
+  platform  String // ios | android
+  createdAt DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model UserRole {

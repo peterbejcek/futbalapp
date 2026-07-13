@@ -1,10 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { MatchEventInput } from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../notifications/push.service';
 
 @Injectable()
 export class MatchesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pushService: PushService,
+  ) {}
 
   async get(id: string) {
     const match = await this.prisma.match.findUnique({
@@ -28,13 +32,38 @@ export class MatchesService {
     return match;
   }
 
-  /** Pridanie hráča do nominácie (aj tesne pred zápasom). */
-  nominate(matchId: string, memberId: string) {
-    return this.prisma.matchNomination.upsert({
+  /** Pridanie hráča do nominácie (aj tesne pred zápasom). Notifikuje hráča a rodičov. */
+  async nominate(matchId: string, memberId: string) {
+    const nomination = await this.prisma.matchNomination.upsert({
       where: { matchId_memberId: { matchId, memberId } },
       create: { matchId, memberId },
       update: { status: 'NOMINATED' },
     });
+
+    const [match, member] = await Promise.all([
+      this.prisma.match.findUnique({ where: { id: matchId }, include: { event: true } }),
+      this.prisma.member.findUnique({
+        where: { id: memberId },
+        include: { guardians: { select: { userId: true } } },
+      }),
+    ]);
+    if (match && member) {
+      const recipients = [...member.guardians.map((g) => g.userId)];
+      if (member.userId) recipients.push(member.userId);
+      const when = match.event.startAt.toLocaleString('sk-SK', {
+        day: 'numeric',
+        month: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Europe/Bratislava',
+      });
+      await this.pushService.notifyUsers(recipients, {
+        title: 'Nominácia na zápas',
+        body: `${member.firstName} ${member.lastName} je v nominácii: ${match.event.title}, ${when}${match.event.location ? `, ${match.event.location}` : ''}`,
+        data: { type: 'nomination', matchId },
+      });
+    }
+    return nomination;
   }
 
   /** Odobratie hráča z nominácie — záznam ostáva pre históriu so statusom REMOVED. */
