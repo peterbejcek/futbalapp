@@ -1,0 +1,526 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Používatelia a roly
+// ---------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  MANAGER
+  COACH
+  PLAYER
+  PARENT
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  phone        String?
+  passwordHash String?
+  firstName    String
+  lastName     String
+  locale       String     @default("sk")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  roles        UserRole[]
+  guardianOf   Guardian[]
+  member       Member?
+  messages     Message[]
+  channelMemberships ChannelMember[]
+}
+
+model UserRole {
+  id             String        @id @default(cuid())
+  userId         String
+  role           Role
+  teamCategoryId String?
+
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamCategory   TeamCategory? @relation(fields: [teamCategoryId], references: [id])
+
+  @@unique([userId, role, teamCategoryId])
+}
+
+// ---------------------------------------------------------------------------
+// Členovia (hráči) a rodičia
+// ---------------------------------------------------------------------------
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+  GUEST
+}
+
+enum GuardianRelation {
+  MOTHER
+  FATHER
+  GUARDIAN
+}
+
+model Member {
+  id             String       @id @default(cuid())
+  /// Poradové číslo pre variabilný symbol (RRMM + 6 číslic)
+  memberSeq      Int          @unique @default(autoincrement())
+  firstName      String
+  lastName       String
+  birthDate      DateTime
+  status         MemberStatus @default(ACTIVE)
+  futbalnetId    String?      @unique
+  healthNotes    String?
+  photoUrl       String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  /// Vyplnené, ak má hráč vlastný login (starší hráči)
+  userId         String?      @unique
+  user           User?        @relation(fields: [userId], references: [id])
+
+  guardians          Guardian[]
+  memberships        TeamMembership[]
+  feeAssignments     FeeAssignment[]
+  paymentObligations PaymentObligation[]
+  attendances        Attendance[]
+  nominations        MatchNomination[]
+  matchEvents        MatchEvent[]        @relation("MatchEventMember")
+  relatedMatchEvents MatchEvent[]        @relation("MatchEventRelatedMember")
+}
+
+model Guardian {
+  id       String           @id @default(cuid())
+  userId   String
+  memberId String
+  relation GuardianRelation
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member   Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, memberId])
+}
+
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model RegistrationRequest {
+  id            String             @id @default(cuid())
+  childFirstName String
+  childLastName  String
+  childBirthDate DateTime
+  healthNotes   String?
+  parentFirstName String
+  parentLastName  String
+  parentEmail   String
+  parentPhone   String
+  parentRelation GuardianRelation
+  consentGdpr   Boolean
+  consentPhotos Boolean
+  note          String?
+  status        RegistrationStatus @default(PENDING)
+  reviewedById  String?
+  reviewedAt    DateTime?
+  createdMemberId String?
+  createdAt     DateTime           @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Sezóny a kategórie
+// ---------------------------------------------------------------------------
+
+model Season {
+  id        String   @id @default(cuid())
+  name      String   @unique // "2026/2027"
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean  @default(false)
+
+  categoryRules CategoryRule[]
+  memberships   TeamMembership[]
+  feePlans      FeePlan[]
+  events        Event[]
+}
+
+model TeamCategory {
+  id        String @id @default(cuid())
+  code      String @unique // "U8" ... "MUZI"
+  name      String
+  sortOrder Int
+
+  rules       CategoryRule[]
+  memberships TeamMembership[]
+  userRoles   UserRole[]
+  feePlans    FeePlan[]
+  events      Event[]
+  channels    Channel[]
+}
+
+model CategoryRule {
+  id             String @id @default(cuid())
+  seasonId       String
+  teamCategoryId String
+  birthYearFrom  Int
+  birthYearTo    Int? // null = bez hornej hranice (najmladší)
+
+  season       Season       @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  teamCategory TeamCategory @relation(fields: [teamCategoryId], references: [id])
+
+  @@unique([seasonId, teamCategoryId])
+}
+
+model TeamMembership {
+  id             String    @id @default(cuid())
+  memberId       String
+  seasonId       String
+  teamCategoryId String
+  isException    Boolean   @default(false)
+  joinedAt       DateTime  @default(now())
+  leftAt         DateTime?
+
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  season       Season       @relation(fields: [seasonId], references: [id])
+  teamCategory TeamCategory @relation(fields: [teamCategoryId], references: [id])
+
+  @@unique([memberId, seasonId])
+}
+
+// ---------------------------------------------------------------------------
+// Financie
+// ---------------------------------------------------------------------------
+
+enum FeePeriod {
+  MONTHLY
+  QUARTERLY
+  ONE_TIME
+  SEASON
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  PARTIAL
+  OVERDUE
+  WAIVED
+}
+
+enum BankMatchStatus {
+  UNMATCHED
+  MATCHED
+  IGNORED
+  MANUAL
+}
+
+model FeePlan {
+  id             String    @id @default(cuid())
+  seasonId       String
+  teamCategoryId String?
+  name           String
+  amountCents    Int
+  currency       String    @default("EUR")
+  period         FeePeriod
+  dueDay         Int       @default(15)
+  activeFrom     DateTime
+  activeTo       DateTime?
+
+  season       Season          @relation(fields: [seasonId], references: [id])
+  teamCategory TeamCategory?   @relation(fields: [teamCategoryId], references: [id])
+  assignments  FeeAssignment[]
+}
+
+model FeeAssignment {
+  id             String  @id @default(cuid())
+  feePlanId      String
+  memberId       String
+  overrideCents  Int?
+  discountReason String?
+  active         Boolean @default(true)
+
+  feePlan     FeePlan             @relation(fields: [feePlanId], references: [id], onDelete: Cascade)
+  member      Member              @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  obligations PaymentObligation[]
+
+  @@unique([feePlanId, memberId])
+}
+
+model PaymentObligation {
+  id              String        @id @default(cuid())
+  feeAssignmentId String
+  memberId        String
+  periodLabel     String // "2026-09"
+  amountCents     Int
+  paidCents       Int           @default(0)
+  variableSymbol  String
+  dueDate         DateTime
+  status          PaymentStatus @default(PENDING)
+  createdAt       DateTime      @default(now())
+
+  feeAssignment FeeAssignment  @relation(fields: [feeAssignmentId], references: [id], onDelete: Cascade)
+  member        Member         @relation(fields: [memberId], references: [id])
+  matches       PaymentMatch[]
+  dunning       DunningNotice[]
+
+  @@unique([feeAssignmentId, periodLabel])
+  @@index([variableSymbol])
+  @@index([status, dueDate])
+}
+
+model BankTransaction {
+  id               String          @id @default(cuid())
+  source           String // CAMT | CSV | API
+  externalId       String          @unique
+  date             DateTime
+  amountCents      Int
+  currency         String          @default("EUR")
+  variableSymbol   String?
+  counterpartyIban String?
+  counterpartyName String?
+  message          String?
+  matchStatus      BankMatchStatus @default(UNMATCHED)
+  importedAt       DateTime        @default(now())
+
+  matches PaymentMatch[]
+
+  @@index([variableSymbol])
+  @@index([matchStatus])
+}
+
+model PaymentMatch {
+  id                  String   @id @default(cuid())
+  bankTransactionId   String
+  paymentObligationId String
+  amountCents         Int
+  matchedBy           String // AUTO | MANUAL
+  matchedAt           DateTime @default(now())
+
+  bankTransaction   BankTransaction   @relation(fields: [bankTransactionId], references: [id], onDelete: Cascade)
+  paymentObligation PaymentObligation @relation(fields: [paymentObligationId], references: [id], onDelete: Cascade)
+
+  @@unique([bankTransactionId, paymentObligationId])
+}
+
+model DunningNotice {
+  id                  String   @id @default(cuid())
+  paymentObligationId String
+  level               Int
+  channel             String // PUSH | EMAIL
+  sentAt              DateTime @default(now())
+
+  paymentObligation PaymentObligation @relation(fields: [paymentObligationId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Udalosti, dochádzka, zápasy
+// ---------------------------------------------------------------------------
+
+enum EventType {
+  TRAINING
+  MATCH
+  TOURNAMENT
+  CLUB_EVENT
+}
+
+enum EventSource {
+  INTERNAL
+  FUTBALNET
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  EXCUSED
+  INJURED
+  UNKNOWN
+}
+
+enum Rsvp {
+  GOING
+  NOT_GOING
+  NO_REPLY
+}
+
+model Event {
+  id             String      @id @default(cuid())
+  type           EventType
+  seasonId       String
+  teamCategoryId String?
+  title          String
+  startAt        DateTime
+  endAt          DateTime?
+  location       String?
+  source         EventSource @default(INTERNAL)
+  futbalnetId    String?     @unique
+  createdById    String?
+  createdAt      DateTime    @default(now())
+
+  season       Season        @relation(fields: [seasonId], references: [id])
+  teamCategory TeamCategory? @relation(fields: [teamCategoryId], references: [id])
+  attendances  Attendance[]
+  match        Match?
+
+  @@index([teamCategoryId, startAt])
+}
+
+model Attendance {
+  id        String           @id @default(cuid())
+  eventId   String
+  memberId  String
+  status    AttendanceStatus @default(UNKNOWN)
+  rsvp      Rsvp             @default(NO_REPLY)
+  markedById String?
+  markedAt  DateTime?
+
+  event  Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, memberId])
+}
+
+enum MatchState {
+  PLANNED
+  LIVE
+  FINISHED
+  CANCELLED
+}
+
+enum NominationStatus {
+  NOMINATED
+  CONFIRMED
+  DECLINED
+  REMOVED
+}
+
+enum MatchEventType {
+  GOAL
+  ASSIST
+  SUB_IN
+  SUB_OUT
+  YELLOW
+  RED
+  NOTE
+  GOAL_CONCEDED
+}
+
+model Match {
+  id          String     @id @default(cuid())
+  eventId     String     @unique
+  opponent    String
+  isHome      Boolean    @default(true)
+  competition String?
+  scoreUs     Int?
+  scoreThem   Int?
+  state       MatchState @default(PLANNED)
+
+  event       Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  nominations MatchNomination[]
+  events      MatchEvent[]
+}
+
+model MatchNomination {
+  id          String           @id @default(cuid())
+  matchId     String
+  memberId    String
+  status      NominationStatus @default(NOMINATED)
+  shirtNumber Int?
+  isStarting  Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+
+  match  Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, memberId])
+}
+
+model MatchEvent {
+  id              String         @id @default(cuid())
+  /// Idempotentné ID z klienta — offline sync nesmie duplikovať udalosti
+  clientId        String         @unique
+  matchId         String
+  minute          Int
+  type            MatchEventType
+  memberId        String?
+  relatedMemberId String?
+  note            String?
+  createdById     String?
+  createdAt       DateTime       @default(now())
+
+  match         Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  member        Member? @relation("MatchEventMember", fields: [memberId], references: [id])
+  relatedMember Member? @relation("MatchEventRelatedMember", fields: [relatedMemberId], references: [id])
+
+  @@index([matchId, minute])
+}
+
+// ---------------------------------------------------------------------------
+// Komunikácia
+// ---------------------------------------------------------------------------
+
+enum ChannelType {
+  CATEGORY
+  COACHES
+  BOARD
+  ANNOUNCEMENT
+  DIRECT
+}
+
+model Channel {
+  id             String      @id @default(cuid())
+  type           ChannelType
+  teamCategoryId String?
+  name           String
+  createdAt      DateTime    @default(now())
+
+  teamCategory TeamCategory?   @relation(fields: [teamCategoryId], references: [id])
+  members      ChannelMember[]
+  messages     Message[]
+}
+
+model ChannelMember {
+  id        String  @id @default(cuid())
+  channelId String
+  userId    String
+  isModerator Boolean @default(false)
+  muted     Boolean @default(false)
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  channelId String
+  senderId  String
+  body      String
+  createdAt DateTime @default(now())
+  editedAt  DateTime?
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  sender  User    @relation(fields: [senderId], references: [id])
+
+  @@index([channelId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Audit
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  diff      Json?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+}

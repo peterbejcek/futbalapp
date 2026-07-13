@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+build/
+.next/
+.turbo/
+.expo/
+*.tsbuildinfo
+
+# env & secrets
+.env
+.env.*
+!.env.example
+
+# prisma
+apps/api/prisma/*.db
+
+# logs & misc
+*.log
+.DS_Store
+coverage/

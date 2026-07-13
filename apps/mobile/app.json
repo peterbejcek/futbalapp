@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "FK Košická Nová Ves",
+    "slug": "fkknv",
+    "scheme": "fkknv",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#1b4a25"
+    },
+    "ios": {
+      "bundleIdentifier": "sk.fkknv.app",
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "sk.fkknv.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#1b4a25"
+      }
+    },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "extra": {
+      "apiUrl": "https://api.fkknv.sk/api/v1"
+    }
+  }
+}

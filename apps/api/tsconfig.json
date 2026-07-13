@@ -1,0 +1,18 @@
+{
+  "extends": "@fkknv/config/tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": "dist",
+    "baseUrl": ".",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "strictPropertyInitialization": false,
+    "declaration": false
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"],
+  "ts-node": {
+    "transpileOnly": true
+  }
+}

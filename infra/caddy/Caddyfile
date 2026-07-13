@@ -1,0 +1,13 @@
+# fkknv.sk — web beží na Verceli (DNS A/CNAME mimo tohto servera).
+# Tento server obsluhuje API.
+
+api.fkknv.sk {
+	reverse_proxy api:3001
+	encode gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+	}
+}
