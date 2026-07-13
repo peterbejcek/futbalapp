@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../notifications/push.service';
+import { EmailService } from '../notifications/email.service';
 
 /**
  * Automatické upomienky pri nezaplatenom členskom.
@@ -21,6 +22,7 @@ export class DunningService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pushService: PushService,
+    private readonly emailService: EmailService,
   ) {}
 
   /** Denne o 8:00 — upomienky sa neposielajú v noci. */
@@ -50,7 +52,7 @@ export class DunningService {
             firstName: true,
             lastName: true,
             userId: true,
-            guardians: { select: { userId: true } },
+            guardians: { select: { userId: true, user: { select: { email: true } } } },
           },
         },
       },
@@ -59,7 +61,15 @@ export class DunningService {
     // zoskupenie podľa člena — rodič dostane jednu správu za dieťa, nie za každý mesiac
     const perMember = new Map<
       string,
-      { recipients: string[]; name: string; totalCents: number; periods: string[]; obligationIds: string[]; level: number }
+      {
+        recipients: string[];
+        emails: string[];
+        name: string;
+        totalCents: number;
+        periods: string[];
+        obligationIds: string[];
+        level: number;
+      }
     >();
 
     for (const obligation of overdue) {
@@ -73,6 +83,7 @@ export class DunningService {
           ...obligation.member.guardians.map((g) => g.userId),
           ...(obligation.member.userId ? [obligation.member.userId] : []),
         ],
+        emails: obligation.member.guardians.map((g) => g.user.email),
         name: `${obligation.member.firstName} ${obligation.member.lastName}`,
         totalCents: 0,
         periods: [],
@@ -96,12 +107,22 @@ export class DunningService {
         body: `${entry.name} — dlžné ${amount} € za obdobie ${entry.periods.join(', ')}. Prosíme o úhradu.`,
         data: { type: 'dunning' },
       });
+      const email = await this.emailService.send(
+        entry.emails,
+        `${urgency}: nezaplatené členské — ${entry.name}`,
+        `<p>Dobrý deň,</p>
+         <p>evidujeme nezaplatené členské za hráča <strong>${entry.name}</strong>:
+         dlžná suma <strong>${amount} €</strong> za obdobie ${entry.periods.join(', ')}.</p>
+         <p>Prosíme o úhradu — platobné údaje s QR kódom nájdete v portáli
+         <a href="https://fkknv.sk">fkknv.sk</a> v sekcii Platby.</p>
+         <p>Ak ste medzičasom uhradili, správu považujte za bezpredmetnú.</p>
+         <p>FK Košická Nová Ves</p>`,
+      );
       await this.prisma.dunningNotice.createMany({
-        data: entry.obligationIds.map((paymentObligationId) => ({
-          paymentObligationId,
-          level: entry.level,
-          channel: 'PUSH',
-        })),
+        data: entry.obligationIds.flatMap((paymentObligationId) => [
+          { paymentObligationId, level: entry.level, channel: 'PUSH' },
+          ...(email.sent ? [{ paymentObligationId, level: entry.level, channel: 'EMAIL' }] : []),
+        ]),
       });
       notified++;
     }

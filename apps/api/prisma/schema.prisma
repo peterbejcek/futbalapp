@@ -167,6 +167,10 @@ model TeamCategory {
   code      String @unique // "U8" ... "MUZI"
   name      String
   sortOrder Int
+  /// URL stránky súťaže na futbalnet.sk pre túto kategóriu (zdroj sync-u zápasov)
+  futbalnetCompetitionUrl String?
+  /// Názov tímu na futbalnete (na rozpoznanie domáci/hostia), napr. "FK Košická Nová Ves"
+  futbalnetTeamName       String?
 
   rules       CategoryRule[]
   memberships TeamMembership[]

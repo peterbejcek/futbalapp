@@ -53,7 +53,11 @@ Testy a build celého monorepa: `pnpm test`, `pnpm build`.
 | Push notifikácie (Expo Push): nové správy, nominácie, upomienky | ✅ hotové |
 | Automatické upomienky dlžníkom (denný cron, 3 úrovne eskalácie) | ✅ hotové |
 | PDF podklad pre športový príspevok (§ 152b ZP) — web na stiahnutie | ✅ hotové |
-| Futbalnet sync, exporty XLSX, e-mail kanál upomienok, WebSocket chat | 🔜 ďalšie fázy (pozri docs/05) |
+| Futbalnet sync plánu zápasov (adaptér + týždenný cron + manuálny import) | ✅ hotové |
+| Exporty do Excelu: členovia, platby, dochádzka (matica + účasť %) | ✅ hotové |
+| E-mail ako druhý kanál upomienok (Resend, dev fallback do logu) | ✅ hotové |
+| WebSocket chat (realtime, join s overením členstva) — web aj mobil | ✅ hotové |
+| Zostáva: nasadenie na fkknv.sk, EAS build + publikácia do store-ov | 🔜 (pozri docs/05, Fáza 6) |
 
 ## Rýchly prehľad
 

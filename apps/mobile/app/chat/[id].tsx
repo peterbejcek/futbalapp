@@ -10,17 +10,24 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { api } from '@/api';
+import { io, type Socket } from 'socket.io-client';
+import Constants from 'expo-constants';
+import { api, getToken } from '@/api';
 import { colors } from '@/theme';
 
 interface Message {
   id: string;
+  channelId?: string;
   body: string;
   createdAt: string;
   sender: { id: string; firstName: string; lastName: string };
 }
 
-const POLL_MS = 5000;
+function apiOrigin(): string {
+  const url =
+    (Constants.expoConfig?.extra?.apiUrl as string | undefined) ?? 'http://localhost:3001/api/v1';
+  return new URL(url).origin;
+}
 
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -40,9 +47,24 @@ export default function ChatScreen() {
 
   useEffect(() => {
     void load();
-    const timer = setInterval(load, POLL_MS);
-    return () => clearInterval(timer);
-  }, [load]);
+    // realtime cez WebSocket namiesto pollingu
+    let socket: Socket | null = null;
+    let cancelled = false;
+    void getToken().then((token) => {
+      if (cancelled) return;
+      socket = io(`${apiOrigin()}/chat`, { auth: { token }, transports: ['websocket'] });
+      socket.emit('join', { channelId: id });
+      socket.on('message', (message: Message) => {
+        if (message.channelId && message.channelId !== id) return;
+        setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
+        listRef.current?.scrollToEnd({ animated: true });
+      });
+    });
+    return () => {
+      cancelled = true;
+      socket?.disconnect();
+    };
+  }, [load, id]);
 
   async function send() {
     const body = text.trim();

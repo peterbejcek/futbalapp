@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { Socket } from 'socket.io-client';
 import { api } from '@/lib/api';
+import { connectChatSocket } from '@/lib/chat-socket';
 
 interface Channel {
   id: string;
@@ -18,8 +20,6 @@ interface Message {
   sender: { id: string; firstName: string; lastName: string };
 }
 
-const POLL_MS = 5000;
-
 export default function ChatPage() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -27,6 +27,7 @@ export default function ChatPage() {
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
     api<Channel[]>('/chat/channels')
@@ -47,11 +48,33 @@ export default function ChatPage() {
     }
   }, [activeId]);
 
+  // jedno WebSocket spojenie na stránku
+  useEffect(() => {
+    const socket = connectChatSocket();
+    socketRef.current = socket;
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, []);
+
+  // pri zmene kanála: načítaj históriu, prihlás sa na realtime správy
   useEffect(() => {
     void loadMessages();
-    const timer = setInterval(loadMessages, POLL_MS);
-    return () => clearInterval(timer);
-  }, [loadMessages]);
+    const socket = socketRef.current;
+    if (!socket || !activeId) return;
+
+    socket.emit('join', { channelId: activeId });
+    const onMessage = (message: Message & { channelId: string }) => {
+      if (message.channelId !== activeId) return;
+      setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
+    };
+    socket.on('message', onMessage);
+    return () => {
+      socket.off('message', onMessage);
+      socket.emit('leave', { channelId: activeId });
+    };
+  }, [loadMessages, activeId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });

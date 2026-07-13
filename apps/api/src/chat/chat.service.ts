@@ -1,6 +1,7 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../notifications/push.service';
+import { ChatGateway } from './chat.gateway';
 import type { AuthUser } from '../auth/current-user.decorator';
 
 function isStaff(user: AuthUser): boolean {
@@ -12,6 +13,7 @@ export class ChatService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pushService: PushService,
+    @Inject(forwardRef(() => ChatGateway)) private readonly chatGateway: ChatGateway,
   ) {}
 
   /** Kanály, do ktorých má používateľ prístup. Vedenie vidí všetky. */
@@ -80,6 +82,9 @@ export class ChatService {
       data: { channelId, senderId: user.id, body },
       include: { sender: { select: { id: true, firstName: true, lastName: true } } },
     });
+
+    // realtime doručenie pripojeným klientom
+    this.chatGateway.broadcastMessage(channelId, message);
 
     // Push ostatným členom kanála (odosielateľ notifikáciu nedostane).
     // Zámerne bez await v ceste odpovede by hrozila strata chýb — radšej
