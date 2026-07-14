@@ -12,6 +12,7 @@ Klubový portál pre mládežnícky futbalový klub **FK Košická Nová Ves** n
 | [docs/04-struktura-projektu.md](docs/04-struktura-projektu.md) | Štruktúra monorepa a jednotlivých aplikácií |
 | [docs/05-plan-vyvoja.md](docs/05-plan-vyvoja.md) | Fázy vývoja, míľniky, harmonogram, prevádzka |
 | [docs/06-bezpecnost-a-gdpr.md](docs/06-bezpecnost-a-gdpr.md) | Bezpečnosť, GDPR (údaje detí), zálohovanie |
+| [docs/07-deployment.md](docs/07-deployment.md) | Deployment krok po kroku — VPS, Vercel, EAS/store, zálohy |
 
 ## Spustenie vývojového prostredia
 
