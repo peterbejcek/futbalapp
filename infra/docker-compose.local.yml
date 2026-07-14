@@ -42,9 +42,10 @@ services:
       SEED_ADMIN_EMAIL: admin@fkknv.sk
       SEED_ADMIN_PASSWORD: fkknv-admin
     # migrácie + seed (idempotentný — kategórie, sezóna 2026/2027, admin) + štart
+    # (spúšťa sa v /repo/apps/api — WORKDIR z Dockerfile.api)
     command: >
-      sh -c "pnpm --filter @fkknv/api db:deploy
-             && cd apps/api && npx ts-node prisma/seed.ts
+      sh -c "npx prisma migrate deploy
+             && npx ts-node prisma/seed.ts
              && node dist/main.js"
     ports:
       - '3001:3001'

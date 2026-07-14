@@ -1,6 +1,6 @@
 # Build stage
-FROM node:22-alpine AS build
-RUN corepack enable
+FROM node:22-slim AS build
+RUN npm install -g pnpm@10.33.0
 WORKDIR /repo
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc ./
 COPY packages ./packages
@@ -13,11 +13,10 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 RUN pnpm --filter @fkknv/shared build && pnpm --filter @fkknv/web build
 
-# Runtime stage
-FROM node:22-alpine
-RUN corepack enable
-WORKDIR /repo
+# Runtime stage — bez pnpm: next sa spúšťa priamo z node_modules
+FROM node:22-slim
 ENV NODE_ENV=production
-COPY --from=build /repo ./
+COPY --from=build /repo /repo
+WORKDIR /repo/apps/web
 EXPOSE 3000
-CMD ["pnpm", "--filter", "@fkknv/web", "start"]
+CMD ["npx", "next", "start", "--port", "3000"]

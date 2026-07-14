@@ -98,7 +98,7 @@ Migrácie sa spúšťajú automaticky pri štarte kontajnera (`db:deploy` v Dock
 docker compose exec \
   -e SEED_ADMIN_EMAIL=predseda@fkknv.sk \
   -e SEED_ADMIN_PASSWORD='<jednorazové-heslo>' \
-  api sh -c "cd apps/api && npx ts-node prisma/seed.ts"
+  api npx ts-node prisma/seed.ts
 ```
 
 **Overenie:** `curl https://api.fkknv.sk/api/v1/health` → `{"status":"ok"}`. Potom sa prihláste a heslo admina hneď zmeňte.
