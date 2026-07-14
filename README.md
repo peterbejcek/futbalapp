@@ -23,6 +23,7 @@ Celé prostredie — databáza, API so seed dátami aj web — jedným príkazom
 ```
 
 Po nabehnutí: web na [http://localhost:3000](http://localhost:3000), prihlásenie `admin@fkknv.sk` / `fkknv-admin`.
+Na VPS spustite `PUBLIC_HOST=<IP-servera> ./quickstart.sh` (a otvorte porty 3000 + 3001), aby web z prehliadača našiel API.
 Zastavenie `./quickstart.sh stop`, čistý reštart s výmazom databázy `./quickstart.sh reset`.
 (Windows: spustite v Git Bash alebo WSL, prípadne priamo `docker compose -f infra/docker-compose.local.yml up -d --build`.)
 

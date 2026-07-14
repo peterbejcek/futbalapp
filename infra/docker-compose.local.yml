@@ -37,16 +37,15 @@ services:
     environment:
       DATABASE_URL: postgresql://fkknv:fkknv@postgres:5432/fkknv?schema=public
       JWT_SECRET: lokalny-dev-secret-nepouzivat-v-produkcii
-      CORS_ORIGIN: http://localhost:3000
+      # PUBLIC_HOST: localhost pre lokál, IP/doména servera pri skúšaní na VPS
+      CORS_ORIGIN: http://${PUBLIC_HOST:-localhost}:3000
       PORT: 3001
       SEED_ADMIN_EMAIL: admin@fkknv.sk
       SEED_ADMIN_PASSWORD: fkknv-admin
     # migrácie + seed (idempotentný — kategórie, sezóna 2026/2027, admin) + štart
     # (spúšťa sa v /repo/apps/api — WORKDIR z Dockerfile.api)
-    command: >
-      sh -c "npx prisma migrate deploy
-             && npx ts-node prisma/seed.ts
-             && node dist/main.js"
+    # POZOR: musí byť jeden riadok — YAML blok by rozbil sh -c skript novými riadkami
+    command: ["sh", "-c", "npx prisma migrate deploy && npx ts-node prisma/seed.ts && node dist/main.js"]
     ports:
       - '3001:3001'
 
@@ -55,7 +54,8 @@ services:
       context: ..
       dockerfile: infra/Dockerfile.web
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
+        # musí byť dosiahnuteľné z PREHLIADAČA — na VPS teda IP/doména servera
+        NEXT_PUBLIC_API_URL: http://${PUBLIC_HOST:-localhost}:3001/api/v1
     depends_on:
       - api
     ports:

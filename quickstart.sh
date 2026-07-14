@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# FKKNV portál — lokálne skúšobné prostredie jedným príkazom.
+# FKKNV portál — skúšobné prostredie jedným príkazom.
 # Potrebuje iba Docker (Docker Desktop na Mac/Windows, docker na Linuxe).
 #
-#   ./quickstart.sh          postaví a spustí všetko
+#   ./quickstart.sh                          lokálne (localhost)
+#   PUBLIC_HOST=1.2.3.4 ./quickstart.sh      na VPS — IP alebo doména servera,
+#                                            aby web z prehliadača našiel API
 #   ./quickstart.sh stop     zastaví kontajnery (dáta ostanú)
 #   ./quickstart.sh reset    zastaví a ZMAŽE aj databázu
 set -euo pipefail
 cd "$(dirname "$0")"
 
+export PUBLIC_HOST="${PUBLIC_HOST:-localhost}"
 COMPOSE=(docker compose -f infra/docker-compose.local.yml)
 
 if ! command -v docker >/dev/null 2>&1; then
@@ -37,6 +40,11 @@ case "${1:-up}" in
     ;;
 esac
 
+if [ "$PUBLIC_HOST" != "localhost" ]; then
+  echo "🌍 Režim VPS: web bude volať API na http://$PUBLIC_HOST:3001"
+  echo "   (nezabudnite otvoriť porty: ufw allow 3000/tcp && ufw allow 3001/tcp)"
+fi
+
 echo "🏗  Staviam a spúšťam (prvý beh stiahne závislosti, ~5–10 min)…"
 "${COMPOSE[@]}" up -d --build
 
@@ -64,8 +72,8 @@ cat <<EOF
 
 ✅ Portál beží!
 
-   Web:       http://localhost:3000
-   API:       http://localhost:3001/api/v1/health
+   Web:       http://$PUBLIC_HOST:3000
+   API:       http://$PUBLIC_HOST:3001/api/v1/health
    Prihlásenie: admin@fkknv.sk / fkknv-admin
 
    Skúste: registráciu člena, členov, platby, chat, športový príspevok.
