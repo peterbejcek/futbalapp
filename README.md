@@ -14,9 +14,21 @@ Klubový portál pre mládežnícky futbalový klub **FK Košická Nová Ves** n
 | [docs/06-bezpecnost-a-gdpr.md](docs/06-bezpecnost-a-gdpr.md) | Bezpečnosť, GDPR (údaje detí), zálohovanie |
 | [docs/07-deployment.md](docs/07-deployment.md) | Deployment krok po kroku — VPS, Vercel, EAS/store, zálohy |
 
+## Rýchle vyskúšanie (stačí Docker)
+
+Celé prostredie — databáza, API so seed dátami aj web — jedným príkazom:
+
+```bash
+./quickstart.sh
+```
+
+Po nabehnutí: web na [http://localhost:3000](http://localhost:3000), prihlásenie `admin@fkknv.sk` / `fkknv-admin`.
+Zastavenie `./quickstart.sh stop`, čistý reštart s výmazom databázy `./quickstart.sh reset`.
+(Windows: spustite v Git Bash alebo WSL, prípadne priamo `docker compose -f infra/docker-compose.local.yml up -d --build`.)
+
 ## Spustenie vývojového prostredia
 
-Vyžaduje Node 22+, pnpm 10+ a PostgreSQL 16.
+Pre vývoj (hot-reload) — vyžaduje Node 22+, pnpm 10+ a PostgreSQL 16.
 
 ```bash
 pnpm install

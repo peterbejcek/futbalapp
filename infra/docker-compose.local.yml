@@ -1,0 +1,64 @@
+# Lokálne skúšobné prostredie — JEDEN príkaz postaví celý portál:
+#
+#   docker compose -f infra/docker-compose.local.yml up -d --build
+#
+# (alebo pohodlnejšie ./quickstart.sh v koreňovom adresári)
+#
+# Po nabehnutí:
+#   web:  http://localhost:3000
+#   API:  http://localhost:3001/api/v1/health
+#   účet: admin@fkknv.sk / fkknv-admin
+#
+# POZOR: dev heslá a secrety — len na lokálne vyskúšanie, nie do produkcie
+# (produkčné nasadenie: docker-compose.yml + docs/07-deployment.md).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: fkknv
+      POSTGRES_PASSWORD: fkknv
+      POSTGRES_DB: fkknv
+    volumes:
+      - local_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U fkknv']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://fkknv:fkknv@postgres:5432/fkknv?schema=public
+      JWT_SECRET: lokalny-dev-secret-nepouzivat-v-produkcii
+      CORS_ORIGIN: http://localhost:3000
+      PORT: 3001
+      SEED_ADMIN_EMAIL: admin@fkknv.sk
+      SEED_ADMIN_PASSWORD: fkknv-admin
+    # migrácie + seed (idempotentný — kategórie, sezóna 2026/2027, admin) + štart
+    command: >
+      sh -c "pnpm --filter @fkknv/api db:deploy
+             && cd apps/api && npx ts-node prisma/seed.ts
+             && node dist/main.js"
+    ports:
+      - '3001:3001'
+
+  web:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
+    depends_on:
+      - api
+    ports:
+      - '3000:3000'
+
+volumes:
+  local_pg_data:

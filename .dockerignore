@@ -1,0 +1,11 @@
+node_modules
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/.expo
+.git
+docs
+*.log
+apps/api/.env
+infra/.env
