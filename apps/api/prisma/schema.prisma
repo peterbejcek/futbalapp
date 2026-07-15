@@ -1,5 +1,7 @@
 generator client {
   provider = "prisma-client-js"
+  // native = vývojový stroj; debian-openssl-3.0.x = node:22-slim Docker image
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
