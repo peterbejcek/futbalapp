@@ -1,8 +1,12 @@
 import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 
-const API_URL: string =
-  (Constants.expoConfig?.extra?.apiUrl as string | undefined) ?? 'http://localhost:3001/api/v1';
+// Priorita: EXPO_PUBLIC_API_URL (dev/skúšanie, zapečie sa pri bundlovaní)
+// → app.json extra.apiUrl (produkcia) → localhost (lokálny vývoj)
+export const API_URL: string =
+  process.env.EXPO_PUBLIC_API_URL ??
+  (Constants.expoConfig?.extra?.apiUrl as string | undefined) ??
+  'http://localhost:3001/api/v1';
 
 const TOKEN_KEY = 'fkknv_token';
 
