@@ -7,10 +7,32 @@ import { connectChatSocket } from '@/lib/chat-socket';
 
 interface Channel {
   id: string;
-  type: string;
+  kind: string;
   name: string;
+  teamName: string | null;
   categoryCode: string | null;
   lastMessage: { body: string; createdAt: string } | null;
+}
+
+const KIND_LABELS: Record<string, string> = {
+  TEAM_ANNOUNCEMENTS: '📢 Oznamy',
+  TEAM_TRAINING: '🏃 Tréningy',
+  TEAM_GENERAL: '💬 Všeobecné',
+  CLUB_ANNOUNCEMENT: '📣 Oznamy klubu',
+  COACHES: '👔 Tréneri',
+  BOARD: '🗂 Vedenie',
+};
+
+/** Zoskupí podkanály podľa družstva; klubové/interné dá zvlášť. */
+function groupChannels(channels: Channel[]) {
+  const groups = new Map<string, { key: string; label: string; channels: Channel[] }>();
+  for (const c of channels) {
+    const key = c.teamName ?? (c.kind === 'CLUB_ANNOUNCEMENT' ? '_club' : '_other');
+    const label = c.teamName ?? (c.kind === 'CLUB_ANNOUNCEMENT' ? 'Celý klub' : 'Ostatné');
+    if (!groups.has(key)) groups.set(key, { key, label, channels: [] });
+    groups.get(key)!.channels.push(c);
+  }
+  return [...groups.values()];
 }
 
 interface Message {
@@ -105,31 +127,37 @@ export default function ChatPage() {
       {error && <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
       <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
-        <aside className="rounded-lg border border-club-100 bg-white">
-          <h2 className="border-b border-club-100 px-4 py-3 text-sm font-semibold text-club-800">Kanály</h2>
-          <ul>
-            {channels.map((channel) => (
-              <li key={channel.id}>
-                <button
-                  onClick={() => setActiveId(channel.id)}
-                  className={`w-full px-4 py-3 text-left text-sm hover:bg-club-50 ${
-                    channel.id === activeId ? 'bg-club-50 font-semibold text-club-800' : 'text-gray-700'
-                  }`}
-                >
-                  <span className="mr-2 rounded bg-club-100 px-1.5 py-0.5 text-xs font-bold text-club-800">
-                    {channel.categoryCode ?? '📣'}
-                  </span>
-                  {channel.name}
-                  {channel.lastMessage && (
-                    <span className="mt-1 block truncate text-xs font-normal text-gray-400">
-                      {channel.lastMessage.body}
-                    </span>
-                  )}
-                </button>
-              </li>
-            ))}
-            {channels.length === 0 && <li className="px-4 py-6 text-sm text-gray-500">Žiadne kanály.</li>}
-          </ul>
+        <aside className="max-h-[600px] overflow-y-auto rounded-lg border border-club-100 bg-white">
+          <h2 className="sticky top-0 border-b border-club-100 bg-white px-4 py-3 text-sm font-semibold text-club-800">
+            Kanály
+          </h2>
+          {groupChannels(channels).map((group) => (
+            <div key={group.key}>
+              <div className="bg-club-50 px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-club-700">
+                {group.label}
+              </div>
+              <ul>
+                {group.channels.map((channel) => (
+                  <li key={channel.id}>
+                    <button
+                      onClick={() => setActiveId(channel.id)}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-club-50 ${
+                        channel.id === activeId ? 'bg-club-50 font-semibold text-club-800' : 'text-gray-700'
+                      }`}
+                    >
+                      {KIND_LABELS[channel.kind] ?? channel.name}
+                      {channel.lastMessage && (
+                        <span className="mt-0.5 block truncate text-xs font-normal text-gray-400">
+                          {channel.lastMessage.body}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          {channels.length === 0 && <p className="px-4 py-6 text-sm text-gray-500">Žiadne kanály.</p>}
         </aside>
 
         <section className="flex h-[600px] flex-col rounded-lg border border-club-100 bg-white">

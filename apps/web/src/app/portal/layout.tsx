@@ -2,50 +2,55 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { api, getToken, setToken } from '@/lib/api';
+import { useEffect } from 'react';
+import { getToken, setToken } from '@/lib/api';
+import { canManage, isStaff, useMe } from '@/lib/auth';
 
-interface Me {
-  firstName: string;
-  lastName: string;
-  roles: Array<{ role: string; teamCategory: { code: string } | null }>;
+interface NavItem {
+  href: string;
+  label: string;
+  show: (ctx: { staff: boolean; manage: boolean }) => boolean;
 }
 
-const navigation = [
-  { href: '/portal', label: 'Prehľad' },
-  { href: '/portal/clenovia', label: 'Členovia' },
-  { href: '/portal/platby', label: 'Platby' },
-  { href: '/portal/chat', label: 'Komunikácia' },
-  { href: '/portal/prispevok', label: 'Šport. príspevok' },
+const navigation: NavItem[] = [
+  { href: '/portal', label: 'Prehľad', show: () => true },
+  { href: '/portal/clenovia', label: 'Členovia', show: ({ manage }) => manage },
+  { href: '/portal/udalosti', label: 'Kalendár', show: () => true },
+  { href: '/portal/platby', label: 'Platby', show: ({ staff }) => staff },
+  { href: '/portal/registracie', label: 'Registrácie', show: ({ staff }) => staff },
+  { href: '/portal/chat', label: 'Komunikácia', show: () => true },
+  { href: '/portal/prispevok', label: 'Príspevok', show: () => true },
+  { href: '/portal/nastavenia', label: 'Nastavenia', show: ({ staff }) => staff },
 ];
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [me, setMe] = useState<Me | null>(null);
+  const { me } = useMe();
 
   useEffect(() => {
-    if (!getToken()) {
-      router.replace('/prihlasenie');
-      return;
-    }
-    api<Me>('/auth/me').then(setMe).catch(() => {});
+    if (!getToken()) router.replace('/prihlasenie');
   }, [router]);
+
+  const ctx = { staff: isStaff(me), manage: canManage(me) };
+  const items = navigation.filter((item) => item.show(ctx));
 
   return (
     <div className="min-h-screen bg-club-50">
       <header className="bg-club-800 text-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-          <div className="flex items-center gap-6">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-6 py-3">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             <Link href="/portal" className="font-semibold">
               FKKNV portál
             </Link>
-            <nav className="flex gap-4 text-sm">
-              {navigation.map((item) => (
+            <nav className="flex flex-wrap gap-4 text-sm">
+              {items.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={pathname === item.href ? 'font-semibold text-white' : 'text-club-200 hover:text-white'}
+                  className={
+                    pathname === item.href ? 'font-semibold text-white' : 'text-club-200 hover:text-white'
+                  }
                 >
                   {item.label}
                 </Link>
