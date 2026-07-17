@@ -14,7 +14,7 @@ export class MatchesService {
     const match = await this.prisma.match.findUnique({
       where: { id },
       include: {
-        event: { include: { teamCategory: true } },
+        event: { include: { team: { include: { teamCategory: true } } } },
         nominations: {
           where: { status: { not: 'REMOVED' } },
           include: { member: { select: { id: true, firstName: true, lastName: true } } },
@@ -108,7 +108,7 @@ export class MatchesService {
       },
     });
 
-    if (input.type === 'GOAL' || input.type === 'GOAL_CONCEDED') {
+    if (['GOAL', 'PENALTY_SCORED', 'GOAL_CONCEDED'].includes(input.type)) {
       await this.recomputeScore(matchId);
     }
     return event;
@@ -122,33 +122,54 @@ export class MatchesService {
     return { deleted: true };
   }
 
-  /** Skóre sa vždy dopočítava z append-only logu udalostí. */
+  /** Skóre sa vždy dopočítava z append-only logu (gól + premenená penalta). */
   private async recomputeScore(matchId: string) {
     const [scoreUs, scoreThem] = await Promise.all([
-      this.prisma.matchEvent.count({ where: { matchId, type: 'GOAL' } }),
+      this.prisma.matchEvent.count({ where: { matchId, type: { in: ['GOAL', 'PENALTY_SCORED'] } } }),
       this.prisma.matchEvent.count({ where: { matchId, type: 'GOAL_CONCEDED' } }),
     ]);
     await this.prisma.match.update({ where: { id: matchId }, data: { scoreUs, scoreThem } });
   }
 
-  /** Štatistiky hráčov kategórie: góly, asistencie, účasť na zápasoch. */
-  async playerStats(categoryCode: string) {
-    const goals = await this.prisma.matchEvent.groupBy({
-      by: ['memberId'],
-      where: {
-        type: 'GOAL',
-        memberId: { not: null },
-        match: { event: { teamCategory: { code: categoryCode } } },
+  /** Štatistiky hráčov: góly a asistencie. Filter podľa kategórie alebo družstva. */
+  async playerStats(filter: { categoryCode?: string; teamId?: string }) {
+    const matchWhere = {
+      event: {
+        team: {
+          id: filter.teamId ? filter.teamId : undefined,
+          teamCategory: filter.categoryCode ? { code: filter.categoryCode } : undefined,
+        },
       },
-      _count: { _all: true },
-    });
+    };
+    const [goals, assists] = await Promise.all([
+      this.prisma.matchEvent.groupBy({
+        by: ['memberId'],
+        where: { type: { in: ['GOAL', 'PENALTY_SCORED'] }, memberId: { not: null }, match: matchWhere },
+        _count: { _all: true },
+      }),
+      this.prisma.matchEvent.groupBy({
+        by: ['memberId'],
+        where: { type: 'ASSIST', memberId: { not: null }, match: matchWhere },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const ids = [...new Set([...goals, ...assists].map((g) => g.memberId!).filter(Boolean))];
     const members = await this.prisma.member.findMany({
-      where: { id: { in: goals.map((g) => g.memberId!).filter(Boolean) } },
+      where: { id: { in: ids } },
       select: { id: true, firstName: true, lastName: true },
     });
-    const nameById = new Map(members.map((m) => [m.id, `${m.firstName} ${m.lastName}`]));
-    return goals
-      .map((g) => ({ memberId: g.memberId, name: nameById.get(g.memberId!) ?? '?', goals: g._count._all }))
-      .sort((a, b) => b.goals - a.goals);
+    const nameById = new Map(members.map((m) => [m.id, `${m.lastName} ${m.firstName}`]));
+    const assistById = new Map(assists.map((a) => [a.memberId, a._count._all]));
+    const goalById = new Map(goals.map((g) => [g.memberId, g._count._all]));
+
+    return ids
+      .map((id) => ({
+        memberId: id,
+        name: nameById.get(id) ?? '?',
+        goals: goalById.get(id) ?? 0,
+        assists: assistById.get(id) ?? 0,
+      }))
+      .sort((a, b) => b.goals - a.goals || b.assists - a.assists);
   }
 }

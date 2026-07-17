@@ -4,7 +4,8 @@ import type { Role } from '@fkknv/shared';
 export interface AuthUser {
   id: string;
   email: string;
-  roles: Array<{ role: Role; teamCategoryId: string | null }>;
+  /** teamId = scope pre COACH (družstvo); null pre ADMIN/MANAGER/PLAYER/PARENT */
+  roles: Array<{ role: Role; teamId: string | null }>;
 }
 
 export const CurrentUser = createParamDecorator((_: unknown, ctx: ExecutionContext): AuthUser => {

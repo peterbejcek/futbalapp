@@ -23,12 +23,15 @@ export class ExcelService {
       where: categoryCode
         ? {
             memberships: {
-              some: { leftAt: null, season: { isActive: true }, teamCategory: { code: categoryCode } },
+              some: { leftAt: null, season: { isActive: true }, team: { teamCategory: { code: categoryCode } } },
             },
           }
         : undefined,
       include: {
-        memberships: { where: { leftAt: null, season: { isActive: true } }, include: { teamCategory: true } },
+        memberships: {
+          where: { leftAt: null, season: { isActive: true } },
+          include: { team: { include: { teamCategory: true } } },
+        },
         guardians: { include: { user: true } },
       },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
@@ -52,7 +55,7 @@ export class ExcelService {
         lastName: member.lastName,
         firstName: member.firstName,
         birthDate: member.birthDate.toLocaleDateString('sk-SK', { timeZone: 'UTC' }),
-        category: member.memberships[0]?.teamCategory.code ?? '',
+        category: member.memberships[0]?.team.teamCategory.code ?? '',
         status: member.status,
         guardian: guardian ? `${guardian.firstName} ${guardian.lastName}` : '',
         email: guardian?.email ?? '',
@@ -74,7 +77,7 @@ export class ExcelService {
             lastName: true,
             memberships: {
               where: { leftAt: null, season: { isActive: true } },
-              include: { teamCategory: { select: { code: true } } },
+              include: { team: { include: { teamCategory: { select: { code: true } } } } },
             },
           },
         },
@@ -100,7 +103,7 @@ export class ExcelService {
       sheet.addRow({
         period: o.periodLabel,
         name: `${o.member.lastName} ${o.member.firstName}`,
-        category: o.member.memberships[0]?.teamCategory.code ?? '',
+        category: o.member.memberships[0]?.team.teamCategory.code ?? '',
         vs: o.variableSymbol,
         amount: o.amountCents / 100,
         paid: o.paidCents / 100,
@@ -125,7 +128,7 @@ export class ExcelService {
     const events = await this.prisma.event.findMany({
       where: {
         type: 'TRAINING',
-        teamCategory: { code: categoryCode },
+        team: { teamCategory: { code: categoryCode } },
         startAt: { gte: from, lte: to },
       },
       include: { attendances: true },
@@ -133,7 +136,7 @@ export class ExcelService {
     });
     const members = await this.prisma.member.findMany({
       where: {
-        memberships: { some: { leftAt: null, season: { isActive: true }, teamCategory: { code: categoryCode } } },
+        memberships: { some: { leftAt: null, season: { isActive: true }, team: { teamCategory: { code: categoryCode } } } },
       },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     });

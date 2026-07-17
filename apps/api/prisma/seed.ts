@@ -65,24 +65,36 @@ async function main() {
     console.log(`Vytvorený admin účet ${adminEmail}`);
   }
 
-  // 4. Komunikačné kanály per kategória + celoklubové oznamy
+  // 4. Predvolené družstvo pre každú kategóriu (jedno, admin môže pridať A/B)
+  //    + 3 podkanály na družstvo (Oznamy / Tréningy / Všeobecné)
   for (const code of CATEGORY_CODES) {
     const category = await prisma.teamCategory.findUniqueOrThrow({ where: { code } });
-    const existing = await prisma.channel.findFirst({
-      where: { type: 'CATEGORY', teamCategoryId: category.id },
-    });
-    if (!existing) {
-      await prisma.channel.create({
-        data: { type: 'CATEGORY', teamCategoryId: category.id, name: `Kategória ${code}` },
+    let team = await prisma.team.findFirst({ where: { teamCategoryId: category.id } });
+    if (!team) {
+      team = await prisma.team.create({
+        data: { teamCategoryId: category.id, name: code, sortOrder: 0 },
       });
     }
-  }
-  const announcements = await prisma.channel.findFirst({ where: { type: 'ANNOUNCEMENT' } });
-  if (!announcements) {
-    await prisma.channel.create({ data: { type: 'ANNOUNCEMENT', name: 'Oznamy klubu' } });
+    const subchannels: Array<{ kind: 'TEAM_ANNOUNCEMENTS' | 'TEAM_TRAINING' | 'TEAM_GENERAL'; name: string }> = [
+      { kind: 'TEAM_ANNOUNCEMENTS', name: `${team.name} · Oznamy` },
+      { kind: 'TEAM_TRAINING', name: `${team.name} · Tréningy` },
+      { kind: 'TEAM_GENERAL', name: `${team.name} · Všeobecné` },
+    ];
+    for (const sc of subchannels) {
+      const exists = await prisma.channel.findFirst({ where: { teamId: team.id, kind: sc.kind } });
+      if (!exists) {
+        await prisma.channel.create({ data: { kind: sc.kind, teamId: team.id, name: sc.name } });
+      }
+    }
   }
 
-  console.log(`Seed hotový: sezóna ${season.name}, ${CATEGORY_CODES.length} kategórií`);
+  // Celoklubový kanál oznamov
+  const clubAnn = await prisma.channel.findFirst({ where: { kind: 'CLUB_ANNOUNCEMENT' } });
+  if (!clubAnn) {
+    await prisma.channel.create({ data: { kind: 'CLUB_ANNOUNCEMENT', name: 'Oznamy klubu' } });
+  }
+
+  console.log(`Seed hotový: sezóna ${season.name}, ${CATEGORY_CODES.length} kategórií (družstvá + podkanály)`);
 }
 
 main()

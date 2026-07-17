@@ -52,7 +52,7 @@ export class ChatGateway implements OnGatewayConnection {
     if (!channel) return { ok: false };
 
     const staff = user.roles.some((r) => r.role === 'ADMIN' || r.role === 'MANAGER');
-    const allowed = staff || channel.type === 'ANNOUNCEMENT' || channel.members.length > 0;
+    const allowed = staff || channel.kind === 'CLUB_ANNOUNCEMENT' || channel.members.length > 0;
     if (!allowed) return { ok: false };
 
     await socket.join(`channel:${body.channelId}`);

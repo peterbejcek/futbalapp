@@ -18,7 +18,7 @@ export class AuthService {
     if (!user?.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
       throw new UnauthorizedException('Nesprávny e-mail alebo heslo');
     }
-    const roles = user.roles.map((r) => ({ role: r.role, teamCategoryId: r.teamCategoryId }));
+    const roles = user.roles.map((r) => ({ role: r.role, teamId: r.teamId }));
     const accessToken = await this.jwtService.signAsync({
       sub: user.id,
       email: user.email,
@@ -40,8 +40,9 @@ export class AuthService {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
       include: {
-        roles: { include: { teamCategory: true } },
+        roles: { include: { team: { include: { teamCategory: true } } } },
         guardianOf: { include: { member: true } },
+        member: { select: { id: true } },
       },
     });
     return {
@@ -49,9 +50,12 @@ export class AuthService {
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
+      memberId: user.member?.id ?? null,
       roles: user.roles.map((r) => ({
         role: r.role,
-        teamCategory: r.teamCategory ? { code: r.teamCategory.code, name: r.teamCategory.name } : null,
+        team: r.team
+          ? { id: r.team.id, name: r.team.name, categoryCode: r.team.teamCategory.code }
+          : null,
       })),
       children: user.guardianOf.map((g) => ({
         id: g.member.id,

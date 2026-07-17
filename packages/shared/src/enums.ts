@@ -22,8 +22,40 @@ export const MATCH_EVENT_TYPES = [
   'RED',
   'NOTE',
   'GOAL_CONCEDED',
+  'FOUL',
+  'SHOT',
+  'CORNER',
+  'PENALTY_SCORED',
+  'PENALTY_MISSED',
 ] as const;
 export type MatchEventType = (typeof MATCH_EVENT_TYPES)[number];
+
+/** Štítky zápasových udalostí pre UI (SK). */
+export const MATCH_EVENT_LABELS_SK: Record<MatchEventType, string> = {
+  GOAL: 'Gól',
+  GOAL_CONCEDED: 'Inkasovaný gól',
+  ASSIST: 'Asistencia',
+  SUB_IN: 'Striedanie ↑',
+  SUB_OUT: 'Striedanie ↓',
+  YELLOW: 'Žltá karta',
+  RED: 'Červená karta',
+  FOUL: 'Faul',
+  SHOT: 'Strela',
+  CORNER: 'Roh',
+  PENALTY_SCORED: 'Premenená penalta',
+  PENALTY_MISSED: 'Nepremenená penalta',
+  NOTE: 'Poznámka',
+};
+
+export const CHANNEL_KINDS = [
+  'TEAM_ANNOUNCEMENTS',
+  'TEAM_TRAINING',
+  'TEAM_GENERAL',
+  'CLUB_ANNOUNCEMENT',
+  'COACHES',
+  'BOARD',
+] as const;
+export type ChannelKind = (typeof CHANNEL_KINDS)[number];
 
 /** Kódy kategórií klubu v poradí od najmladšej. */
 export const CATEGORY_CODES = ['U8', 'U9', 'U10', 'U11', 'U13', 'U15', 'U17', 'U19', 'MUZI'] as const;

@@ -10,8 +10,8 @@ export class MatchesController {
   constructor(private readonly matchesService: MatchesService) {}
 
   @Get('stats')
-  stats(@Query('category') categoryCode: string) {
-    return this.matchesService.playerStats(categoryCode);
+  stats(@Query('category') categoryCode?: string, @Query('team') teamId?: string) {
+    return this.matchesService.playerStats({ categoryCode, teamId });
   }
 
   @Get(':id')

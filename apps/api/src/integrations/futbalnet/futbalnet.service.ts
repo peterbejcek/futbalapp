@@ -81,6 +81,15 @@ export class FutbalnetService {
     const season = await this.prisma.season.findFirst({ where: { isActive: true } });
     if (!season) throw new BadRequestException('Neexistuje aktívna sezóna');
 
+    // futbalnet zápasy patria predvolenému družstvu kategórie
+    const defaultTeam = await this.prisma.team.findFirst({
+      where: { teamCategoryId: category.id },
+      orderBy: { sortOrder: 'asc' },
+    });
+    if (!defaultTeam) {
+      throw new BadRequestException(`Kategória ${categoryCode} nemá žiadne družstvo`);
+    }
+
     const normalizedTeam = teamName.trim().toLowerCase();
     const ours: OurMatch[] = [];
     for (const match of matches) {
@@ -107,7 +116,7 @@ export class FutbalnetService {
           data: {
             type: 'MATCH',
             seasonId: season.id,
-            teamCategoryId: category.id,
+            teamId: defaultTeam.id,
             title,
             startAt: match.startAt,
             location: match.location,

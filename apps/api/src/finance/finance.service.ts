@@ -55,7 +55,7 @@ export class FinanceService {
       where: {
         seasonId: season.id,
         leftAt: null,
-        teamCategoryId: category ? category.id : undefined,
+        team: category ? { teamCategoryId: category.id } : undefined,
         member: { status: 'ACTIVE' },
       },
     });
@@ -213,7 +213,7 @@ export class FinanceService {
             guardians: { include: { user: { select: { email: true, phone: true } } } },
             memberships: {
               where: { leftAt: null, season: { isActive: true } },
-              include: { teamCategory: { select: { code: true } } },
+              include: { team: { include: { teamCategory: { select: { code: true } } } } },
             },
           },
         },

@@ -53,15 +53,16 @@ model PushToken {
 }
 
 model UserRole {
-  id             String        @id @default(cuid())
-  userId         String
-  role           Role
-  teamCategoryId String?
+  id     String  @id @default(cuid())
+  userId String
+  role   Role
+  /// Scope pre COACH: družstvo, ktoré trénuje. ADMIN/MANAGER = null (celý klub).
+  teamId String?
 
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  teamCategory   TeamCategory? @relation(fields: [teamCategoryId], references: [id])
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team? @relation(fields: [teamId], references: [id])
 
-  @@unique([userId, role, teamCategoryId])
+  @@unique([userId, role, teamId])
 }
 
 // ---------------------------------------------------------------------------
@@ -174,12 +175,26 @@ model TeamCategory {
   /// Názov tímu na futbalnete (na rozpoznanie domáci/hostia), napr. "FK Košická Nová Ves"
   futbalnetTeamName       String?
 
-  rules       CategoryRule[]
-  memberships TeamMembership[]
-  userRoles   UserRole[]
-  feePlans    FeePlan[]
-  events      Event[]
-  channels    Channel[]
+  rules    CategoryRule[]
+  feePlans FeePlan[]
+  teams    Team[]
+}
+
+/// Družstvo pod vekovou kategóriou (napr. "U10 A", "U10 B").
+/// Pri jednom družstve na kategóriu sa volá jednoducho podľa kódu ("U10").
+model Team {
+  id             String @id @default(cuid())
+  teamCategoryId String
+  name           String
+  sortOrder      Int    @default(0)
+
+  teamCategory TeamCategory     @relation(fields: [teamCategoryId], references: [id])
+  memberships  TeamMembership[]
+  userRoles    UserRole[]
+  events       Event[]
+  channels     Channel[]
+
+  @@unique([teamCategoryId, name])
 }
 
 model CategoryRule {
@@ -196,17 +211,17 @@ model CategoryRule {
 }
 
 model TeamMembership {
-  id             String    @id @default(cuid())
-  memberId       String
-  seasonId       String
-  teamCategoryId String
-  isException    Boolean   @default(false)
-  joinedAt       DateTime  @default(now())
-  leftAt         DateTime?
+  id          String    @id @default(cuid())
+  memberId    String
+  seasonId    String
+  teamId      String
+  isException Boolean   @default(false)
+  joinedAt    DateTime  @default(now())
+  leftAt      DateTime?
 
-  member       Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  season       Season       @relation(fields: [seasonId], references: [id])
-  teamCategory TeamCategory @relation(fields: [teamCategoryId], references: [id])
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  season Season @relation(fields: [seasonId], references: [id])
+  team   Team   @relation(fields: [teamId], references: [id])
 
   @@unique([memberId, seasonId])
 }
@@ -366,25 +381,29 @@ enum Rsvp {
 }
 
 model Event {
-  id             String      @id @default(cuid())
-  type           EventType
-  seasonId       String
-  teamCategoryId String?
-  title          String
-  startAt        DateTime
-  endAt          DateTime?
-  location       String?
-  source         EventSource @default(INTERNAL)
-  futbalnetId    String?     @unique
-  createdById    String?
-  createdAt      DateTime    @default(now())
+  id       String    @id @default(cuid())
+  type     EventType
+  seasonId String
+  /// null = celoklubová udalosť (bez konkrétneho družstva)
+  teamId   String?
+  title    String
+  startAt  DateTime
+  endAt    DateTime?
+  location String?
+  source   EventSource @default(INTERNAL)
+  futbalnetId String?  @unique
+  /// Spoločné ID pre všetky výskyty opakovaného tréningu (napr. utorky+piatky)
+  recurrenceGroupId String?
+  createdById String?
+  createdAt   DateTime @default(now())
 
-  season       Season        @relation(fields: [seasonId], references: [id])
-  teamCategory TeamCategory? @relation(fields: [teamCategoryId], references: [id])
-  attendances  Attendance[]
-  match        Match?
+  season      Season       @relation(fields: [seasonId], references: [id])
+  team        Team?        @relation(fields: [teamId], references: [id])
+  attendances Attendance[]
+  match       Match?
 
-  @@index([teamCategoryId, startAt])
+  @@index([teamId, startAt])
+  @@index([recurrenceGroupId])
 }
 
 model Attendance {
@@ -425,6 +444,11 @@ enum MatchEventType {
   RED
   NOTE
   GOAL_CONCEDED
+  FOUL
+  SHOT
+  CORNER
+  PENALTY_SCORED
+  PENALTY_MISSED
 }
 
 model Match {
@@ -481,24 +505,27 @@ model MatchEvent {
 // Komunikácia
 // ---------------------------------------------------------------------------
 
-enum ChannelType {
-  CATEGORY
-  COACHES
-  BOARD
-  ANNOUNCEMENT
-  DIRECT
+enum ChannelKind {
+  TEAM_ANNOUNCEMENTS // Oznamy družstva — píše len tréner/vedenie
+  TEAM_TRAINING      // Tréningy — organizácia tréningov
+  TEAM_GENERAL       // Všeobecné — diskusia rodičov/hráčov
+  CLUB_ANNOUNCEMENT  // Celoklubové oznamy — píše len vedenie
+  COACHES            // Interné pre trénerov
+  BOARD              // Interné pre vedenie
 }
 
 model Channel {
-  id             String      @id @default(cuid())
-  type           ChannelType
-  teamCategoryId String?
-  name           String
-  createdAt      DateTime    @default(now())
+  id        String      @id @default(cuid())
+  kind      ChannelKind
+  teamId    String?
+  name      String
+  createdAt DateTime    @default(now())
 
-  teamCategory TeamCategory?   @relation(fields: [teamCategoryId], references: [id])
-  members      ChannelMember[]
-  messages     Message[]
+  team     Team?           @relation(fields: [teamId], references: [id])
+  members  ChannelMember[]
+  messages Message[]
+
+  @@index([teamId])
 }
 
 model ChannelMember {

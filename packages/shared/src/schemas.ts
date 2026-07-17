@@ -42,7 +42,7 @@ export type CreateMemberInput = z.infer<typeof createMemberSchema>;
 export const createEventSchema = z.object({
   type: z.enum(EVENT_TYPES),
   title: z.string().min(2).max(120),
-  teamCategoryCode: z.string().optional(),
+  teamId: z.string().optional(), // null/prázdne = celoklubová udalosť
   startAt: z.coerce.date(),
   endAt: z.coerce.date().optional(),
   location: z.string().max(200).optional(),
@@ -50,6 +50,24 @@ export const createEventSchema = z.object({
   isHome: z.boolean().optional(),
 });
 export type CreateEventInput = z.infer<typeof createEventSchema>;
+
+export const createRecurringTrainingSchema = z.object({
+  title: z.string().min(2).max(120),
+  teamId: z.string().min(1),
+  weekdays: z.array(z.number().int().min(0).max(6)).min(1),
+  startTime: z.string().regex(/^\d{1,2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{1,2}:\d{2}$/).optional(),
+  from: z.coerce.date(),
+  until: z.coerce.date(),
+  location: z.string().max(200).optional(),
+});
+export type CreateRecurringTrainingInput = z.infer<typeof createRecurringTrainingSchema>;
+
+export const createTeamSchema = z.object({
+  teamCategoryCode: z.string().min(1),
+  name: z.string().min(1).max(60),
+});
+export type CreateTeamInput = z.infer<typeof createTeamSchema>;
 
 export const markAttendanceSchema = z.object({
   memberId: z.string(),
@@ -69,6 +87,6 @@ export type MatchEventInput = z.infer<typeof matchEventSchema>;
 
 export const assignRoleSchema = z.object({
   role: z.enum(ROLES),
-  teamCategoryCode: z.string().optional(),
+  teamId: z.string().optional(), // scope pre COACH
 });
 export type AssignRoleInput = z.infer<typeof assignRoleSchema>;

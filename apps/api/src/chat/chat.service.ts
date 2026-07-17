@@ -3,10 +3,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../notifications/push.service';
 import { ChatGateway } from './chat.gateway';
 import type { AuthUser } from '../auth/current-user.decorator';
+import { isStaff } from '../auth/scope';
 
-function isStaff(user: AuthUser): boolean {
-  return user.roles.some((r) => r.role === 'ADMIN' || r.role === 'MANAGER');
-}
+/** Do týchto kanálov píše iba vedenie / tréner (moderátor); ostatní len čítajú. */
+const READ_ONLY_FOR_MEMBERS = new Set(['TEAM_ANNOUNCEMENTS', 'CLUB_ANNOUNCEMENT']);
+/** Interné kanály len pre daný okruh. */
+const STAFF_ONLY = new Set(['COACHES', 'BOARD']);
 
 @Injectable()
 export class ChatService {
@@ -16,30 +18,40 @@ export class ChatService {
     @Inject(forwardRef(() => ChatGateway)) private readonly chatGateway: ChatGateway,
   ) {}
 
-  /** Kanály, do ktorých má používateľ prístup. Vedenie vidí všetky. */
+  /** Kanály, do ktorých má používateľ prístup, zoskupené podľa družstva. */
   async myChannels(user: AuthUser) {
+    const staff = isStaff(user);
     const channels = await this.prisma.channel.findMany({
-      where: isStaff(user)
+      where: staff
         ? {}
         : {
             OR: [
-              { type: 'ANNOUNCEMENT' }, // oznamy číta každý prihlásený
+              { kind: 'CLUB_ANNOUNCEMENT' }, // celoklubové oznamy číta každý prihlásený
               { members: { some: { userId: user.id } } },
             ],
           },
       include: {
-        teamCategory: { select: { code: true } },
+        team: { include: { teamCategory: { select: { code: true, sortOrder: true } } } },
         messages: { orderBy: { createdAt: 'desc' }, take: 1, select: { body: true, createdAt: true } },
       },
-      orderBy: [{ type: 'asc' }, { name: 'asc' }],
     });
-    return channels.map((channel) => ({
-      id: channel.id,
-      type: channel.type,
-      name: channel.name,
-      categoryCode: channel.teamCategory?.code ?? null,
-      lastMessage: channel.messages[0] ?? null,
-    }));
+    return channels
+      .map((channel) => ({
+        id: channel.id,
+        kind: channel.kind,
+        name: channel.name,
+        teamId: channel.teamId,
+        teamName: channel.team?.name ?? null,
+        categoryCode: channel.team?.teamCategory.code ?? null,
+        categorySort: channel.team?.teamCategory.sortOrder ?? -1,
+        lastMessage: channel.messages[0] ?? null,
+      }))
+      .sort(
+        (a, b) =>
+          a.categorySort - b.categorySort ||
+          (a.teamName ?? '').localeCompare(b.teamName ?? '') ||
+          a.name.localeCompare(b.name),
+      );
   }
 
   private async assertAccess(channelId: string, user: AuthUser, forPosting: boolean) {
@@ -52,15 +64,21 @@ export class ChatService {
     const membership = channel.members[0];
     const staff = isStaff(user);
 
-    if (channel.type === 'ANNOUNCEMENT') {
-      // čítať môže každý prihlásený, písať len vedenie a moderátori
-      if (forPosting && !staff && !membership?.isModerator) {
-        throw new ForbiddenException('Do oznamov môže písať len vedenie klubu');
-      }
+    if (STAFF_ONLY.has(channel.kind)) {
+      if (!staff && !membership) throw new ForbiddenException('Nemáte prístup k tomuto kanálu');
       return channel;
     }
-    if (!staff && !membership) {
-      throw new ForbiddenException('Nie ste členom tohto kanála');
+
+    if (channel.kind === 'CLUB_ANNOUNCEMENT') {
+      if (forPosting && !staff) throw new ForbiddenException('Do oznamov klubu môže písať len vedenie');
+      return channel; // čítať môže každý prihlásený
+    }
+
+    // tímové kanály: musí byť členom (alebo vedenie)
+    if (!staff && !membership) throw new ForbiddenException('Nie ste členom tohto kanála');
+
+    if (forPosting && READ_ONLY_FOR_MEMBERS.has(channel.kind) && !staff && !membership?.isModerator) {
+      throw new ForbiddenException('Do oznamov družstva môže písať len tréner alebo vedenie');
     }
     return channel;
   }
@@ -83,12 +101,8 @@ export class ChatService {
       include: { sender: { select: { id: true, firstName: true, lastName: true } } },
     });
 
-    // realtime doručenie pripojeným klientom
     this.chatGateway.broadcastMessage(channelId, message);
 
-    // Push ostatným členom kanála (odosielateľ notifikáciu nedostane).
-    // Zámerne bez await v ceste odpovede by hrozila strata chýb — radšej
-    // počkáme, PushService nikdy nevyhodí výnimku.
     const members = await this.prisma.channelMember.findMany({
       where: { channelId, userId: { not: user.id }, muted: false },
       select: { userId: true },
@@ -106,8 +120,8 @@ export class ChatService {
   }
 
   /**
-   * Prepočíta členstvo v kategóriových kanáloch podľa aktuálnej sezóny:
-   * rodičia členov kategórie + hráči s vlastným účtom + tréneri kategórie
+   * Prepočíta členstvo v tímových kanáloch podľa aktuálnej sezóny:
+   * rodičia hráčov družstva + hráči s vlastným účtom + tréneri družstva
    * (ako moderátori). Volá sa po zmene súpisiek alebo prechode na novú sezónu.
    */
   async syncCategoryChannels() {
@@ -115,13 +129,13 @@ export class ChatService {
     if (!season) return { synced: 0 };
 
     const channels = await this.prisma.channel.findMany({
-      where: { type: 'CATEGORY', teamCategoryId: { not: null } },
+      where: { teamId: { not: null } },
     });
 
     let synced = 0;
     for (const channel of channels) {
       const memberships = await this.prisma.teamMembership.findMany({
-        where: { seasonId: season.id, teamCategoryId: channel.teamCategoryId!, leftAt: null },
+        where: { seasonId: season.id, teamId: channel.teamId!, leftAt: null },
         include: { member: { include: { guardians: true } } },
       });
 
@@ -131,7 +145,7 @@ export class ChatService {
         for (const guardian of m.member.guardians) userIds.set(guardian.userId, false);
       }
       const coaches = await this.prisma.userRole.findMany({
-        where: { role: 'COACH', teamCategoryId: channel.teamCategoryId },
+        where: { role: 'COACH', teamId: channel.teamId },
       });
       for (const coach of coaches) userIds.set(coach.userId, true);
 
