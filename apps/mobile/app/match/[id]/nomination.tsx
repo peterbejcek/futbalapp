@@ -12,7 +12,7 @@ interface MemberRow {
 
 interface MatchDetail {
   id: string;
-  event: { teamCategory: { code: string } | null };
+  event: { team: { id: string } | null };
   nominations: Array<{ member: { id: string } }>;
 }
 
@@ -24,9 +24,9 @@ export default function NominationScreen() {
   const load = useCallback(async () => {
     const match = await api<MatchDetail>(`/matches/${id}`);
     setNominated(new Set(match.nominations.map((n) => n.member.id)));
-    const code = match.event.teamCategory?.code;
-    if (code) {
-      setMembers(await api<MemberRow[]>(`/members?category=${code}`));
+    const teamId = match.event.team?.id;
+    if (teamId) {
+      setMembers(await api<MemberRow[]>(`/members?team=${teamId}`));
     }
   }, [id]);
 

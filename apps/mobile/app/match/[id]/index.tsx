@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Link, useLocalSearchParams } from 'expo-router';
 import * as Crypto from 'expo-crypto';
+import { MATCH_EVENT_LABELS_SK, type MatchEventType } from '@fkknv/shared';
 import { api } from '@/api';
 import { enqueue, flush } from '@/offline';
 import { colors } from '@/theme';
@@ -25,21 +26,16 @@ interface MatchDetail {
   scoreUs: number | null;
   scoreThem: number | null;
   state: string;
-  event: { title: string; startAt: string; teamCategory: { code: string } | null };
+  event: { title: string; startAt: string; team: { name: string } | null };
   nominations: Nomination[];
   events: MatchEventRow[];
 }
 
-const eventLabels: Record<string, string> = {
-  GOAL: '⚽ Gól',
-  GOAL_CONCEDED: '⚽ Gól súpera',
-  ASSIST: 'Asistencia',
-  YELLOW: '🟨 ŽK',
-  RED: '🟥 ČK',
-  SUB_IN: '↑ Striedanie',
-  SUB_OUT: '↓ Striedanie',
-  NOTE: 'Poznámka',
-};
+const eventLabels: Record<string, string> = MATCH_EVENT_LABELS_SK;
+
+// akcie viazané na hráča vs tímové
+const PLAYER_ACTIONS: MatchEventType[] = ['GOAL', 'ASSIST', 'PENALTY_SCORED', 'PENALTY_MISSED', 'YELLOW', 'RED', 'FOUL', 'SHOT'];
+const TEAM_ACTIONS: MatchEventType[] = ['GOAL_CONCEDED', 'CORNER'];
 
 export default function MatchLiveScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -163,19 +159,22 @@ export default function MatchLiveScreen() {
             </Pressable>
           </View>
 
+          {selected && (
+            <Text style={styles.selectedHint}>
+              Vybraný: {selected.member.lastName} — ťuknite na akciu hráča
+            </Text>
+          )}
           <View style={styles.actionsGrid}>
-            <Pressable style={styles.actionBtn} onPress={() => record('GOAL', true)}>
-              <Text style={styles.actionText}>⚽ Gól{selected ? ` — ${selected.member.lastName}` : ''}</Text>
-            </Pressable>
-            <Pressable style={styles.actionBtn} onPress={() => record('GOAL_CONCEDED', false)}>
-              <Text style={styles.actionText}>⚽ Gól súpera</Text>
-            </Pressable>
-            <Pressable style={styles.actionBtn} onPress={() => record('YELLOW', true)}>
-              <Text style={styles.actionText}>🟨 Žltá</Text>
-            </Pressable>
-            <Pressable style={styles.actionBtn} onPress={() => record('RED', true)}>
-              <Text style={styles.actionText}>🟥 Červená</Text>
-            </Pressable>
+            {PLAYER_ACTIONS.map((t) => (
+              <Pressable key={t} style={styles.actionBtn} onPress={() => record(t, true)}>
+                <Text style={styles.actionText}>{eventLabels[t]}</Text>
+              </Pressable>
+            ))}
+            {TEAM_ACTIONS.map((t) => (
+              <Pressable key={t} style={[styles.actionBtn, styles.teamActionBtn]} onPress={() => record(t, false)}>
+                <Text style={styles.actionText}>{eventLabels[t]}</Text>
+              </Pressable>
+            ))}
           </View>
 
           <Text style={styles.sectionTitle}>Nominácia — ťuknutím vyberte hráča</Text>
@@ -243,6 +242,7 @@ const styles = StyleSheet.create({
   },
   minuteBtnText: { fontSize: 24, color: colors.club800, fontWeight: '700' },
   minuteText: { fontSize: 20, fontWeight: '700', color: colors.club900, minWidth: 80, textAlign: 'center' },
+  selectedHint: { textAlign: 'center', color: colors.club700, marginBottom: 8, fontSize: 13 },
   actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   actionBtn: {
     flexBasis: '48%',
@@ -251,10 +251,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.club100,
     borderRadius: 8,
-    padding: 16,
+    paddingVertical: 12,
     alignItems: 'center',
   },
-  actionText: { fontWeight: '700', color: colors.club900 },
+  teamActionBtn: { backgroundColor: colors.club50 },
+  actionText: { fontWeight: '700', color: colors.club900, fontSize: 13 },
   sectionTitle: { fontSize: 14, fontWeight: '700', color: colors.club800, marginTop: 8, marginBottom: 8 },
   playerRow: {
     flexDirection: 'row',
