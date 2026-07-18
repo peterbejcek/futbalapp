@@ -13,6 +13,7 @@ Klubový portál pre mládežnícky futbalový klub **FK Košická Nová Ves** n
 | [docs/05-plan-vyvoja.md](docs/05-plan-vyvoja.md) | Fázy vývoja, míľniky, harmonogram, prevádzka |
 | [docs/06-bezpecnost-a-gdpr.md](docs/06-bezpecnost-a-gdpr.md) | Bezpečnosť, GDPR (údaje detí), zálohovanie |
 | [docs/07-deployment.md](docs/07-deployment.md) | Deployment krok po kroku — VPS, Vercel, EAS/store, zálohy |
+| [docs/08-roly-a-opravnenia.md](docs/08-roly-a-opravnenia.md) | Roly, oprávnenia, družstvá, podkanály — dohodnuté rozhodnutia |
 
 ## Rýchle vyskúšanie (stačí Docker)
 
