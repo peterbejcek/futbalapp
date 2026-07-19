@@ -52,7 +52,8 @@ export default function ChatScreen() {
       socket = io(`${apiOrigin()}/chat`, { auth: { token }, transports: ['websocket'] });
       socket.emit('join', { channelId: id });
       socket.on('message', (message: Message) => {
-        if (message.channelId && message.channelId !== id) return;
+        // striktne len správy tohto kanála (server posiela channelId vždy)
+        if (message.channelId !== id) return;
         setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
         listRef.current?.scrollToEnd({ animated: true });
       });
@@ -72,7 +73,8 @@ export default function ChatScreen() {
         method: 'POST',
         body: JSON.stringify({ body }),
       });
-      setMessages((prev) => [...prev, message]);
+      // WS broadcast mohol tú istú správu doručiť skôr — nepridávaj ju druhýkrát
+      setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
       listRef.current?.scrollToEnd({ animated: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Odoslanie zlyhalo');

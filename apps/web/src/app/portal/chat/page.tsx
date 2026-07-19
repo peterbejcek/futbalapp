@@ -37,6 +37,7 @@ function groupChannels(channels: Channel[]) {
 
 interface Message {
   id: string;
+  channelId?: string;
   body: string;
   createdAt: string;
   sender: { id: string; firstName: string; lastName: string };
@@ -50,6 +51,18 @@ export default function ChatPage() {
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+  // aktuálny kanál dostupný aj v async callbackoch (send/fetch môžu
+  // dobehnúť až po prepnutí kanála — vtedy ich výsledok nesmieme zobraziť)
+  const activeIdRef = useRef<string | null>(null);
+  activeIdRef.current = activeId;
+
+  /** Pridá správu, len ak patrí do práve zobrazeného kanála a ešte tam nie je.
+   *  Rieši duplicitu (WS broadcast + REST odpoveď doručia tú istú správu)
+   *  aj únik správy do iného kanála po rýchlom prepnutí. */
+  const appendMessage = useCallback((message: Message, channelId: string) => {
+    if (activeIdRef.current !== channelId) return;
+    setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
+  }, []);
 
   useEffect(() => {
     api<Channel[]>('/chat/channels')
@@ -63,7 +76,10 @@ export default function ChatPage() {
   const loadMessages = useCallback(async () => {
     if (!activeId) return;
     try {
-      setMessages(await api<Message[]>(`/chat/channels/${activeId}/messages`));
+      const list = await api<Message[]>(`/chat/channels/${activeId}/messages`);
+      // odpoveď mohla dobehnúť až po prepnutí na iný kanál — vtedy ju zahodíme
+      if (activeIdRef.current !== activeId) return;
+      setMessages(list);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Načítanie zlyhalo');
@@ -80,23 +96,23 @@ export default function ChatPage() {
     };
   }, []);
 
-  // pri zmene kanála: načítaj históriu, prihlás sa na realtime správy
+  // pri zmene kanála: vyčisti zoznam, načítaj históriu, prihlás sa na realtime
   useEffect(() => {
+    setMessages([]); // nech sa pod novým kanálom nezobrazujú správy predchádzajúceho
     void loadMessages();
     const socket = socketRef.current;
     if (!socket || !activeId) return;
 
     socket.emit('join', { channelId: activeId });
     const onMessage = (message: Message & { channelId: string }) => {
-      if (message.channelId !== activeId) return;
-      setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
+      appendMessage(message, message.channelId);
     };
     socket.on('message', onMessage);
     return () => {
       socket.off('message', onMessage);
       socket.emit('leave', { channelId: activeId });
     };
-  }, [loadMessages, activeId]);
+  }, [loadMessages, activeId, appendMessage]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -106,13 +122,14 @@ export default function ChatPage() {
     e.preventDefault();
     const body = text.trim();
     if (!body || !activeId) return;
+    const channelId = activeId; // kanál v momente odoslania
     setText('');
     try {
-      const message = await api<Message>(`/chat/channels/${activeId}/messages`, {
+      const message = await api<Message>(`/chat/channels/${channelId}/messages`, {
         method: 'POST',
         body: JSON.stringify({ body }),
       });
-      setMessages((prev) => [...prev, message]);
+      appendMessage(message, channelId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Odoslanie zlyhalo');
       setText(body);
