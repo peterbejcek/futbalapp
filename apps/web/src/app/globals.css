@@ -1,18 +1,28 @@
 @import 'tailwindcss';
 
-/* Klubové farby FK Košická Nová Ves — zelená/biela identita */
+/* Klubové farby FK Košická Nová Ves — navy modrá / červená / biela (podľa erbu).
+   Token "club" nesie navy ramp (primárna farba portálu), "brandred" červený akcent. */
 @theme {
-  --color-club-50: #f0f9f1;
-  --color-club-100: #dcf0de;
-  --color-club-200: #bbe1c0;
-  --color-club-300: #8dcb97;
-  --color-club-400: #5aae68;
-  --color-club-500: #379247;
-  --color-club-600: #277536;
-  --color-club-700: #1f5d2c;
-  --color-club-800: #1b4a25;
-  --color-club-900: #163d20;
-  --color-club-950: #0b2211;
+  --color-club-50: #eef2f9;
+  --color-club-100: #d9e1f0;
+  --color-club-200: #b6c6e1;
+  --color-club-300: #8aa2cc;
+  --color-club-400: #5c78b0;
+  --color-club-500: #3a5793;
+  --color-club-600: #2b4278;
+  --color-club-700: #223360;
+  --color-club-800: #1a2848;
+  --color-club-900: #16223c;
+  --color-club-950: #0d1526;
+
+  --color-brandred-50: #fdebec;
+  --color-brandred-100: #fbd5d8;
+  --color-brandred-200: #f6acb2;
+  --color-brandred-300: #f07d86;
+  --color-brandred-400: #e84e5a;
+  --color-brandred-500: #d81f2a;
+  --color-brandred-600: #c01822;
+  --color-brandred-700: #9c141c;
 }
 
 body {

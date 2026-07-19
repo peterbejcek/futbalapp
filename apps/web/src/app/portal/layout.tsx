@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
@@ -37,10 +38,11 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="min-h-screen bg-club-50">
-      <header className="bg-club-800 text-white">
+      <header className="bg-club-900 text-white">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-6 py-3">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-            <Link href="/portal" className="font-semibold">
+            <Link href="/portal" className="flex items-center gap-2 font-semibold">
+              <Image src="/logo.png" alt="FKKNV" width={24} height={38} className="h-8 w-auto" />
               FKKNV portál
             </Link>
             <nav className="flex flex-wrap gap-4 text-sm">

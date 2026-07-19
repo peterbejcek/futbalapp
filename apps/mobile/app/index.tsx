@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { api, getToken, setToken } from '@/api';
 import { colors } from '@/theme';
+
+const logo = require('../assets/logo.png');
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -46,6 +48,7 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
+      <Image source={logo} style={styles.logo} resizeMode="contain" />
       <Text style={styles.title}>Prihlásenie do portálu</Text>
       <TextInput
         style={styles.input}
@@ -73,6 +76,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.club50, padding: 24, justifyContent: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  logo: { width: 110, height: 176, alignSelf: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: '700', color: colors.club900, marginBottom: 24, textAlign: 'center' },
   input: {
     backgroundColor: colors.white,

@@ -1,13 +1,14 @@
-/** Klubové farby FK Košická Nová Ves — zdieľané s webom (packages/ui-tokens v budúcnosti). */
+/** Klubové farby FK Košická Nová Ves — navy modrá / červená / biela (podľa erbu). */
 export const colors = {
-  club50: '#f0f9f1',
-  club100: '#dcf0de',
-  club500: '#379247',
-  club600: '#277536',
-  club700: '#1f5d2c',
-  club800: '#1b4a25',
-  club900: '#163d20',
+  club50: '#eef2f9',
+  club100: '#d9e1f0',
+  club500: '#3a5793',
+  club600: '#2b4278',
+  club700: '#223360',
+  club800: '#1a2848',
+  club900: '#16223c',
   white: '#ffffff',
   gray: '#6b7280',
-  danger: '#b91c1c',
+  danger: '#d81f2a', // klubová červená
+  red: '#d81f2a',
 };

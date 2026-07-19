@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "backgroundColor": "#1b4a25"
+      "backgroundColor": "#16223c"
     },
     "ios": {
       "bundleIdentifier": "sk.fkknv.app",
@@ -16,13 +16,13 @@
     "android": {
       "package": "sk.fkknv.app",
       "adaptiveIcon": {
-        "backgroundColor": "#1b4a25"
+        "backgroundColor": "#16223c"
       }
     },
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      ["expo-notifications", { "color": "#1b4a25" }]
+      ["expo-notifications", { "color": "#16223c" }]
     ],
     "extra": {
       "apiUrl": "https://api.fkknv.sk/api/v1"
