@@ -87,7 +87,9 @@ model Member {
   memberSeq      Int          @unique @default(autoincrement())
   firstName      String
   lastName       String
-  birthDate      DateTime
+  /// Voliteľné — hráči majú dátum narodenia (zaradenie do kategórie),
+  /// nehráčski členovia (rodič, tréner) nemusia.
+  birthDate      DateTime?
   status         MemberStatus @default(ACTIVE)
   futbalnetId    String?      @unique
   healthNotes    String?

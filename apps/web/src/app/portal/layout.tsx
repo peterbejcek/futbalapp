@@ -61,9 +61,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           </div>
           <div className="flex items-center gap-4 text-sm">
             {me && (
-              <span className="text-club-100">
+              <Link href="/portal/heslo" className="text-club-100 hover:text-white" title="Zmena hesla">
                 {me.firstName} {me.lastName}
-              </span>
+              </Link>
             )}
             <button
               onClick={() => {

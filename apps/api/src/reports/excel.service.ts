@@ -54,7 +54,7 @@ export class ExcelService {
       sheet.addRow({
         lastName: member.lastName,
         firstName: member.firstName,
-        birthDate: member.birthDate.toLocaleDateString('sk-SK', { timeZone: 'UTC' }),
+        birthDate: member.birthDate ? member.birthDate.toLocaleDateString('sk-SK', { timeZone: 'UTC' }) : '',
         category: member.memberships[0]?.team.teamCategory.code ?? '',
         status: member.status,
         guardian: guardian ? `${guardian.firstName} ${guardian.lastName}` : '',

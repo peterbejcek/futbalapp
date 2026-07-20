@@ -70,14 +70,15 @@ export class SeasonsService {
       }));
 
     const members = await this.prisma.member.findMany({
-      where: { status: 'ACTIVE' },
+      // len hráči (majú dátum narodenia); rodičia/tréneri bez dátumu sa nezaraďujú
+      where: { status: 'ACTIVE', birthDate: { not: null } },
       include: { memberships: { where: { seasonId }, include: { team: true } } },
     });
 
     const result = { assigned: 0, unchanged: 0, skippedExceptions: 0, unmatched: [] as string[] };
 
     for (const member of members) {
-      const code = categoryForBirthDate(member.birthDate, rules);
+      const code = categoryForBirthDate(member.birthDate!, rules);
       const rule = rules.find((r) => r.categoryCode === code);
       if (!code || !rule || !rule.defaultTeamId) {
         result.unmatched.push(`${member.firstName} ${member.lastName}`);

@@ -20,10 +20,16 @@ interface RegRequest {
   createdAt: string;
 }
 
+interface ApprovedResult {
+  child: { firstName: string; lastName: string };
+  parent: { email: string; tempPassword: string | null; accountCreated: boolean };
+}
+
 export default function RegistrationsPage() {
   const [requests, setRequests] = useState<RegRequest[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [approved, setApproved] = useState<ApprovedResult | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -41,7 +47,15 @@ export default function RegistrationsPage() {
   async function decide(id: string, action: 'approve' | 'reject') {
     setBusyId(id);
     try {
-      await api(`/registration/${id}/${action}`, { method: 'POST' });
+      if (action === 'approve') {
+        const res = await api<{
+          child: { firstName: string; lastName: string };
+          parent: { email: string; tempPassword: string | null; accountCreated: boolean };
+        }>(`/registration/${id}/approve`, { method: 'POST' });
+        if (res.parent.tempPassword) setApproved(res);
+      } else {
+        await api(`/registration/${id}/reject`, { method: 'POST' });
+      }
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Akcia zlyhala');
@@ -54,6 +68,20 @@ export default function RegistrationsPage() {
     <div className="space-y-5">
       <h1 className="text-2xl font-bold text-club-900">Registrácie na schválenie</h1>
       <ErrorText>{error}</ErrorText>
+      {approved && (
+        <Card className="border-club-300 bg-club-50">
+          <p className="text-sm text-gray-700">
+            Schválené: <strong>{approved.child.firstName} {approved.child.lastName}</strong>. Rodičovi{' '}
+            <strong>{approved.parent.email}</strong> bolo vytvorené konto. Odovzdajte mu dočasné heslo:
+          </p>
+          <div className="mt-2 flex items-center justify-between">
+            <code className="text-lg font-bold tracking-wider text-club-800">{approved.parent.tempPassword}</code>
+            <button onClick={() => setApproved(null)} className="text-sm text-club-600 hover:underline">
+              Zavrieť
+            </button>
+          </div>
+        </Card>
+      )}
       {requests.length === 0 && !error && (
         <Card className="text-sm text-gray-500">Žiadne čakajúce prihlášky. 🎉</Card>
       )}

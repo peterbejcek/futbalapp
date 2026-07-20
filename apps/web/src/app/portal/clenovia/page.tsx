@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
-import { isStaff, useMe } from '@/lib/auth';
+import { isAdmin, isStaff, useMe } from '@/lib/auth';
 import { Button, Card, ErrorText, Modal, inputCls, labelCls } from '@/components/ui';
 
 interface Guardian {
@@ -13,17 +13,34 @@ interface MemberRow {
   id: string;
   firstName: string;
   lastName: string;
-  birthDate: string;
+  birthDate: string | null;
   status: string;
   futbalnetId?: string | null;
   healthNotes?: string | null;
-  memberships: Array<{ team: { name: string; teamCategory: { code: string } } }>;
+  memberships: Array<{ team: { id: string; name: string; teamCategory: { code: string } } }>;
+  user: { id: string; email: string; roles: Array<{ role: string; teamId: string | null }> } | null;
   guardians: Guardian[];
 }
 interface Team {
   id: string;
   name: string;
   teamCategory: { code: string };
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  PLAYER: 'Hráč',
+  PARENT: 'Rodič',
+  COACH: 'Tréner',
+  MANAGER: 'Vedúci klubu',
+  ADMIN: 'Admin',
+};
+
+/** Funkcia člena z rolí konta; hráč bez konta = Hráč podľa družstva. */
+function memberFunctions(m: MemberRow): string[] {
+  const roles = m.user?.roles.map((r) => r.role) ?? [];
+  const labels = roles.map((r) => ROLE_LABELS[r] ?? r);
+  if (labels.length === 0 && m.memberships.length > 0) return ['Hráč'];
+  return labels.length ? labels : ['—'];
 }
 
 function MembersTable() {
@@ -82,10 +99,11 @@ function MembersTable() {
         <table className="w-full text-sm">
           <thead className="bg-club-50 text-left text-club-800">
             <tr>
-              <th className="px-4 py-3">Hráč</th>
+              <th className="px-4 py-3">Meno</th>
+              <th className="px-4 py-3">Funkcia</th>
               <th className="px-4 py-3">Ročník</th>
               <th className="px-4 py-3">Družstvo</th>
-              <th className="px-4 py-3">Rodič / kontakt</th>
+              <th className="px-4 py-3">Konto</th>
               <th className="px-4 py-3">Stav</th>
               <th className="px-4 py-3"></th>
             </tr>
@@ -96,13 +114,18 @@ function MembersTable() {
                 <td className="px-4 py-3 font-medium">
                   {m.lastName} {m.firstName}
                 </td>
-                <td className="px-4 py-3">{new Date(m.birthDate).getFullYear()}</td>
-                <td className="px-4 py-3">{m.memberships[0]?.team.name ?? '—'}</td>
-                <td className="px-4 py-3 text-gray-600">
-                  {m.guardians[0]
-                    ? `${m.guardians[0].user.firstName} ${m.guardians[0].user.lastName} · ${m.guardians[0].user.email}`
-                    : '—'}
+                <td className="px-4 py-3">
+                  <span className="flex flex-wrap gap-1">
+                    {memberFunctions(m).map((f, i) => (
+                      <span key={i} className="rounded bg-club-100 px-1.5 py-0.5 text-xs text-club-800">
+                        {f}
+                      </span>
+                    ))}
+                  </span>
                 </td>
+                <td className="px-4 py-3">{m.birthDate ? new Date(m.birthDate).getFullYear() : '—'}</td>
+                <td className="px-4 py-3">{m.memberships[0]?.team.name ?? '—'}</td>
+                <td className="px-4 py-3 text-gray-600">{m.user?.email ?? '—'}</td>
                 <td className="px-4 py-3">
                   <span
                     className={
@@ -123,7 +146,7 @@ function MembersTable() {
             ))}
             {members.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                   Žiadni členovia.
                 </td>
               </tr>
@@ -135,6 +158,8 @@ function MembersTable() {
       {(editing || creating) && (
         <MemberModal
           member={editing}
+          teams={teams}
+          canGrantAdmin={isAdmin(me)}
           onClose={() => {
             setEditing(null);
             setCreating(false);
@@ -150,12 +175,24 @@ function MembersTable() {
   );
 }
 
+const ROLE_OPTIONS: Array<{ value: string; label: string; adminOnly?: boolean }> = [
+  { value: 'PLAYER', label: 'Hráč' },
+  { value: 'PARENT', label: 'Rodič' },
+  { value: 'COACH', label: 'Tréner' },
+  { value: 'MANAGER', label: 'Vedúci klubu', adminOnly: true },
+  { value: 'ADMIN', label: 'Admin', adminOnly: true },
+];
+
 function MemberModal({
   member,
+  teams,
+  canGrantAdmin,
   onClose,
   onDone,
 }: {
   member: MemberRow | null;
+  teams: Team[];
+  canGrantAdmin: boolean;
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -165,29 +202,70 @@ function MemberModal({
   const [status, setStatus] = useState(member?.status ?? 'ACTIVE');
   const [futbalnetId, setFutbalnetId] = useState(member?.futbalnetId ?? '');
   const [healthNotes, setHealthNotes] = useState(member?.healthNotes ?? '');
+  const [teamId, setTeamId] = useState(member?.memberships[0]?.team.id ?? '');
+  const [roles, setRoles] = useState<string[]>(member?.user?.roles.map((r) => r.role) ?? []);
+  const [email, setEmail] = useState(member?.user?.email ?? '');
+  const [createAccount, setCreateAccount] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+
+  const hasAccount = !!member?.user;
+
+  function toggleRole(r: string) {
+    setRoles((prev) => (prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]));
+  }
 
   async function submit() {
     setBusy(true);
     setError(null);
+    const wantAccount = hasAccount || createAccount;
     const body = JSON.stringify({
       firstName,
       lastName,
-      birthDate,
+      birthDate: birthDate || undefined,
       status,
       futbalnetId: futbalnetId || undefined,
       healthNotes: healthNotes || undefined,
+      teamId: teamId || undefined,
+      roles: roles.length ? roles : undefined,
+      account: wantAccount && email ? { email } : undefined,
     });
     try {
-      if (member) await api(`/members/${member.id}`, { method: 'PATCH', body });
-      else await api('/members', { method: 'POST', body });
-      onDone();
+      const res = member
+        ? await api<{ account: { tempPassword: string | null } | null }>(`/members/${member.id}`, { method: 'PATCH', body })
+        : await api<{ account: { tempPassword: string | null } | null }>('/members', { method: 'POST', body });
+      if (res.account?.tempPassword) {
+        setTempPassword(res.account.tempPassword);
+      } else {
+        onDone();
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Uloženie zlyhalo');
     } finally {
       setBusy(false);
     }
+  }
+
+  // po vytvorení konta zobrazíme dočasné heslo (na odovzdanie), potom zavrieme
+  if (tempPassword) {
+    return (
+      <Modal open onClose={onDone} title="Konto vytvorené">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Konto pre <strong>{email}</strong> bolo vytvorené. Odovzdajte používateľovi toto dočasné heslo — po
+            prihlásení si ho môže zmeniť:
+          </p>
+          <div className="rounded-md border border-club-200 bg-club-50 p-4 text-center">
+            <code className="text-lg font-bold tracking-wider text-club-800">{tempPassword}</code>
+          </div>
+          <p className="text-xs text-gray-500">Heslo sa zobrazí len teraz — poznačte si ho.</p>
+          <div className="flex justify-end">
+            <Button onClick={onDone}>Hotovo</Button>
+          </div>
+        </div>
+      </Modal>
+    );
   }
 
   return (
@@ -207,6 +285,7 @@ function MemberModal({
           <div>
             <label className={labelCls}>Dátum narodenia</label>
             <input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className={inputCls} />
+            <p className="mt-1 text-xs text-gray-500">Pri hráčoch určuje vekovú kategóriu.</p>
           </div>
           <div>
             <label className={labelCls}>Stav</label>
@@ -217,20 +296,84 @@ function MemberModal({
             </select>
           </div>
         </div>
+
+        {/* Zaradenie do družstva (manuálne, prepíše automatické podľa veku) */}
         <div>
-          <label className={labelCls}>Registračné číslo (futbalnet)</label>
-          <input value={futbalnetId} onChange={(e) => setFutbalnetId(e.target.value)} className={inputCls} />
+          <label className={labelCls}>Družstvo / skupina</label>
+          <select value={teamId} onChange={(e) => setTeamId(e.target.value)} className={inputCls}>
+            <option value="">— nezaradený —</option>
+            {teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-gray-500">Ručné zaradenie prepíše automatické podľa veku.</p>
         </div>
+
+        {/* Funkcia / roly */}
         <div>
-          <label className={labelCls}>Zdravotné poznámky</label>
-          <textarea value={healthNotes} onChange={(e) => setHealthNotes(e.target.value)} rows={2} className={inputCls} />
+          <label className={labelCls}>Funkcia / rola</label>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {ROLE_OPTIONS.filter((o) => !o.adminOnly || canGrantAdmin).map((o) => (
+              <label
+                key={o.value}
+                className={`cursor-pointer rounded-full border px-3 py-1 text-sm ${
+                  roles.includes(o.value) ? 'border-club-600 bg-club-600 text-white' : 'border-gray-300 text-gray-700'
+                }`}
+              >
+                <input type="checkbox" className="hidden" checked={roles.includes(o.value)} onChange={() => toggleRole(o.value)} />
+                {o.label}
+              </label>
+            ))}
+          </div>
         </div>
+
+        {/* Konto na prihlásenie */}
+        <div className="rounded-md bg-club-50 p-3">
+          {hasAccount ? (
+            <>
+              <label className={labelCls}>Prihlasovací e-mail</label>
+              <input value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
+              <p className="mt-1 text-xs text-gray-500">Konto už existuje. Zmena rolí sa uloží.</p>
+            </>
+          ) : (
+            <>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input type="checkbox" checked={createAccount} onChange={(e) => setCreateAccount(e.target.checked)} />
+                Vytvoriť prihlasovacie konto
+              </label>
+              {createAccount && (
+                <div className="mt-2">
+                  <label className={labelCls}>E-mail</label>
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} placeholder="meno@email.sk" />
+                  <p className="mt-1 text-xs text-gray-500">Vygeneruje sa dočasné heslo, ktoré zobrazíme na odovzdanie.</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <details>
+          <summary className="cursor-pointer text-sm text-gray-500">Ďalšie údaje</summary>
+          <div className="mt-2 space-y-3">
+            <div>
+              <label className={labelCls}>Registračné číslo (futbalnet)</label>
+              <input value={futbalnetId} onChange={(e) => setFutbalnetId(e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Zdravotné poznámky</label>
+              <textarea value={healthNotes} onChange={(e) => setHealthNotes(e.target.value)} rows={2} className={inputCls} />
+            </div>
+          </div>
+        </details>
+
         <ErrorText>{error}</ErrorText>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
             Zrušiť
           </Button>
-          <Button onClick={submit} disabled={busy || !firstName || !lastName || !birthDate}>
+          <Button onClick={submit} disabled={busy || !firstName || !lastName}>
             {busy ? 'Ukladám…' : 'Uložiť'}
           </Button>
         </div>

@@ -32,10 +32,21 @@ export type RegistrationRequestInput = z.infer<typeof registrationRequestSchema>
 export const createMemberSchema = z.object({
   firstName: z.string().min(2).max(60),
   lastName: z.string().min(2).max(60),
-  birthDate: z.coerce.date(),
+  birthDate: z.coerce.date().optional(), // hráči majú dátum, nehráči (rodič/tréner) nemusia
   status: z.enum(MEMBER_STATUSES).default('ACTIVE'),
   futbalnetId: z.string().max(40).optional(),
   healthNotes: z.string().max(2000).optional(),
+  /// manuálne zaradenie do družstva (prepíše automatické podľa veku)
+  teamId: z.string().optional(),
+  /// funkcie/roly člena (na jeho prihlasovacom konte)
+  roles: z.array(z.enum(ROLES)).optional(),
+  /// vytvorenie/aktualizácia prihlasovacieho konta
+  account: z
+    .object({
+      email: z.string().email(),
+      phone: z.string().max(20).optional(),
+    })
+    .optional(),
 });
 export type CreateMemberInput = z.infer<typeof createMemberSchema>;
 

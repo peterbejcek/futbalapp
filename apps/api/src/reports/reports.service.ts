@@ -60,7 +60,7 @@ export class ReportsService {
       .font('bold')
       .text('Dátum narodenia: ', { continued: true })
       .font('regular')
-      .text(member.birthDate.toLocaleDateString('sk-SK', { timeZone: 'UTC' }));
+      .text(member.birthDate ? member.birthDate.toLocaleDateString('sk-SK', { timeZone: 'UTC' }) : '—');
     doc.font('bold').text('Obdobie: ', { continued: true }).font('regular').text(`${fromLabel} až ${toLabel}`);
     doc.moveDown(1.5);
 

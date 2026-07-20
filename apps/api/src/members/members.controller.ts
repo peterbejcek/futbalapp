@@ -35,8 +35,11 @@ export class MembersController {
 
   @Post()
   @Roles('ADMIN', 'MANAGER')
-  create(@Body(new ZodValidationPipe(createMemberSchema)) body: CreateMemberInput) {
-    return this.membersService.create(body);
+  create(
+    @Body(new ZodValidationPipe(createMemberSchema)) body: CreateMemberInput,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.membersService.create(body, user.roles.map((r) => r.role));
   }
 
   @Patch(':id')
@@ -49,6 +52,6 @@ export class MembersController {
     if (!isStaff(user) && !(await this.membersService.memberInTeams(id, coachTeamIds(user)))) {
       throw new ForbiddenException('Hráča z iného družstva nemôžete upravovať');
     }
-    return this.membersService.update(id, body);
+    return this.membersService.update(id, body, user.roles.map((r) => r.role));
   }
 }
