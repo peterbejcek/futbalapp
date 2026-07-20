@@ -18,10 +18,11 @@ export class MembersController {
     @Query('team') teamId?: string,
     @Query('season') seasonId?: string,
     @Query('status') status?: string,
+    @Query('role') role?: string,
   ) {
     // tréner vidí len hráčov svojich družstiev
     const teamIds = isStaff(user) ? undefined : coachTeamIds(user);
-    return this.membersService.list({ categoryCode, teamId, teamIds, seasonId, status });
+    return this.membersService.list({ categoryCode, teamId, teamIds, seasonId, status, role });
   }
 
   @Get(':id')

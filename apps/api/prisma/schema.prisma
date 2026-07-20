@@ -130,16 +130,21 @@ enum RegistrationStatus {
 }
 
 model RegistrationRequest {
-  id            String             @id @default(cuid())
+  id             String  @id @default(cuid())
+  /// CHILD = dieťa s rodičom, ADULT = dospelý/starší hráč sám za seba
+  applicantType  String  @default("CHILD")
   childFirstName String
   childLastName  String
   childBirthDate DateTime
-  healthNotes   String?
-  parentFirstName String
-  parentLastName  String
-  parentEmail   String
-  parentPhone   String
-  parentRelation GuardianRelation
+  healthNotes    String?
+  /// voliteľné vlastné prihlásenie hráča (starší hráč / dospelý)
+  playerEmail    String?
+  // rodič — nepovinný (chýba pri dospelom hráčovi)
+  parentFirstName String?
+  parentLastName  String?
+  parentEmail     String?
+  parentPhone     String?
+  parentRelation  GuardianRelation?
   consentGdpr   Boolean
   consentPhotos Boolean
   note          String?

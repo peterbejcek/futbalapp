@@ -21,8 +21,12 @@ interface RegRequest {
 }
 
 interface ApprovedResult {
-  child: { firstName: string; lastName: string };
-  parent: { email: string; tempPassword: string | null; accountCreated: boolean };
+  player: {
+    firstName: string;
+    lastName: string;
+    account: { email: string; tempPassword: string | null } | null;
+  };
+  parent: { email: string; tempPassword: string | null; accountCreated: boolean } | null;
 }
 
 export default function RegistrationsPage() {
@@ -48,11 +52,8 @@ export default function RegistrationsPage() {
     setBusyId(id);
     try {
       if (action === 'approve') {
-        const res = await api<{
-          child: { firstName: string; lastName: string };
-          parent: { email: string; tempPassword: string | null; accountCreated: boolean };
-        }>(`/registration/${id}/approve`, { method: 'POST' });
-        if (res.parent.tempPassword) setApproved(res);
+        const res = await api<ApprovedResult>(`/registration/${id}/approve`, { method: 'POST' });
+        if (res.player.account?.tempPassword || res.parent?.tempPassword) setApproved(res);
       } else {
         await api(`/registration/${id}/reject`, { method: 'POST' });
       }
@@ -70,12 +71,25 @@ export default function RegistrationsPage() {
       <ErrorText>{error}</ErrorText>
       {approved && (
         <Card className="border-club-300 bg-club-50">
-          <p className="text-sm text-gray-700">
-            Schválené: <strong>{approved.child.firstName} {approved.child.lastName}</strong>. Rodičovi{' '}
-            <strong>{approved.parent.email}</strong> bolo vytvorené konto. Odovzdajte mu dočasné heslo:
-          </p>
-          <div className="mt-2 flex items-center justify-between">
-            <code className="text-lg font-bold tracking-wider text-club-800">{approved.parent.tempPassword}</code>
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-2 text-sm text-gray-700">
+              <p>
+                Schválené: <strong>{approved.player.firstName} {approved.player.lastName}</strong>. Odovzdajte
+                dočasné heslá — po prihlásení sa dajú zmeniť:
+              </p>
+              {approved.player.account?.tempPassword && (
+                <p>
+                  Hráč <strong>{approved.player.account.email}</strong>:{' '}
+                  <code className="font-bold tracking-wider text-club-800">{approved.player.account.tempPassword}</code>
+                </p>
+              )}
+              {approved.parent?.tempPassword && (
+                <p>
+                  Rodič <strong>{approved.parent.email}</strong>:{' '}
+                  <code className="font-bold tracking-wider text-club-800">{approved.parent.tempPassword}</code>
+                </p>
+              )}
+            </div>
             <button onClick={() => setApproved(null)} className="text-sm text-club-600 hover:underline">
               Zavrieť
             </button>

@@ -31,24 +31,40 @@ export class MembersService {
     teamIds?: string[]; // scope pre trénera (jeho družstvá)
     seasonId?: string;
     status?: string;
+    role?: string; // filter podľa funkcie: PLAYER | PARENT | COACH | MANAGER | ADMIN
   }) {
-    const hasScope = params.categoryCode || params.teamId || params.teamIds || params.seasonId;
-    return this.prisma.member.findMany({
-      where: {
-        status: params.status ? (params.status as MemberStatus) : undefined,
-        memberships: hasScope
-          ? {
-              some: {
-                leftAt: null,
-                season: params.seasonId ? { id: params.seasonId } : { isActive: true },
-                team: {
-                  id: params.teamId ? params.teamId : params.teamIds ? { in: params.teamIds } : undefined,
-                  teamCategory: params.categoryCode ? { code: params.categoryCode } : undefined,
-                },
-              },
-            }
-          : undefined,
+    const and: Array<Record<string, unknown>> = [];
+    if (params.status) and.push({ status: params.status as MemberStatus });
+
+    // scope na družstvo/kategóriu: hráči v družstve ALEBO rodičia dieťaťa v družstve
+    const hasScope = params.categoryCode || params.teamId || params.teamIds;
+    const teamFilter = {
+      leftAt: null,
+      season: params.seasonId ? { id: params.seasonId } : { isActive: true },
+      team: {
+        id: params.teamId ? params.teamId : params.teamIds ? { in: params.teamIds } : undefined,
+        teamCategory: params.categoryCode ? { code: params.categoryCode } : undefined,
       },
+    } as const;
+    if (hasScope) {
+      and.push({
+        OR: [
+          { memberships: { some: teamFilter } }, // hráč v družstve
+          // rodič dieťaťa, ktoré je v družstve
+          { user: { guardianOf: { some: { member: { memberships: { some: teamFilter } } } } } },
+        ],
+      });
+    }
+
+    // filter podľa roly/funkcie
+    if (params.role === 'PLAYER') {
+      and.push({ memberships: { some: { leftAt: null, season: { isActive: true } } } });
+    } else if (params.role) {
+      and.push({ user: { roles: { some: { role: params.role as never } } } });
+    }
+
+    return this.prisma.member.findMany({
+      where: and.length ? { AND: and } : undefined,
       include: {
         memberships: activeMembership,
         ...accountInclude,
@@ -124,6 +140,23 @@ export class MembersService {
     return { email: result.email, tempPassword: result.tempPassword, created: result.created };
   }
 
+  /** Priradí členovi (rodičovi) existujúce deti — vytvorí väzby Guardian. Vyžaduje konto. */
+  private async linkChildren(parentMemberId: string, childMemberIds: string[]) {
+    if (childMemberIds.length === 0) return;
+    const parent = await this.prisma.member.findUnique({ where: { id: parentMemberId } });
+    if (!parent?.userId) {
+      throw new BadRequestException('Rodič musí mať prihlasovacie konto, aby sa mu dali priradiť deti');
+    }
+    for (const childId of childMemberIds) {
+      if (childId === parentMemberId) continue;
+      await this.prisma.guardian.upsert({
+        where: { userId_memberId: { userId: parent.userId, memberId: childId } },
+        create: { userId: parent.userId, memberId: childId, relation: 'GUARDIAN' },
+        update: {},
+      });
+    }
+  }
+
   async create(input: CreateMemberInput, actorRoles: Role[]) {
     if (input.roles?.length) this.assertGrant(actorRoles, input.roles);
     const member = await this.prisma.member.create({
@@ -138,6 +171,7 @@ export class MembersService {
     });
     if (input.teamId) await this.assignTeam(member.id, input.teamId);
     const account = await this.applyAccount({ ...member, userId: null }, input);
+    if (input.childMemberIds?.length) await this.linkChildren(member.id, input.childMemberIds);
     return { member: await this.get(member.id), account };
   }
 
@@ -160,6 +194,7 @@ export class MembersService {
       { id, firstName: input.firstName ?? existing.firstName, lastName: input.lastName ?? existing.lastName, userId: existing.userId },
       input as CreateMemberInput,
     );
+    if (input.childMemberIds?.length) await this.linkChildren(id, input.childMemberIds);
     return { member: await this.get(id), account };
   }
 

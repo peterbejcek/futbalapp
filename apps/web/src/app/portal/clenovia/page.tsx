@@ -50,6 +50,7 @@ function MembersTable() {
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [teamFilter, setTeamFilter] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<MemberRow | null>(null);
   const [creating, setCreating] = useState(false);
@@ -61,13 +62,14 @@ function MembersTable() {
       const parts: string[] = [];
       if (categoryParam) parts.push(`category=${categoryParam}`);
       if (teamFilter) parts.push(`team=${teamFilter}`);
+      if (roleFilter) parts.push(`role=${roleFilter}`);
       const q = parts.length ? `?${parts.join('&')}` : '';
       setMembers(await api<MemberRow[]>(`/members${q}`));
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Načítanie zlyhalo');
     }
-  }, [categoryParam, teamFilter]);
+  }, [categoryParam, teamFilter, roleFilter]);
 
   useEffect(() => {
     api<Team[]>('/seasons/teams').then(setTeams).catch(() => {});
@@ -79,16 +81,28 @@ function MembersTable() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600">Družstvo:</label>
-          <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-sm">
-            <option value="">Všetky</option>
-            {teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Družstvo:</label>
+            <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-sm">
+              <option value="">Všetky</option>
+              {teams.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Funkcia:</label>
+            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-sm">
+              <option value="">Všetky</option>
+              <option value="PLAYER">Hráč</option>
+              <option value="PARENT">Rodič</option>
+              <option value="COACH">Tréner</option>
+              <option value="MANAGER">Vedúci klubu</option>
+            </select>
+          </div>
         </div>
         {staff && <Button onClick={() => setCreating(true)}>+ Nový člen</Button>}
       </div>
@@ -206,14 +220,29 @@ function MemberModal({
   const [roles, setRoles] = useState<string[]>(member?.user?.roles.map((r) => r.role) ?? []);
   const [email, setEmail] = useState(member?.user?.email ?? '');
   const [createAccount, setCreateAccount] = useState(false);
+  const [childMemberIds, setChildMemberIds] = useState<string[]>([]);
+  const [players, setPlayers] = useState<Array<{ id: string; firstName: string; lastName: string }>>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tempPassword, setTempPassword] = useState<string | null>(null);
 
   const hasAccount = !!member?.user;
+  const isParent = roles.includes('PARENT');
+
+  // pri funkcii Rodič načítaj hráčov na priradenie dieťaťa
+  useEffect(() => {
+    if (isParent && players.length === 0) {
+      api<Array<{ id: string; firstName: string; lastName: string }>>('/members?role=PLAYER')
+        .then(setPlayers)
+        .catch(() => {});
+    }
+  }, [isParent, players.length]);
 
   function toggleRole(r: string) {
     setRoles((prev) => (prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]));
+  }
+  function toggleChild(id: string) {
+    setChildMemberIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
   async function submit() {
@@ -230,6 +259,7 @@ function MemberModal({
       teamId: teamId || undefined,
       roles: roles.length ? roles : undefined,
       account: wantAccount && email ? { email } : undefined,
+      childMemberIds: isParent && childMemberIds.length ? childMemberIds : undefined,
     });
     try {
       const res = member
@@ -353,6 +383,23 @@ function MemberModal({
             </>
           )}
         </div>
+
+        {/* Priradenie dieťaťa — pri funkcii Rodič */}
+        {isParent && (
+          <div className="rounded-md border border-club-100 p-3">
+            <label className={labelCls}>Priradiť dieťa (hráča)</label>
+            <p className="mb-2 text-xs text-gray-500">Vyžaduje konto rodiča (e-mail vyššie).</p>
+            <div className="max-h-40 space-y-1 overflow-y-auto">
+              {players.map((p) => (
+                <label key={p.id} className="flex items-center gap-2 text-sm text-gray-700">
+                  <input type="checkbox" checked={childMemberIds.includes(p.id)} onChange={() => toggleChild(p.id)} />
+                  {p.lastName} {p.firstName}
+                </label>
+              ))}
+              {players.length === 0 && <p className="text-sm text-gray-400">Žiadni hráči.</p>}
+            </div>
+          </div>
+        )}
 
         <details>
           <summary className="cursor-pointer text-sm text-gray-500">Ďalšie údaje</summary>

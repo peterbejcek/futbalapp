@@ -7,26 +7,41 @@ export const loginSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
-export const registrationRequestSchema = z.object({
-  child: z.object({
-    firstName: z.string().min(2).max(60),
-    lastName: z.string().min(2).max(60),
-    birthDate: z.coerce.date(),
-    healthNotes: z.string().max(2000).optional(),
-  }),
-  parent: z.object({
-    firstName: z.string().min(2).max(60),
-    lastName: z.string().min(2).max(60),
-    email: z.string().email(),
-    phone: z.string().min(9).max(20),
-    relation: z.enum(['MOTHER', 'FATHER', 'GUARDIAN']),
-  }),
-  consents: z.object({
-    gdpr: z.literal(true, { errorMap: () => ({ message: 'Súhlas so spracovaním údajov je povinný' }) }),
-    photos: z.boolean(),
-  }),
-  note: z.string().max(2000).optional(),
-});
+export const registrationRequestSchema = z
+  .object({
+    // CHILD = dieťa (vypĺňa rodič), ADULT = dospelý/starší hráč sám za seba
+    applicantType: z.enum(['CHILD', 'ADULT']),
+    player: z.object({
+      firstName: z.string().min(2).max(60),
+      lastName: z.string().min(2).max(60),
+      birthDate: z.coerce.date(),
+      healthNotes: z.string().max(2000).optional(),
+      // vlastné prihlásenie hráča (povinné pre dospelého, voliteľné pre staršie dieťa)
+      email: z.string().email().optional(),
+    }),
+    parent: z
+      .object({
+        firstName: z.string().min(2).max(60),
+        lastName: z.string().min(2).max(60),
+        email: z.string().email(),
+        phone: z.string().min(9).max(20),
+        relation: z.enum(['MOTHER', 'FATHER', 'GUARDIAN']),
+      })
+      .optional(),
+    consents: z.object({
+      gdpr: z.literal(true, { errorMap: () => ({ message: 'Súhlas so spracovaním údajov je povinný' }) }),
+      photos: z.boolean(),
+    }),
+    note: z.string().max(2000).optional(),
+  })
+  .refine((d) => d.applicantType !== 'CHILD' || !!d.parent, {
+    message: 'Pri registrácii dieťaťa sú údaje rodiča povinné',
+    path: ['parent'],
+  })
+  .refine((d) => d.applicantType !== 'ADULT' || !!d.player.email, {
+    message: 'Dospelý hráč potrebuje e-mail pre vlastné prihlásenie',
+    path: ['player', 'email'],
+  });
 export type RegistrationRequestInput = z.infer<typeof registrationRequestSchema>;
 
 export const createMemberSchema = z.object({
@@ -47,6 +62,8 @@ export const createMemberSchema = z.object({
       phone: z.string().max(20).optional(),
     })
     .optional(),
+  /// priradenie detí rodičovi (vytvorí väzbu Guardian; vyžaduje konto)
+  childMemberIds: z.array(z.string()).optional(),
 });
 export type CreateMemberInput = z.infer<typeof createMemberSchema>;
 
