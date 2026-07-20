@@ -30,3 +30,24 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   }
   return response.json() as Promise<T>;
 }
+
+/** Upload súboru (multipart/form-data) — Content-Type nastaví prehliadač (boundary). */
+export async function apiUpload<T>(path: string, file: File, field = 'file'): Promise<T> {
+  const token = getToken();
+  const form = new FormData();
+  form.append(field, file);
+  const response = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  if (response.status === 401 && typeof window !== 'undefined') {
+    setToken(null);
+    window.location.href = '/prihlasenie';
+  }
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.message ?? `Chyba servera (${response.status})`);
+  }
+  return response.json() as Promise<T>;
+}

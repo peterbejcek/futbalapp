@@ -1,8 +1,8 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api, apiUpload } from '@/lib/api';
 import { isAdmin, isStaff, useMe } from '@/lib/auth';
 import { Button, Card, ErrorText, Modal, inputCls, labelCls } from '@/components/ui';
 
@@ -17,9 +17,31 @@ interface MemberRow {
   status: string;
   futbalnetId?: string | null;
   healthNotes?: string | null;
+  registrationValidUntil?: string | null;
   memberships: Array<{ team: { id: string; name: string; teamCategory: { code: string } } }>;
   user: { id: string; email: string; roles: Array<{ role: string; teamId: string | null }> } | null;
   guardians: Guardian[];
+}
+
+interface ImportResult {
+  total: number;
+  created: number;
+  updated: number;
+  items: Array<{ name: string; action: 'created' | 'updated'; registrationValidUntil: string | null }>;
+}
+
+/** Farebné zvýraznenie platnosti preukazu: po platnosti / do 30 dní / ok. */
+function cardBadge(iso: string | null | undefined) {
+  if (!iso) return null;
+  const until = new Date(iso);
+  const days = Math.ceil((until.getTime() - Date.now()) / 86400000);
+  const cls =
+    days < 0
+      ? 'bg-red-100 text-red-700'
+      : days <= 30
+        ? 'bg-amber-100 text-amber-700'
+        : 'bg-gray-100 text-gray-600';
+  return { text: until.toLocaleDateString('sk-SK'), cls, expired: days < 0, days };
 }
 interface Team {
   id: string;
@@ -54,6 +76,9 @@ function MembersTable() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<MemberRow | null>(null);
   const [creating, setCreating] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const categoryParam = searchParams.get('category') ?? '';
 
@@ -77,6 +102,23 @@ function MembersTable() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // umožní znovu vybrať ten istý súbor
+    if (!file) return;
+    setImporting(true);
+    setError(null);
+    try {
+      const res = await apiUpload<ImportResult>('/members/import', file);
+      setImportResult(res);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Import zlyhal');
+    } finally {
+      setImporting(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -104,8 +146,42 @@ function MembersTable() {
             </select>
           </div>
         </div>
-        {staff && <Button onClick={() => setCreating(true)}>+ Nový člen</Button>}
+        {staff && (
+          <div className="flex gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={onImportFile}
+              className="hidden"
+            />
+            <Button variant="ghost" onClick={() => fileRef.current?.click()} disabled={importing}>
+              {importing ? 'Importujem…' : '⬆ Import z Excelu'}
+            </Button>
+            <Button onClick={() => setCreating(true)}>+ Nový člen</Button>
+          </div>
+        )}
       </div>
+
+      {importResult && (
+        <Card className="border-club-300 bg-club-50">
+          <div className="flex items-start justify-between gap-4">
+            <div className="text-sm text-gray-700">
+              <p className="font-semibold text-club-900">
+                Import dokončený: {importResult.created} pridaných, {importResult.updated} aktualizovaných
+                (spolu {importResult.total}).
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                Existujúci hráči sa spárovali podľa registračného čísla (inak mena a dátumu narodenia) a len sa
+                aktualizovali — duplicity nevznikajú. Prihlasovacie kontá doplníte cez „Upraviť" (e-mail).
+              </p>
+            </div>
+            <button onClick={() => setImportResult(null)} className="text-sm text-club-600 hover:underline">
+              Zavrieť
+            </button>
+          </div>
+        </Card>
+      )}
 
       <ErrorText>{error}</ErrorText>
 
@@ -117,6 +193,7 @@ function MembersTable() {
               <th className="px-4 py-3">Funkcia</th>
               <th className="px-4 py-3">Ročník</th>
               <th className="px-4 py-3">Družstvo</th>
+              <th className="px-4 py-3">Preukaz do</th>
               <th className="px-4 py-3">Konto</th>
               <th className="px-4 py-3">Stav</th>
               <th className="px-4 py-3"></th>
@@ -139,6 +216,19 @@ function MembersTable() {
                 </td>
                 <td className="px-4 py-3">{m.birthDate ? new Date(m.birthDate).getFullYear() : '—'}</td>
                 <td className="px-4 py-3">{m.memberships[0]?.team.name ?? '—'}</td>
+                <td className="px-4 py-3">
+                  {(() => {
+                    const b = cardBadge(m.registrationValidUntil);
+                    return b ? (
+                      <span className={`rounded px-2 py-0.5 text-xs font-medium ${b.cls}`}>
+                        {b.text}
+                        {b.expired ? ' · po platnosti' : ''}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    );
+                  })()}
+                </td>
                 <td className="px-4 py-3 text-gray-600">{m.user?.email ?? '—'}</td>
                 <td className="px-4 py-3">
                   <span
@@ -160,7 +250,7 @@ function MembersTable() {
             ))}
             {members.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                   Žiadni členovia.
                 </td>
               </tr>
@@ -215,6 +305,9 @@ function MemberModal({
   const [birthDate, setBirthDate] = useState(member?.birthDate?.slice(0, 10) ?? '');
   const [status, setStatus] = useState(member?.status ?? 'ACTIVE');
   const [futbalnetId, setFutbalnetId] = useState(member?.futbalnetId ?? '');
+  const [registrationValidUntil, setRegistrationValidUntil] = useState(
+    member?.registrationValidUntil?.slice(0, 10) ?? '',
+  );
   const [healthNotes, setHealthNotes] = useState(member?.healthNotes ?? '');
   const [teamId, setTeamId] = useState(member?.memberships[0]?.team.id ?? '');
   const [roles, setRoles] = useState<string[]>(member?.user?.roles.map((r) => r.role) ?? []);
@@ -255,6 +348,7 @@ function MemberModal({
       birthDate: birthDate || undefined,
       status,
       futbalnetId: futbalnetId || undefined,
+      registrationValidUntil: registrationValidUntil || undefined,
       healthNotes: healthNotes || undefined,
       teamId: teamId || undefined,
       roles: roles.length ? roles : undefined,
@@ -407,6 +501,15 @@ function MemberModal({
             <div>
               <label className={labelCls}>Registračné číslo (futbalnet)</label>
               <input value={futbalnetId} onChange={(e) => setFutbalnetId(e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Platnosť registračného preukazu do</label>
+              <input
+                type="date"
+                value={registrationValidUntil}
+                onChange={(e) => setRegistrationValidUntil(e.target.value)}
+                className={inputCls}
+              />
             </div>
             <div>
               <label className={labelCls}>Zdravotné poznámky</label>

@@ -94,6 +94,21 @@ model Member {
   futbalnetId    String?      @unique
   healthNotes    String?
   photoUrl       String?
+
+  // --- Registračný preukaz / futbalnet (import z Excelu) ---
+  /// Registračné číslo hráča vo futbalnete — kľúč pre idempotentný import
+  registrationNumber     String?   @unique
+  /// Materský klub
+  homeClub               String?
+  /// Hosťujúci klub (ak hráč hosťuje inde)
+  guestClub              String?
+  /// Klubová príslušnosť (za ktorý klub aktuálne hrá)
+  clubAffiliation        String?
+  /// Platnosť registračného preukazu do — sledované na dashboarde
+  registrationValidUntil DateTime?
+  /// Dátum registrácie do klubu
+  registeredAt           DateTime?
+
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 

@@ -1,4 +1,17 @@
-import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { createMemberSchema, type CreateMemberInput } from '@fkknv/shared';
 import { MembersService } from './members.service';
 import { Roles } from '../auth/roles.decorator';
@@ -23,6 +36,22 @@ export class MembersController {
     // tréner vidí len hráčov svojich družstiev
     const teamIds = isStaff(user) ? undefined : coachTeamIds(user);
     return this.membersService.list({ categoryCode, teamId, teamIds, seasonId, status, role });
+  }
+
+  /** Platnosť registračných preukazov (scope podľa roly) — pre dashboard. */
+  @Get('registration-cards')
+  @Roles('ADMIN', 'MANAGER', 'COACH', 'PLAYER', 'PARENT')
+  registrationCards(@CurrentUser() user: AuthUser) {
+    return this.membersService.registrationCards(user);
+  }
+
+  /** Import hráčov z Excelu (idempotentný upsert podľa reg. čísla / mena+dátumu). */
+  @Post('import')
+  @Roles('ADMIN', 'MANAGER')
+  @UseInterceptors(FileInterceptor('file'))
+  importRoster(@UploadedFile() file?: { buffer: Buffer }) {
+    if (!file?.buffer) throw new BadRequestException('Chýba súbor (pole "file")');
+    return this.membersService.importRoster(file.buffer);
   }
 
   @Get(':id')

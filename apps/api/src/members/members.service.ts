@@ -2,6 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import type { CreateMemberInput, MemberStatus, Role } from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccountsService } from '../auth/accounts.service';
+import { parseRosterXlsx, type RosterRow } from './roster-import';
+import type { AuthUser } from '../auth/current-user.decorator';
 
 const activeMembership = {
   where: { leftAt: null, season: { isActive: true } },
@@ -167,6 +169,12 @@ export class MembersService {
         status: input.status,
         futbalnetId: input.futbalnetId,
         healthNotes: input.healthNotes,
+        registrationNumber: input.registrationNumber,
+        homeClub: input.homeClub,
+        guestClub: input.guestClub,
+        clubAffiliation: input.clubAffiliation,
+        registrationValidUntil: input.registrationValidUntil,
+        registeredAt: input.registeredAt,
       },
     });
     if (input.teamId) await this.assignTeam(member.id, input.teamId);
@@ -187,6 +195,12 @@ export class MembersService {
         status: input.status,
         futbalnetId: input.futbalnetId,
         healthNotes: input.healthNotes,
+        registrationNumber: input.registrationNumber,
+        homeClub: input.homeClub,
+        guestClub: input.guestClub,
+        clubAffiliation: input.clubAffiliation,
+        registrationValidUntil: input.registrationValidUntil,
+        registeredAt: input.registeredAt,
       },
     });
     if (input.teamId) await this.assignTeam(id, input.teamId);
@@ -209,5 +223,135 @@ export class MembersService {
       where: { memberId, leftAt: null, season: { isActive: true }, teamId: { in: teamIds } },
     });
     return count > 0;
+  }
+
+  // -------------------------------------------------------------------------
+  // Import hráčov z Excelu (idempotentný upsert)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Naimportuje/aktualizuje hráčov z Excelu (export z futbalnetu).
+   *
+   * Idempotentné a bez duplikátov: každý riadok sa napáruje na existujúceho
+   * člena najprv podľa registračného čísla (unikátne), inak podľa
+   * mena + priezviska + dátumu narodenia. Existujúci sa len aktualizuje o
+   * údaje z registračného preukazu — konto, roly ani zaradenie do družstva sa
+   * nedotýkajú. Nespárovaný riadok vytvorí nového člena (bez konta — účet sa
+   * dopĺňa neskôr cez úpravu člena, keď je známy e-mail).
+   *
+   * Import zámerne nevytvára prihlasovacie kontá: Excel neobsahuje e-maily.
+   * Kontá sa vytvárajú cielene (úprava člena / schválenie registrácie), pričom
+   * sa napárujú na už naimportovaného člena, takže nevznikajú duplicity.
+   */
+  async importRoster(buffer: Buffer) {
+    const rows = await parseRosterXlsx(buffer);
+    let created = 0;
+    let updated = 0;
+    const items: Array<{ name: string; action: 'created' | 'updated'; registrationValidUntil: Date | null }> = [];
+
+    for (const row of rows) {
+      const existing = await this.findRosterMatch(row);
+      const data = {
+        firstName: row.firstName,
+        lastName: row.lastName,
+        birthDate: row.birthDate ?? undefined,
+        status: row.status,
+        registrationNumber: row.registrationNumber ?? undefined,
+        homeClub: row.homeClub ?? undefined,
+        guestClub: row.guestClub ?? undefined,
+        clubAffiliation: row.clubAffiliation ?? undefined,
+        registrationValidUntil: row.registrationValidUntil ?? undefined,
+        registeredAt: row.registeredAt ?? undefined,
+      };
+
+      if (existing) {
+        await this.prisma.member.update({ where: { id: existing.id }, data });
+        updated++;
+        items.push({ name: `${row.firstName} ${row.lastName}`, action: 'updated', registrationValidUntil: row.registrationValidUntil });
+      } else {
+        await this.prisma.member.create({ data });
+        created++;
+        items.push({ name: `${row.firstName} ${row.lastName}`, action: 'created', registrationValidUntil: row.registrationValidUntil });
+      }
+    }
+
+    return { total: rows.length, created, updated, items };
+  }
+
+  /** Nájde existujúceho člena pre importný riadok (reg. číslo → meno+priezvisko+dátum). */
+  private async findRosterMatch(row: RosterRow) {
+    if (row.registrationNumber) {
+      const byReg = await this.prisma.member.findUnique({ where: { registrationNumber: row.registrationNumber } });
+      if (byReg) return byReg;
+    }
+    return this.prisma.member.findFirst({
+      where: {
+        firstName: { equals: row.firstName, mode: 'insensitive' },
+        lastName: { equals: row.lastName, mode: 'insensitive' },
+        birthDate: row.birthDate ?? undefined,
+      },
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Platnosť registračných preukazov (dashboard)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Zoznam registračných preukazov so scope podľa roly:
+   *  - ADMIN/MANAGER: všetci hráči s preukazom,
+   *  - COACH: hráči z jeho družstiev,
+   *  - PLAYER/PARENT: vlastný preukaz + preukazy detí.
+   * Zoradené od najskoršej platnosti; po platnosti sú zvýraznené (expired).
+   */
+  async registrationCards(user: AuthUser) {
+    const staff = user.roles.some((r) => r.role === 'ADMIN' || r.role === 'MANAGER');
+    const teamIds = user.roles.filter((r) => r.role === 'COACH' && r.teamId).map((r) => r.teamId as string);
+
+    let where: Record<string, unknown> = { registrationValidUntil: { not: null } };
+    if (!staff) {
+      const or: Array<Record<string, unknown>> = [];
+      if (teamIds.length) {
+        or.push({ memberships: { some: { leftAt: null, season: { isActive: true }, teamId: { in: teamIds } } } });
+      }
+      // vlastný člen + deti (rodič)
+      or.push({ user: { id: user.id } });
+      or.push({ guardians: { some: { userId: user.id } } });
+      where = { AND: [{ registrationValidUntil: { not: null } }, { OR: or }] };
+    }
+
+    const members = await this.prisma.member.findMany({
+      where,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        registrationNumber: true,
+        registrationValidUntil: true,
+        memberships: {
+          where: { leftAt: null, season: { isActive: true } },
+          select: { team: { select: { name: true } } },
+          take: 1,
+        },
+      },
+      orderBy: { registrationValidUntil: 'asc' },
+    });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return members.map((m) => {
+      const until = m.registrationValidUntil as Date;
+      const daysLeft = Math.ceil((until.getTime() - today.getTime()) / 86400000);
+      return {
+        id: m.id,
+        firstName: m.firstName,
+        lastName: m.lastName,
+        registrationNumber: m.registrationNumber,
+        registrationValidUntil: until,
+        team: m.memberships[0]?.team.name ?? null,
+        daysLeft,
+        expired: daysLeft < 0,
+      };
+    });
   }
 }

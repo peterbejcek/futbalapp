@@ -17,6 +17,16 @@ interface EventItem {
   match: { id: string } | null;
 }
 
+interface RegCard {
+  id: string;
+  firstName: string;
+  lastName: string;
+  registrationValidUntil: string;
+  team: string | null;
+  daysLeft: number;
+  expired: boolean;
+}
+
 const typeLabels: Record<string, string> = {
   TRAINING: 'Tréning',
   MATCH: 'Zápas',
@@ -27,6 +37,7 @@ const typeLabels: Record<string, string> = {
 export default function DashboardScreen() {
   const router = useRouter();
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [cards, setCards] = useState<RegCard[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
 
@@ -36,6 +47,7 @@ export default function DashboardScreen() {
       const from = new Date().toISOString();
       const list = await api<EventItem[]>(`/events?from=${from}`);
       setEvents(list.slice(0, 20));
+      api<RegCard[]>('/members/registration-cards').then(setCards).catch(() => {});
     } catch {
       // token expiroval → späť na login
       await setToken(null);
@@ -72,7 +84,6 @@ export default function DashboardScreen() {
         )}
       </View>
 
-      <Text style={styles.heading}>Najbližšie udalosti</Text>
       <FlatList
         data={events}
         keyExtractor={(item) => item.id}
@@ -85,6 +96,36 @@ export default function DashboardScreen() {
               setRefreshing(false);
             }}
           />
+        }
+        ListHeaderComponent={
+          <>
+            {cards.length > 0 && (
+              <View style={styles.cardsBlock}>
+                <Text style={styles.heading}>
+                  {canManage(me) ? 'Platnosť registračných preukazov' : 'Registračný preukaz'}
+                </Text>
+                {cards.slice(0, canManage(me) ? 15 : cards.length).map((c) => (
+                  <View key={c.id} style={styles.regRow}>
+                    <Text style={styles.regName}>
+                      {c.lastName} {c.firstName}
+                      {c.team ? <Text style={styles.regTeam}> · {c.team}</Text> : null}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.regBadge,
+                        c.expired ? styles.regExpired : c.daysLeft <= 30 ? styles.regSoon : styles.regOk,
+                      ]}
+                    >
+                      {c.expired
+                        ? `po platnosti (${new Date(c.registrationValidUntil).toLocaleDateString('sk-SK')})`
+                        : `do ${new Date(c.registrationValidUntil).toLocaleDateString('sk-SK')}`}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            <Text style={styles.heading}>Najbližšie udalosti</Text>
+          </>
         }
         ListEmptyComponent={<Text style={styles.empty}>Žiadne naplánované udalosti.</Text>}
         renderItem={({ item }) => (
@@ -136,6 +177,25 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 16, fontWeight: '600', color: colors.club900 },
   cardMeta: { color: colors.gray, fontSize: 13, marginTop: 4 },
   cardAction: { color: colors.club600, fontSize: 13, fontWeight: '600', marginTop: 6 },
+  cardsBlock: { marginBottom: 8 },
+  regRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.club100,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 6,
+  },
+  regName: { color: colors.club900, fontWeight: '600', fontSize: 14, flexShrink: 1 },
+  regTeam: { color: colors.gray, fontWeight: '400', fontSize: 12 },
+  regBadge: { fontSize: 12, fontWeight: '600', borderRadius: 6, paddingVertical: 2, paddingHorizontal: 8, overflow: 'hidden' },
+  regExpired: { backgroundColor: '#fee2e2', color: '#b91c1c' },
+  regSoon: { backgroundColor: '#fef3c7', color: '#b45309' },
+  regOk: { backgroundColor: '#f3f4f6', color: '#4b5563' },
   logout: { padding: 14, alignItems: 'center' },
   logoutText: { color: colors.club600, fontWeight: '600' },
 });

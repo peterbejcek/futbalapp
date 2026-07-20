@@ -51,6 +51,13 @@ export const createMemberSchema = z.object({
   status: z.enum(MEMBER_STATUSES).default('ACTIVE'),
   futbalnetId: z.string().max(40).optional(),
   healthNotes: z.string().max(2000).optional(),
+  /// registračný preukaz / futbalnet
+  registrationNumber: z.string().max(40).optional(),
+  homeClub: z.string().max(120).optional(),
+  guestClub: z.string().max(120).optional(),
+  clubAffiliation: z.string().max(120).optional(),
+  registrationValidUntil: z.coerce.date().optional(),
+  registeredAt: z.coerce.date().optional(),
   /// manuálne zaradenie do družstva (prepíše automatické podľa veku)
   teamId: z.string().optional(),
   /// funkcie/roly člena (na jeho prihlasovacom konte)

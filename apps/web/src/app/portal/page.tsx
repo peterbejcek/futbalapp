@@ -21,6 +21,16 @@ interface Payment {
   paidCents: number;
   status: string;
 }
+interface RegCard {
+  id: string;
+  firstName: string;
+  lastName: string;
+  registrationNumber: string | null;
+  registrationValidUntil: string;
+  team: string | null;
+  daysLeft: number;
+  expired: boolean;
+}
 
 const typeLabels: Record<string, string> = {
   TRAINING: 'Tréning',
@@ -59,6 +69,7 @@ export default function DashboardPage() {
       </div>
 
       {staff && <StaffTiles />}
+      <RegistrationCards staff={staff} />
       {isParent(me) && me && <ChildrenPayments children={me.children} />}
       {isPlayer(me) && me?.memberId && <MyPayments memberId={me.memberId} />}
 
@@ -92,6 +103,81 @@ export default function DashboardPage() {
         )}
       </section>
     </div>
+  );
+}
+
+function RegistrationCards({ staff }: { staff: boolean }) {
+  const [cards, setCards] = useState<RegCard[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    api<RegCard[]>('/members/registration-cards')
+      .then(setCards)
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, []);
+
+  if (!loaded || cards.length === 0) return null;
+
+  const expiredCount = cards.filter((c) => c.expired).length;
+  const soonCount = cards.filter((c) => !c.expired && c.daysLeft <= 30).length;
+  // vedeniu/trénerovi zobraz najkritickejšie (max 12), sebe/deťom všetky
+  const shown = staff ? cards.slice(0, 12) : cards;
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-baseline justify-between">
+        <h2 className="font-semibold text-club-800">
+          {staff ? 'Platnosť registračných preukazov' : 'Registračný preukaz'}
+        </h2>
+        {staff && (expiredCount > 0 || soonCount > 0) && (
+          <span className="text-xs text-gray-500">
+            {expiredCount > 0 && <span className="font-semibold text-red-600">{expiredCount} po platnosti</span>}
+            {expiredCount > 0 && soonCount > 0 && ' · '}
+            {soonCount > 0 && <span className="text-amber-600">{soonCount} do 30 dní</span>}
+          </span>
+        )}
+      </div>
+      <ul className="divide-y divide-club-100 rounded-lg border border-club-100 bg-white">
+        {shown.map((c) => {
+          const until = new Date(c.registrationValidUntil).toLocaleDateString('sk-SK');
+          const badgeCls = c.expired
+            ? 'bg-red-100 text-red-700'
+            : c.daysLeft <= 30
+              ? 'bg-amber-100 text-amber-700'
+              : 'bg-gray-100 text-gray-600';
+          return (
+            <li key={c.id} className="flex items-center justify-between px-4 py-2.5">
+              <div className="min-w-0">
+                <span className="font-medium text-club-900">
+                  {c.lastName} {c.firstName}
+                </span>
+                {staff && c.team && <span className="ml-2 text-xs text-gray-500">{c.team}</span>}
+              </div>
+              <div className="flex items-center gap-2 whitespace-nowrap">
+                <span className={`rounded px-2 py-0.5 text-xs font-medium ${badgeCls}`}>
+                  {c.expired ? `po platnosti (${until})` : `do ${until}`}
+                </span>
+                {!c.expired && (
+                  <span className="text-xs text-gray-400">
+                    {c.daysLeft} {c.daysLeft === 1 ? 'deň' : c.daysLeft < 5 ? 'dni' : 'dní'}
+                  </span>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      {staff && cards.length > shown.length && (
+        <p className="text-xs text-gray-500">
+          Zobrazených {shown.length} z {cards.length}. Celý zoznam v{' '}
+          <Link href="/portal/clenovia" className="text-club-600 hover:underline">
+            Členovia
+          </Link>
+          .
+        </p>
+      )}
+    </section>
   );
 }
 
