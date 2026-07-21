@@ -32,10 +32,19 @@ export class MembersController {
     @Query('season') seasonId?: string,
     @Query('status') status?: string,
     @Query('role') role?: string,
+    @Query('hideInactive') hideInactive?: string,
   ) {
     // tréner vidí len hráčov svojich družstiev
     const teamIds = isStaff(user) ? undefined : coachTeamIds(user);
-    return this.membersService.list({ categoryCode, teamId, teamIds, seasonId, status, role });
+    return this.membersService.list({
+      categoryCode,
+      teamId,
+      teamIds,
+      seasonId,
+      status,
+      role,
+      hideInactive: hideInactive === 'true',
+    });
   }
 
   /** Platnosť registračných preukazov (scope podľa roly) — pre dashboard. */

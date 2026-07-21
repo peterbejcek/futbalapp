@@ -1,9 +1,25 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import type { CreateMemberInput, MemberStatus, Role } from '@fkknv/shared';
+import {
+  categoryForBirthDate,
+  type CategoryCode,
+  type CreateMemberInput,
+  type MemberStatus,
+  type Role,
+} from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccountsService } from '../auth/accounts.service';
 import { parseRosterXlsx, type RosterRow } from './roster-import';
 import type { AuthUser } from '../auth/current-user.decorator';
+
+/** Pravidlo zaradenia do kategórie + predvolené družstvo (pre import). */
+interface AssignRule {
+  categoryCode: CategoryCode;
+  birthYearFrom: number;
+  birthYearTo: number | null;
+  teamCategoryId: string;
+  defaultTeamId: string | null;
+  defaultTeamName: string | null;
+}
 
 const activeMembership = {
   where: { leftAt: null, season: { isActive: true } },
@@ -34,9 +50,11 @@ export class MembersService {
     seasonId?: string;
     status?: string;
     role?: string; // filter podľa funkcie: PLAYER | PARENT | COACH | MANAGER | ADMIN
+    hideInactive?: boolean; // skryť neaktívnych (ponechá ACTIVE + GUEST)
   }) {
     const and: Array<Record<string, unknown>> = [];
     if (params.status) and.push({ status: params.status as MemberStatus });
+    else if (params.hideInactive) and.push({ status: { not: 'INACTIVE' as MemberStatus } });
 
     // scope na družstvo/kategóriu: hráči v družstve ALEBO rodičia dieťaťa v družstve
     const hasScope = params.categoryCode || params.teamId || params.teamIds;
@@ -242,12 +260,23 @@ export class MembersService {
    * Import zámerne nevytvára prihlasovacie kontá: Excel neobsahuje e-maily.
    * Kontá sa vytvárajú cielene (úprava člena / schválenie registrácie), pričom
    * sa napárujú na už naimportovaného člena, takže nevznikajú duplicity.
+   *
+   * Každý naimportovaný člen je hráč: zaradí sa do družstva podľa ročníka
+   * (predvolené družstvo kategórie aktívnej sezóny) a ak má konto, doplní sa mu
+   * rola PLAYER. Iné roly import nenastavuje ani neodoberá.
    */
   async importRoster(buffer: Buffer) {
     const rows = await parseRosterXlsx(buffer);
+    const { seasonId, rules } = await this.loadAssignRules();
+
     let created = 0;
     let updated = 0;
-    const items: Array<{ name: string; action: 'created' | 'updated'; registrationValidUntil: Date | null }> = [];
+    const items: Array<{
+      name: string;
+      action: 'created' | 'updated';
+      registrationValidUntil: Date | null;
+      team: string | null;
+    }> = [];
 
     for (const row of rows) {
       const existing = await this.findRosterMatch(row);
@@ -264,18 +293,83 @@ export class MembersService {
         registeredAt: row.registeredAt ?? undefined,
       };
 
+      let memberId: string;
+      let userId: string | null = null;
+      let action: 'created' | 'updated';
       if (existing) {
         await this.prisma.member.update({ where: { id: existing.id }, data });
+        memberId = existing.id;
+        userId = existing.userId;
+        action = 'updated';
         updated++;
-        items.push({ name: `${row.firstName} ${row.lastName}`, action: 'updated', registrationValidUntil: row.registrationValidUntil });
       } else {
-        await this.prisma.member.create({ data });
+        const m = await this.prisma.member.create({ data });
+        memberId = m.id;
+        action = 'created';
         created++;
-        items.push({ name: `${row.firstName} ${row.lastName}`, action: 'created', registrationValidUntil: row.registrationValidUntil });
       }
+
+      // zaradenie do skupiny podľa ročníka (hráč) + rola PLAYER, ak má konto
+      let team: string | null = null;
+      if (seasonId && row.birthDate) team = await this.assignByAge(memberId, row.birthDate, rules, seasonId);
+      if (userId) await this.accounts.syncRoles(userId, ['PLAYER']);
+
+      items.push({ name: `${row.firstName} ${row.lastName}`, action, registrationValidUntil: row.registrationValidUntil, team });
     }
 
     return { total: rows.length, created, updated, items };
+  }
+
+  /** Načíta pravidlá zaradenia do kategórií pre aktívnu sezónu (predvolené družstvá). */
+  private async loadAssignRules(): Promise<{ seasonId: string | null; rules: AssignRule[] }> {
+    const season = await this.prisma.season.findFirst({
+      where: { isActive: true },
+      include: {
+        categoryRules: {
+          include: { teamCategory: { include: { teams: { orderBy: { sortOrder: 'asc' } } } } },
+        },
+      },
+    });
+    if (!season) return { seasonId: null, rules: [] };
+    const rules: AssignRule[] = season.categoryRules.map((r) => ({
+      categoryCode: r.teamCategory.code as CategoryCode,
+      birthYearFrom: r.birthYearFrom,
+      birthYearTo: r.birthYearTo,
+      teamCategoryId: r.teamCategoryId,
+      defaultTeamId: r.teamCategory.teams[0]?.id ?? null,
+      defaultTeamName: r.teamCategory.teams[0]?.name ?? null,
+    }));
+    return { seasonId: season.id, rules };
+  }
+
+  /**
+   * Zaradí hráča do predvoleného družstva jeho vekovej kategórie. Manuálnu
+   * výnimku (isException) ani hráča už v správnej kategórii (napr. B tím)
+   * neprepisuje. Vráti názov družstva (alebo null, ak sa nedá zaradiť).
+   */
+  private async assignByAge(
+    memberId: string,
+    birthDate: Date,
+    rules: AssignRule[],
+    seasonId: string,
+  ): Promise<string | null> {
+    const code = categoryForBirthDate(birthDate, rules);
+    const rule = rules.find((r) => r.categoryCode === code);
+    if (!code || !rule || !rule.defaultTeamId) return null;
+
+    const existing = await this.prisma.teamMembership.findUnique({
+      where: { memberId_seasonId: { memberId, seasonId } },
+      include: { team: true },
+    });
+    if (existing?.isException) return existing.team.name; // ručná výnimka — nemeníme
+    if (existing && existing.team.teamCategoryId === rule.teamCategoryId) return existing.team.name;
+
+    await this.prisma.teamMembership.upsert({
+      where: { memberId_seasonId: { memberId, seasonId } },
+      create: { memberId, seasonId, teamId: rule.defaultTeamId },
+      update: { teamId: rule.defaultTeamId, isException: false },
+    });
+    return rule.defaultTeamName;
   }
 
   /** Nájde existujúceho člena pre importný riadok (reg. číslo → meno+priezvisko+dátum). */

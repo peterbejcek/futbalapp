@@ -18,6 +18,9 @@ interface MemberRow {
   futbalnetId?: string | null;
   healthNotes?: string | null;
   registrationValidUntil?: string | null;
+  homeClub?: string | null;
+  guestClub?: string | null;
+  clubAffiliation?: string | null;
   memberships: Array<{ team: { id: string; name: string; teamCategory: { code: string } } }>;
   user: { id: string; email: string; roles: Array<{ role: string; teamId: string | null }> } | null;
   guardians: Guardian[];
@@ -73,6 +76,8 @@ function MembersTable() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [teamFilter, setTeamFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [hideInactive, setHideInactive] = useState(false);
+  const [sortBy, setSortBy] = useState<'lastName' | 'team' | 'card'>('lastName');
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<MemberRow | null>(null);
   const [creating, setCreating] = useState(false);
@@ -88,13 +93,29 @@ function MembersTable() {
       if (categoryParam) parts.push(`category=${categoryParam}`);
       if (teamFilter) parts.push(`team=${teamFilter}`);
       if (roleFilter) parts.push(`role=${roleFilter}`);
+      if (hideInactive) parts.push('hideInactive=true');
       const q = parts.length ? `?${parts.join('&')}` : '';
       setMembers(await api<MemberRow[]>(`/members${q}`));
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Načítanie zlyhalo');
     }
-  }, [categoryParam, teamFilter, roleFilter]);
+  }, [categoryParam, teamFilter, roleFilter, hideInactive]);
+
+  // klientské zoradenie (priezvisko / družstvo / platnosť preukazu)
+  const sortedMembers = [...members].sort((a, b) => {
+    if (sortBy === 'team') {
+      const ta = a.memberships[0]?.team.name ?? '';
+      const tb = b.memberships[0]?.team.name ?? '';
+      if (ta !== tb) return ta === '' ? 1 : tb === '' ? -1 : ta.localeCompare(tb, 'sk');
+    } else if (sortBy === 'card') {
+      const va = a.registrationValidUntil ? new Date(a.registrationValidUntil).getTime() : Infinity;
+      const vb = b.registrationValidUntil ? new Date(b.registrationValidUntil).getTime() : Infinity;
+      if (va !== vb) return va - vb; // najskôr končiaca platnosť hore, bez preukazu dole
+    }
+    // sekundárne (a primárne pre 'lastName') podľa priezviska
+    return (a.lastName + a.firstName).localeCompare(b.lastName + b.firstName, 'sk');
+  });
 
   useEffect(() => {
     api<Team[]>('/seasons/teams').then(setTeams).catch(() => {});
@@ -145,6 +166,22 @@ function MembersTable() {
               <option value="MANAGER">Vedúci klubu</option>
             </select>
           </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Zoradiť:</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'lastName' | 'team' | 'card')}
+              className="rounded-md border border-gray-300 px-2 py-1 text-sm"
+            >
+              <option value="lastName">Priezvisko</option>
+              <option value="team">Družstvo</option>
+              <option value="card">Platnosť preukazu</option>
+            </select>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            <input type="checkbox" checked={hideInactive} onChange={(e) => setHideInactive(e.target.checked)} />
+            Skryť neaktívnych
+          </label>
         </div>
         {staff && (
           <div className="flex gap-2">
@@ -172,8 +209,9 @@ function MembersTable() {
                 (spolu {importResult.total}).
               </p>
               <p className="mt-1 text-xs text-gray-500">
-                Existujúci hráči sa spárovali podľa registračného čísla (inak mena a dátumu narodenia) a len sa
-                aktualizovali — duplicity nevznikajú. Prihlasovacie kontá doplníte cez „Upraviť" (e-mail).
+                Hráči sa zaradili do družstva podľa ročníka (ručné výnimky ostávajú). Existujúci sa spárovali podľa
+                registračného čísla (inak mena a dátumu narodenia) a len aktualizovali — duplicity nevznikajú.
+                Prihlasovacie kontá doplníte cez „Upraviť" (e-mail).
               </p>
             </div>
             <button onClick={() => setImportResult(null)} className="text-sm text-club-600 hover:underline">
@@ -193,6 +231,9 @@ function MembersTable() {
               <th className="px-4 py-3">Funkcia</th>
               <th className="px-4 py-3">Ročník</th>
               <th className="px-4 py-3">Družstvo</th>
+              <th className="px-4 py-3">Materský klub</th>
+              <th className="px-4 py-3">Hosťujúci klub</th>
+              <th className="px-4 py-3">Klub. príslušnosť</th>
               <th className="px-4 py-3">Preukaz do</th>
               <th className="px-4 py-3">Konto</th>
               <th className="px-4 py-3">Stav</th>
@@ -200,7 +241,7 @@ function MembersTable() {
             </tr>
           </thead>
           <tbody className="divide-y divide-club-100">
-            {members.map((m) => (
+            {sortedMembers.map((m) => (
               <tr key={m.id}>
                 <td className="px-4 py-3 font-medium">
                   {m.lastName} {m.firstName}
@@ -216,6 +257,9 @@ function MembersTable() {
                 </td>
                 <td className="px-4 py-3">{m.birthDate ? new Date(m.birthDate).getFullYear() : '—'}</td>
                 <td className="px-4 py-3">{m.memberships[0]?.team.name ?? '—'}</td>
+                <td className="px-4 py-3 text-gray-600">{m.homeClub ?? '—'}</td>
+                <td className="px-4 py-3 text-gray-600">{m.guestClub ?? '—'}</td>
+                <td className="px-4 py-3 text-gray-600">{m.clubAffiliation ?? '—'}</td>
                 <td className="px-4 py-3">
                   {(() => {
                     const b = cardBadge(m.registrationValidUntil);
@@ -250,7 +294,7 @@ function MembersTable() {
             ))}
             {members.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
                   Žiadni členovia.
                 </td>
               </tr>
