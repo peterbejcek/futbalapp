@@ -1,4 +1,16 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  Post,
+  Query,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { z } from 'zod';
 import { FinanceService, type BankRow } from './finance.service';
 import { DunningService } from './dunning.service';
@@ -15,6 +27,8 @@ const createFeePlanSchema = z.object({
   period: z.enum(['MONTHLY', 'QUARTERLY', 'ONE_TIME', 'SEASON']),
   dueDay: z.number().int().min(1).max(28).optional(),
 });
+
+const assignSchema = z.object({ memberId: z.string().min(1) });
 
 const bankImportSchema = z.object({
   rows: z.array(
@@ -70,10 +84,40 @@ export class FinanceController {
     return this.financeService.importBankTransactions(body.rows);
   }
 
+  /** Import bankového výpisu (.xls/.xlsx) — nahranie súboru. */
+  @Post('bank/import-file')
+  @Roles('ADMIN', 'MANAGER')
+  @UseInterceptors(FileInterceptor('file'))
+  importBankFile(@UploadedFile() file?: { buffer: Buffer }) {
+    if (!file?.buffer) throw new BadRequestException('Chýba súbor (pole "file")');
+    return this.financeService.importBankFile(file.buffer);
+  }
+
   @Post('bank/match')
   @Roles('ADMIN', 'MANAGER')
   autoMatch() {
     return this.financeService.autoMatch();
+  }
+
+  /** Zoznam bankových pohybov na párovanie (voliteľne podľa stavu). */
+  @Get('bank/transactions')
+  @Roles('ADMIN', 'MANAGER')
+  bankTransactions(@Query('status') status?: string) {
+    return this.financeService.listBankTransactions(status);
+  }
+
+  /** Ručné priradenie pohybu členovi (naučí IBAN + rozúčtuje). */
+  @Post('bank/:txId/assign')
+  @Roles('ADMIN', 'MANAGER')
+  assign(@Param('txId') txId: string, @Body(new ZodValidationPipe(assignSchema)) body: { memberId: string }) {
+    return this.financeService.assignTransaction(txId, body.memberId);
+  }
+
+  /** Označí pohyb ako ignorovaný. */
+  @Post('bank/:txId/ignore')
+  @Roles('ADMIN', 'MANAGER')
+  ignore(@Param('txId') txId: string) {
+    return this.financeService.ignoreTransaction(txId);
   }
 
   @Get('debtors')

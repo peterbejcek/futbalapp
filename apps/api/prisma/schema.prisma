@@ -124,6 +124,9 @@ model Member {
   nominations        MatchNomination[]
   matchEvents        MatchEvent[]        @relation("MatchEventMember")
   relatedMatchEvents MatchEvent[]        @relation("MatchEventRelatedMember")
+  bankPayerLinks     BankPayerLink[]
+  suggestedTxns      BankTransaction[]   @relation("TxSuggestedMember")
+  matchedTxns        BankTransaction[]   @relation("TxMatchedMember")
 }
 
 model Guardian {
@@ -330,7 +333,7 @@ model PaymentObligation {
 
 model BankTransaction {
   id               String          @id @default(cuid())
-  source           String // CAMT | CSV | API
+  source           String // CAMT | CSV | XLS | API
   externalId       String          @unique
   date             DateTime
   amountCents      Int
@@ -340,12 +343,29 @@ model BankTransaction {
   counterpartyName String?
   message          String?
   matchStatus      BankMatchStatus @default(UNMATCHED)
+  /// Návrh spárovania podľa mena/zdrobneniny (čaká na potvrdenie)
+  suggestedMemberId String?
+  /// Potvrdený člen, ku ktorému pohyb patrí (aj bez otvorenej povinnosti)
+  matchedMemberId   String?
   importedAt       DateTime        @default(now())
 
-  matches PaymentMatch[]
+  matches         PaymentMatch[]
+  suggestedMember Member?        @relation("TxSuggestedMember", fields: [suggestedMemberId], references: [id])
+  matchedMember   Member?        @relation("TxMatchedMember", fields: [matchedMemberId], references: [id])
 
   @@index([variableSymbol])
   @@index([matchStatus])
+}
+
+/// Naučená väzba platobného účtu (IBAN) na člena — po prvom ručnom spárovaní
+/// sa ďalšie platby z toho istého účtu párujú automaticky.
+model BankPayerLink {
+  id        String   @id @default(cuid())
+  iban      String   @unique
+  memberId  String
+  createdAt DateTime @default(now())
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
 }
 
 model PaymentMatch {

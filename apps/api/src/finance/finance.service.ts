@@ -1,6 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import type { BankTransaction } from '@prisma/client';
 import { generateVariableSymbol, periodLabel } from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
+import { parseBankStatement } from './bank-statement';
+import { buildIndex, suggestMemberId } from './name-match';
 
 export interface BankRow {
   externalId: string;
@@ -106,14 +109,21 @@ export class FinanceService {
     return { period: label, created, total: assignments.length };
   }
 
-  /** Import bankových pohybov (z CSV/CAMT parsera alebo API) + automatické párovanie. */
-  async importBankTransactions(rows: BankRow[]) {
+  /** Import bankového výpisu (.xls/.xlsx VÚB) + automatické párovanie. */
+  async importBankFile(buffer: Buffer) {
+    const rows = parseBankStatement(buffer);
+    if (rows.length === 0) throw new BadRequestException('Vo výpise sa nenašli žiadne prichádzajúce platby');
+    return this.importBankTransactions(rows, 'XLS');
+  }
+
+  /** Uloží bankové pohyby (idempotentne podľa externalId) a spustí párovanie. */
+  async importBankTransactions(rows: BankRow[], source = 'CSV') {
     let imported = 0;
     for (const row of rows) {
       try {
         await this.prisma.bankTransaction.create({
           data: {
-            source: 'CSV',
+            source,
             externalId: row.externalId,
             date: new Date(row.date),
             amountCents: row.amountCents,
@@ -133,67 +143,171 @@ export class FinanceService {
   }
 
   /**
-   * Automatické párovanie: pohyb s VS sa páruje na nezaplatené povinnosti
-   * člena (podľa VS), od najstaršej. Jeden pohyb môže pokryť viac povinností
-   * (rodič platí viac mesiacov naraz).
+   * Automatické párovanie prichádzajúcich platieb:
+   *  1. naučený IBAN (BankPayerLink) → automaticky priradí členovi,
+   *  2. VS = náš variabilný symbol (RRMM + memberSeq) → automaticky,
+   *  3. inak fuzzy zhoda mena/zdrobneniny → uloží sa len ako návrh (suggestedMemberId).
+   * Priradenie rozúčtuje sumu na otvorené povinnosti člena od najstaršej.
    */
   async autoMatch() {
+    const index = buildIndex(
+      (
+        await this.prisma.member.findMany({
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            guardians: { select: { user: { select: { firstName: true, lastName: true } } } },
+          },
+        })
+      ).map((m) => ({
+        memberId: m.id,
+        firstName: m.firstName,
+        lastName: m.lastName,
+        guardianNames: m.guardians.map((g) => g.user),
+      })),
+    );
+
     const unmatched = await this.prisma.bankTransaction.findMany({
-      where: { matchStatus: 'UNMATCHED', amountCents: { gt: 0 }, variableSymbol: { not: null } },
+      where: { matchStatus: 'UNMATCHED', amountCents: { gt: 0 } },
     });
 
-    let matchedCount = 0;
+    let matched = 0;
+    let suggested = 0;
     for (const tx of unmatched) {
-      // 1. presná zhoda VS
-      let obligations = await this.prisma.paymentObligation.findMany({
-        where: { variableSymbol: tx.variableSymbol!, status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] } },
-        orderBy: { dueDate: 'asc' },
-      });
-      // 2. fallback: VS patrí členovi (rovnaké posledné 6-číslie) → všetky jeho dlhy
-      if (obligations.length === 0 && /^\d{10}$/.test(tx.variableSymbol!)) {
-        const memberSeq = Number(tx.variableSymbol!.slice(4));
-        const member = await this.prisma.member.findUnique({ where: { memberSeq } });
-        if (member) {
-          obligations = await this.prisma.paymentObligation.findMany({
-            where: { memberId: member.id, status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] } },
-            orderBy: { dueDate: 'asc' },
-          });
-        }
+      // 1. naučený IBAN
+      let memberId: string | null = null;
+      if (tx.counterpartyIban) {
+        const link = await this.prisma.bankPayerLink.findUnique({ where: { iban: tx.counterpartyIban } });
+        if (link) memberId = link.memberId;
       }
-      if (obligations.length === 0) continue;
-
-      let remaining = tx.amountCents;
-      for (const obligation of obligations) {
-        if (remaining <= 0) break;
-        const open = obligation.amountCents - obligation.paidCents;
-        const applied = Math.min(open, remaining);
-        if (applied <= 0) continue;
-        await this.prisma.$transaction([
-          this.prisma.paymentMatch.create({
-            data: {
-              bankTransactionId: tx.id,
-              paymentObligationId: obligation.id,
-              amountCents: applied,
-              matchedBy: 'AUTO',
-            },
-          }),
-          this.prisma.paymentObligation.update({
-            where: { id: obligation.id },
-            data: {
-              paidCents: obligation.paidCents + applied,
-              status: obligation.paidCents + applied >= obligation.amountCents ? 'PAID' : 'PARTIAL',
-            },
-          }),
-        ]);
-        remaining -= applied;
+      // 2. VS = náš variabilný symbol
+      if (!memberId && tx.variableSymbol && /^\d{10}$/.test(tx.variableSymbol)) {
+        const member = await this.prisma.member.findUnique({ where: { memberSeq: Number(tx.variableSymbol.slice(4)) } });
+        if (member) memberId = member.id;
       }
-      await this.prisma.bankTransaction.update({
-        where: { id: tx.id },
-        data: { matchStatus: remaining < tx.amountCents ? 'MATCHED' : 'UNMATCHED' },
-      });
-      if (remaining < tx.amountCents) matchedCount++;
+      if (memberId) {
+        await this.allocateToMember(tx, memberId, 'AUTO');
+        matched++;
+        continue;
+      }
+      // 3. fuzzy meno → návrh (bez auto-priradenia)
+      const sug = suggestMemberId(tx.counterpartyName, tx.message, index);
+      if (sug) {
+        await this.prisma.bankTransaction.update({ where: { id: tx.id }, data: { suggestedMemberId: sug } });
+        suggested++;
+      }
     }
-    return { matchedTransactions: matchedCount };
+    return { matchedTransactions: matched, suggestedTransactions: suggested };
+  }
+
+  /** Rozúčtuje sumu pohybu na otvorené povinnosti člena (od najstaršej). */
+  private async allocateToMember(tx: BankTransaction, memberId: string, matchedBy: 'AUTO' | 'MANUAL') {
+    const obligations = await this.prisma.paymentObligation.findMany({
+      where: { memberId, status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] } },
+      orderBy: { dueDate: 'asc' },
+    });
+    let remaining = tx.amountCents;
+    for (const o of obligations) {
+      if (remaining <= 0) break;
+      const applied = Math.min(o.amountCents - o.paidCents, remaining);
+      if (applied <= 0) continue;
+      await this.prisma.$transaction([
+        this.prisma.paymentMatch.upsert({
+          where: { bankTransactionId_paymentObligationId: { bankTransactionId: tx.id, paymentObligationId: o.id } },
+          create: { bankTransactionId: tx.id, paymentObligationId: o.id, amountCents: applied, matchedBy },
+          update: { amountCents: applied, matchedBy },
+        }),
+        this.prisma.paymentObligation.update({
+          where: { id: o.id },
+          data: {
+            paidCents: o.paidCents + applied,
+            status: o.paidCents + applied >= o.amountCents ? 'PAID' : 'PARTIAL',
+          },
+        }),
+      ]);
+      remaining -= applied;
+    }
+    await this.prisma.bankTransaction.update({
+      where: { id: tx.id },
+      data: { matchedMemberId: memberId, suggestedMemberId: null, matchStatus: matchedBy === 'MANUAL' ? 'MANUAL' : 'MATCHED' },
+    });
+    return { allocatedCents: tx.amountCents - remaining, remainingCents: remaining };
+  }
+
+  /** Zruší existujúce párovania pohybu (vráti uhradené sumy na povinnostiach). */
+  private async clearMatches(txId: string) {
+    const matches = await this.prisma.paymentMatch.findMany({
+      where: { bankTransactionId: txId },
+      include: { paymentObligation: true },
+    });
+    for (const mt of matches) {
+      const paid = mt.paymentObligation.paidCents - mt.amountCents;
+      await this.prisma.$transaction([
+        this.prisma.paymentObligation.update({
+          where: { id: mt.paymentObligationId },
+          data: { paidCents: Math.max(0, paid), status: paid <= 0 ? 'PENDING' : 'PARTIAL' },
+        }),
+        this.prisma.paymentMatch.delete({ where: { id: mt.id } }),
+      ]);
+    }
+  }
+
+  /**
+   * Ručné potvrdenie/priradenie pohybu členovi. Naučí sa IBAN (ďalšie platby
+   * z toho účtu sa spárujú automaticky) a rozúčtuje sumu na povinnosti člena.
+   */
+  async assignTransaction(txId: string, memberId: string) {
+    const tx = await this.prisma.bankTransaction.findUnique({ where: { id: txId } });
+    if (!tx) throw new NotFoundException('Pohyb neexistuje');
+    const member = await this.prisma.member.findUnique({ where: { id: memberId } });
+    if (!member) throw new NotFoundException('Člen neexistuje');
+
+    await this.clearMatches(txId); // pri prípadnom preradení
+    let alsoMatched = 0;
+    if (tx.counterpartyIban) {
+      await this.prisma.bankPayerLink.upsert({
+        where: { iban: tx.counterpartyIban },
+        create: { iban: tx.counterpartyIban, memberId },
+        update: { memberId },
+      });
+      // naučený účet — dotiahni ostatné nespárované platby z toho istého IBAN
+      const others = await this.prisma.bankTransaction.findMany({
+        where: { counterpartyIban: tx.counterpartyIban, matchStatus: 'UNMATCHED', id: { not: txId }, amountCents: { gt: 0 } },
+      });
+      for (const other of others) {
+        await this.allocateToMember(other, memberId, 'AUTO');
+        alsoMatched++;
+      }
+    }
+    const result = await this.allocateToMember(tx, memberId, 'MANUAL');
+    return { memberId, learnedIban: tx.counterpartyIban ?? null, alsoMatched, ...result };
+  }
+
+  /** Označí pohyb ako ignorovaný (napr. dotácia, nečlenská platba). */
+  async ignoreTransaction(txId: string) {
+    await this.clearMatches(txId);
+    return this.prisma.bankTransaction.update({
+      where: { id: txId },
+      data: { matchStatus: 'IGNORED', suggestedMemberId: null, matchedMemberId: null },
+    });
+  }
+
+  /** Zoznam bankových pohybov (prichádzajúcich) pre obrazovku párovania. */
+  listBankTransactions(status?: string) {
+    return this.prisma.bankTransaction.findMany({
+      where: {
+        amountCents: { gt: 0 },
+        matchStatus: status ? (status as BankTransaction['matchStatus']) : undefined,
+      },
+      include: {
+        suggestedMember: { select: { id: true, firstName: true, lastName: true } },
+        matchedMember: { select: { id: true, firstName: true, lastName: true } },
+        matches: { select: { amountCents: true, paymentObligation: { select: { periodLabel: true } } } },
+      },
+      orderBy: { date: 'desc' },
+      take: 500,
+    });
   }
 
   /** Prehľad dlžníkov: povinnosti po splatnosti, zoskupené po členoch. */

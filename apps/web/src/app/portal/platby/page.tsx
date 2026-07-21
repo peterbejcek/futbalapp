@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { api } from '@/lib/api';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { api, apiUpload } from '@/lib/api';
 import { Button, Card, ErrorText, Modal, inputCls, labelCls } from '@/components/ui';
 
 interface Debtor {
@@ -28,7 +28,7 @@ interface Category {
   name: string;
 }
 
-type Tab = 'debtors' | 'plans' | 'bank';
+type Tab = 'debtors' | 'plans' | 'matching' | 'bank';
 
 export default function PaymentsPage() {
   const [tab, setTab] = useState<Tab>('debtors');
@@ -40,7 +40,8 @@ export default function PaymentsPage() {
           [
             ['debtors', 'Dlžníci'],
             ['plans', 'Predpisy'],
-            ['bank', 'Banka a upomienky'],
+            ['matching', 'Párovanie platieb'],
+            ['bank', 'Upomienky'],
           ] as [Tab, string][]
         ).map(([key, label]) => (
           <button
@@ -56,6 +57,7 @@ export default function PaymentsPage() {
       </div>
       {tab === 'debtors' && <Debtors />}
       {tab === 'plans' && <Plans />}
+      {tab === 'matching' && <PaymentMatching />}
       {tab === 'bank' && <Bank />}
     </div>
   );
@@ -321,6 +323,327 @@ function GenerateModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+interface BankTx {
+  id: string;
+  date: string;
+  amountCents: number;
+  counterpartyName: string | null;
+  counterpartyIban: string | null;
+  message: string | null;
+  variableSymbol: string | null;
+  matchStatus: 'UNMATCHED' | 'MATCHED' | 'MANUAL' | 'IGNORED';
+  suggestedMember: { id: string; firstName: string; lastName: string } | null;
+  matchedMember: { id: string; firstName: string; lastName: string } | null;
+  matches: Array<{ amountCents: number; paymentObligation: { periodLabel: string } }>;
+}
+interface MemberOpt {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+type MatchFilter = 'all' | 'suggested' | 'unmatched' | 'matched' | 'ignored';
+
+function PaymentMatching() {
+  const [txns, setTxns] = useState<BankTx[]>([]);
+  const [members, setMembers] = useState<MemberOpt[]>([]);
+  const [filter, setFilter] = useState<MatchFilter>('suggested');
+  const [error, setError] = useState<string | null>(null);
+  const [importInfo, setImportInfo] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [picker, setPicker] = useState<BankTx | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setTxns(await api<BankTx[]>('/finance/bank/transactions'));
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Načítanie zlyhalo');
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+    api<MemberOpt[]>('/members').then(setMembers).catch(() => {});
+  }, [load]);
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setImporting(true);
+    setError(null);
+    try {
+      const r = await apiUpload<{ imported: number; matchedTransactions: number; suggestedTransactions: number }>(
+        '/finance/bank/import-file',
+        file,
+      );
+      setImportInfo(
+        `Načítaných ${r.imported} platieb · automaticky spárovaných ${r.matchedTransactions} · návrhov ${r.suggestedTransactions}.`,
+      );
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Import zlyhal');
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function assign(txId: string, memberId: string) {
+    try {
+      const r = await api<{ alsoMatched: number; learnedIban: string | null }>(`/finance/bank/${txId}/assign`, {
+        method: 'POST',
+        body: JSON.stringify({ memberId }),
+      });
+      setPicker(null);
+      if (r.alsoMatched > 0) {
+        setImportInfo(`Účet zapamätaný — automaticky spárovaných ďalších ${r.alsoMatched} platieb z toho istého účtu.`);
+      }
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Priradenie zlyhalo');
+    }
+  }
+  async function ignore(txId: string) {
+    try {
+      await api(`/finance/bank/${txId}/ignore`, { method: 'POST' });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Chyba');
+    }
+  }
+
+  const counts = useMemo(() => {
+    const c = { all: txns.length, suggested: 0, unmatched: 0, matched: 0, ignored: 0 };
+    for (const t of txns) {
+      if (t.matchStatus === 'IGNORED') c.ignored++;
+      else if (t.matchStatus === 'MATCHED' || t.matchStatus === 'MANUAL') c.matched++;
+      else if (t.suggestedMember) c.suggested++;
+      else c.unmatched++;
+    }
+    return c;
+  }, [txns]);
+
+  const shown = txns.filter((t) => {
+    if (filter === 'all') return true;
+    if (filter === 'ignored') return t.matchStatus === 'IGNORED';
+    if (filter === 'matched') return t.matchStatus === 'MATCHED' || t.matchStatus === 'MANUAL';
+    if (filter === 'suggested') return t.matchStatus === 'UNMATCHED' && !!t.suggestedMember;
+    return t.matchStatus === 'UNMATCHED' && !t.suggestedMember; // unmatched
+  });
+
+  const filters: [MatchFilter, string][] = [
+    ['suggested', `Návrhy (${counts.suggested})`],
+    ['unmatched', `Nespárované (${counts.unmatched})`],
+    ['matched', `Spárované (${counts.matched})`],
+    ['ignored', `Ignorované (${counts.ignored})`],
+    ['all', `Všetky (${counts.all})`],
+  ];
+
+  return (
+    <div className="space-y-4">
+      <Card className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-club-800">Import bankového výpisu</h2>
+            <p className="text-sm text-gray-600">
+              Nahrajte výpis z účtu (.xls/.xlsx). Platby z už známych účtov sa spárujú automaticky, ostatné
+              dostanú návrh podľa mena — po potvrdení si systém účet zapamätá.
+            </p>
+          </div>
+          <input ref={fileRef} type="file" accept=".xls,.xlsx" onChange={onFile} className="hidden" />
+          <Button onClick={() => fileRef.current?.click()} disabled={importing}>
+            {importing ? 'Importujem…' : '⬆ Nahrať výpis'}
+          </Button>
+        </div>
+        {importInfo && <p className="text-sm font-medium text-club-700">{importInfo}</p>}
+      </Card>
+
+      <ErrorText>{error}</ErrorText>
+
+      <div className="flex flex-wrap gap-2">
+        {filters.map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setFilter(key)}
+            className={`rounded-full border px-3 py-1 text-sm ${
+              filter === key ? 'border-club-600 bg-club-600 text-white' : 'border-gray-300 text-gray-600'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-club-100 bg-white">
+        <table className="w-full text-sm">
+          <thead className="bg-club-50 text-left text-club-800">
+            <tr>
+              <th className="px-3 py-3">Dátum</th>
+              <th className="px-3 py-3">Platca</th>
+              <th className="px-3 py-3">Poznámka</th>
+              <th className="px-3 py-3 text-right">Suma</th>
+              <th className="px-3 py-3">Člen / stav</th>
+              <th className="px-3 py-3"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-club-100">
+            {shown.map((t) => (
+              <tr key={t.id} className="align-top">
+                <td className="whitespace-nowrap px-3 py-3 text-gray-600">
+                  {new Date(t.date).toLocaleDateString('sk-SK')}
+                </td>
+                <td className="px-3 py-3">
+                  <div className="font-medium">{t.counterpartyName ?? '—'}</div>
+                  <div className="text-xs text-gray-400">{t.counterpartyIban ?? ''}</div>
+                </td>
+                <td className="px-3 py-3 text-gray-600">{t.message ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-right font-semibold">
+                  {(t.amountCents / 100).toFixed(2)} €
+                </td>
+                <td className="px-3 py-3">
+                  {t.matchStatus === 'IGNORED' ? (
+                    <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500">Ignorované</span>
+                  ) : t.matchedMember ? (
+                    <div>
+                      <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                        {t.matchStatus === 'MANUAL' ? 'Ručne' : 'Auto'}
+                      </span>{' '}
+                      <span className="font-medium">
+                        {t.matchedMember.lastName} {t.matchedMember.firstName}
+                      </span>
+                      {t.matches.length > 0 && (
+                        <div className="text-xs text-gray-400">
+                          {t.matches.map((m) => m.paymentObligation.periodLabel).join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  ) : t.suggestedMember ? (
+                    <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                      Návrh: {t.suggestedMember.lastName} {t.suggestedMember.firstName}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-400">nespárované</span>
+                  )}
+                </td>
+                <td className="whitespace-nowrap px-3 py-3 text-right">
+                  {t.matchStatus !== 'IGNORED' && (
+                    <div className="flex justify-end gap-2">
+                      {t.suggestedMember && !t.matchedMember && (
+                        <button
+                          onClick={() => assign(t.id, t.suggestedMember!.id)}
+                          className="font-medium text-green-700 hover:underline"
+                        >
+                          Potvrdiť
+                        </button>
+                      )}
+                      <button onClick={() => setPicker(t)} className="text-club-600 hover:underline">
+                        {t.matchedMember ? 'Zmeniť' : 'Priradiť'}
+                      </button>
+                      {!t.matchedMember && (
+                        <button onClick={() => ignore(t.id)} className="text-gray-400 hover:underline">
+                          Ignorovať
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {shown.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                  Žiadne pohyby v tejto kategórii.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {picker && (
+        <MemberPicker
+          tx={picker}
+          members={members}
+          onClose={() => setPicker(null)}
+          onPick={(memberId) => assign(picker.id, memberId)}
+        />
+      )}
+    </div>
+  );
+}
+
+function MemberPicker({
+  tx,
+  members,
+  onClose,
+  onPick,
+}: {
+  tx: BankTx;
+  members: MemberOpt[];
+  onClose: () => void;
+  onPick: (memberId: string) => void;
+}) {
+  const [q, setQ] = useState('');
+  const filtered = useMemo(() => {
+    const s = q
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+    const list = members
+      .filter((m) =>
+        !s
+          ? true
+          : `${m.lastName} ${m.firstName}`
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .toLowerCase()
+              .includes(s),
+      )
+      .slice(0, 40);
+    return list;
+  }, [q, members]);
+
+  return (
+    <Modal open onClose={onClose} title="Priradiť platbu členovi">
+      <div className="space-y-3">
+        <div className="rounded-md bg-club-50 p-3 text-sm text-gray-600">
+          <div>
+            <strong>{tx.counterpartyName ?? '—'}</strong> · {(tx.amountCents / 100).toFixed(2)} €
+          </div>
+          {tx.message && <div>Poznámka: {tx.message}</div>}
+          {tx.counterpartyIban && (
+            <div className="text-xs text-gray-400">Účet {tx.counterpartyIban} sa zapamätá pre budúce platby.</div>
+          )}
+        </div>
+        <input
+          autoFocus
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Hľadať člena…"
+          className={inputCls}
+        />
+        <div className="max-h-72 divide-y divide-club-100 overflow-y-auto rounded-md border border-club-100">
+          {filtered.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => onPick(m.id)}
+              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-club-50"
+            >
+              <span>
+                {m.lastName} {m.firstName}
+              </span>
+              {tx.suggestedMember?.id === m.id && <span className="text-xs text-amber-600">návrh</span>}
+            </button>
+          ))}
+          {filtered.length === 0 && <p className="px-3 py-4 text-sm text-gray-400">Žiadny člen.</p>}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function Bank() {
   const [result, setResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -352,10 +675,10 @@ function Bank() {
   return (
     <div className="space-y-4">
       <Card className="space-y-3">
-        <h2 className="font-semibold text-club-800">Párovanie s bankou</h2>
+        <h2 className="font-semibold text-club-800">Prepárovať pohyby</h2>
         <p className="text-sm text-gray-600">
-          Import bankového výpisu (CAMT/CSV) prebieha cez API alebo naplánovaný job; tu spustíte párovanie
-          nespárovaných pohybov podľa variabilného symbolu.
+          Import výpisu a párovanie nájdete v záložke „Párovanie platieb". Tu môžete znovu spustiť automatické
+          párovanie (napr. po pridaní nových predpisov alebo po naučení účtov).
         </p>
         <Button onClick={runMatch} disabled={busy}>
           Spustiť párovanie
