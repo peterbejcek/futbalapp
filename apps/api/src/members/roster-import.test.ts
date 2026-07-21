@@ -50,8 +50,8 @@ describe('parseRosterXlsx', () => {
       registrationNumber: '1398439',
       status: 'ACTIVE',
     });
-    expect(rows[0].registrationValidUntil?.getFullYear()).toBe(2026);
-    expect(rows[0].birthDate?.getFullYear()).toBe(2004);
+    expect(rows[0]!.registrationValidUntil?.getFullYear()).toBe(2026);
+    expect(rows[0]!.birthDate?.getFullYear()).toBe(2004);
   });
 
   it('je odolný voči diakritike/veľkosti písmen a poradiu stĺpcov', async () => {
@@ -67,7 +67,7 @@ describe('parseRosterXlsx', () => {
     const buf = await buildXlsx([HEADER, ['', '', '', '', '', '', '', '', '', ''], ['Ján', 'Nový']]);
     const rows = await parseRosterXlsx(buf);
     expect(rows).toHaveLength(1);
-    expect(rows[0].firstName).toBe('Ján');
+    expect(rows[0]!.firstName).toBe('Ján');
   });
 
   it('hodí chybu, keď chýbajú známe stĺpce', async () => {
