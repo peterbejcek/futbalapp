@@ -16,6 +16,7 @@ import { ChatModule } from './chat/chat.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
 import { FutbalnetModule } from './integrations/futbalnet/futbalnet.module';
+import { CaptchaModule } from './captcha/captcha.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -34,6 +35,7 @@ import { HealthController } from './health.controller';
     ChatModule,
     ReportsModule,
     FutbalnetModule,
+    CaptchaModule,
   ],
   controllers: [HealthController],
   providers: [
