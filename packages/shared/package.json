@@ -5,6 +5,9 @@
   "type": "commonjs",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "//": "react-native/source: Metro (Expo) načíta @fkknv/shared priamo zo zdroja (src), takže mobil nepotrebuje build dist. Web (Next) a API (tsc) používajú main → dist.",
+  "react-native": "./src/index.ts",
+  "source": "./src/index.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
