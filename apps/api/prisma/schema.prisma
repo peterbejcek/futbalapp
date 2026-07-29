@@ -269,7 +269,9 @@ model TeamMembership {
   season Season @relation(fields: [seasonId], references: [id])
   team   Team   @relation(fields: [teamId], references: [id])
 
-  @@unique([memberId, seasonId])
+  // hráč môže byť vo viacerých skupinách naraz (jedna sezóna, viac družstiev)
+  @@unique([memberId, seasonId, teamId])
+  @@index([memberId, seasonId])
 }
 
 // ---------------------------------------------------------------------------

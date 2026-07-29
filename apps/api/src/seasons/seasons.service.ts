@@ -84,20 +84,21 @@ export class SeasonsService {
         result.unmatched.push(`${member.firstName} ${member.lastName}`);
         continue;
       }
-      const existing = member.memberships[0];
-      if (existing?.isException) {
+      const memberships = member.memberships;
+      // ak má hráč aspoň jednu manuálnu výnimku (aj viac skupín), nezasahujeme
+      if (memberships.some((m) => m.isException)) {
         result.skippedExceptions++;
         continue;
       }
       // hráč už je v družstve správnej kategórie (napr. B tím) → nemeníme
-      if (existing && existing.team.teamCategoryId === rule.teamCategoryId) {
+      if (memberships.some((m) => m.team.teamCategoryId === rule.teamCategoryId)) {
         result.unchanged++;
         continue;
       }
-      await this.prisma.teamMembership.upsert({
-        where: { memberId_seasonId: { memberId: member.id, seasonId } },
-        create: { memberId: member.id, seasonId, teamId: rule.defaultTeamId },
-        update: { teamId: rule.defaultTeamId, isException: false },
+      // automatické zaradenie: nahraď staré auto-zaradenie predvoleným tímom
+      await this.prisma.teamMembership.deleteMany({ where: { memberId: member.id, seasonId, isException: false } });
+      await this.prisma.teamMembership.create({
+        data: { memberId: member.id, seasonId, teamId: rule.defaultTeamId },
       });
       result.assigned++;
     }
@@ -109,9 +110,9 @@ export class SeasonsService {
     const team = await this.prisma.team.findUnique({ where: { id: teamId } });
     if (!team) throw new NotFoundException('Družstvo neexistuje');
     return this.prisma.teamMembership.upsert({
-      where: { memberId_seasonId: { memberId, seasonId } },
+      where: { memberId_seasonId_teamId: { memberId, seasonId, teamId } },
       create: { memberId, seasonId, teamId, isException: true },
-      update: { teamId, isException: true },
+      update: { teamId, isException: true, leftAt: null },
     });
   }
 }

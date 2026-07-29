@@ -257,7 +257,9 @@ function MembersTable() {
                   </span>
                 </td>
                 <td className="px-4 py-3">{m.birthDate ? new Date(m.birthDate).getFullYear() : '—'}</td>
-                <td className="px-4 py-3">{m.memberships[0]?.team.name ?? '—'}</td>
+                <td className="px-4 py-3">
+                  {m.memberships.length ? m.memberships.map((ms) => ms.team.name).join(', ') : '—'}
+                </td>
                 <td className="px-4 py-3 text-gray-600">{m.homeClub ?? '—'}</td>
                 <td className="px-4 py-3 text-gray-600">{m.guestClub ?? '—'}</td>
                 <td className="px-4 py-3 text-gray-600">{m.clubAffiliation ?? '—'}</td>
@@ -354,7 +356,7 @@ function MemberModal({
     member?.registrationValidUntil?.slice(0, 10) ?? '',
   );
   const [healthNotes, setHealthNotes] = useState(member?.healthNotes ?? '');
-  const [teamId, setTeamId] = useState(member?.memberships[0]?.team.id ?? '');
+  const [teamIds, setTeamIds] = useState<string[]>(member?.memberships.map((m) => m.team.id) ?? []);
   const [roles, setRoles] = useState<string[]>(member?.user?.roles.map((r) => r.role) ?? []);
   const [email, setEmail] = useState(member?.user?.email ?? '');
   const [createAccount, setCreateAccount] = useState(false);
@@ -396,7 +398,7 @@ function MemberModal({
       futbalnetId: futbalnetId || undefined,
       registrationValidUntil: registrationValidUntil || undefined,
       healthNotes: healthNotes || undefined,
-      teamId: teamId || undefined,
+      teamIds,
       roles: roles.length ? roles : undefined,
       account: wantAccount && email ? { email } : undefined,
       childMemberIds: isParent && childMemberIds.length ? childMemberIds : undefined,
@@ -467,18 +469,27 @@ function MemberModal({
           </div>
         </div>
 
-        {/* Zaradenie do družstva (manuálne, prepíše automatické podľa veku) */}
+        {/* Zaradenie do skupín (viac naraz; prepíše automatické podľa veku) */}
         <div>
-          <label className={labelCls}>Družstvo / skupina</label>
-          <select value={teamId} onChange={(e) => setTeamId(e.target.value)} className={inputCls}>
-            <option value="">— nezaradený —</option>
+          <label className={labelCls}>Družstvá / skupiny</label>
+          <div className="mt-1 grid max-h-40 grid-cols-2 gap-1 overflow-y-auto rounded-md border border-gray-200 p-2">
             {teams.map((t) => (
-              <option key={t.id} value={t.id}>
+              <label key={t.id} className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={teamIds.includes(t.id)}
+                  onChange={() =>
+                    setTeamIds((prev) => (prev.includes(t.id) ? prev.filter((x) => x !== t.id) : [...prev, t.id]))
+                  }
+                />
                 {t.name}
-              </option>
+              </label>
             ))}
-          </select>
-          <p className="mt-1 text-xs text-gray-500">Ručné zaradenie prepíše automatické podľa veku.</p>
+            {teams.length === 0 && <p className="text-sm text-gray-400">Žiadne družstvá.</p>}
+          </div>
+          <p className="mt-1 text-xs text-gray-500">
+            Hráč môže byť vo viacerých skupinách. Ručné zaradenie prepíše automatické podľa veku.
+          </p>
         </div>
 
         {/* Funkcia / roly */}

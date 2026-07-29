@@ -116,17 +116,31 @@ export class MembersService {
     return member;
   }
 
-  /** Priradí/prepíše zaradenie člena do družstva v aktívnej sezóne (manuálna výnimka). */
-  private async assignTeam(memberId: string, teamId: string) {
-    const team = await this.prisma.team.findUnique({ where: { id: teamId } });
-    if (!team) throw new BadRequestException('Družstvo neexistuje');
+  /**
+   * Nastaví zaradenie člena do skupín v aktívnej sezóne na presne dané družstvá
+   * (manuálna výnimka). Hráč môže byť vo viacerých skupinách naraz. Prázdny
+   * zoznam odstráni všetky zaradenia v sezóne.
+   */
+  private async syncTeams(memberId: string, teamIds: string[]) {
     const season = await this.prisma.season.findFirst({ where: { isActive: true } });
     if (!season) throw new BadRequestException('Neexistuje aktívna sezóna');
-    await this.prisma.teamMembership.upsert({
-      where: { memberId_seasonId: { memberId, seasonId: season.id } },
-      create: { memberId, seasonId: season.id, teamId, isException: true },
-      update: { teamId, isException: true },
+    const unique = [...new Set(teamIds)];
+    if (unique.length > 0) {
+      const count = await this.prisma.team.count({ where: { id: { in: unique } } });
+      if (count !== unique.length) throw new BadRequestException('Niektoré družstvo neexistuje');
+    }
+    // odstráň zaradenia, ktoré už nie sú vo výbere
+    await this.prisma.teamMembership.deleteMany({
+      where: { memberId, seasonId: season.id, teamId: { notIn: unique.length ? unique : ['__none__'] } },
     });
+    // pridaj/označ vybrané ako manuálne výnimky
+    for (const teamId of unique) {
+      await this.prisma.teamMembership.upsert({
+        where: { memberId_seasonId_teamId: { memberId, seasonId: season.id, teamId } },
+        create: { memberId, seasonId: season.id, teamId, isException: true },
+        update: { isException: true, leftAt: null },
+      });
+    }
   }
 
   /** Vytvorí/prepojí konto člena a nastaví roly. Vráti dočasné heslo pri novom konte. */
@@ -196,7 +210,8 @@ export class MembersService {
         registeredAt: input.registeredAt,
       },
     });
-    if (input.teamId) await this.assignTeam(member.id, input.teamId);
+    if (input.teamIds) await this.syncTeams(member.id, input.teamIds);
+    else if (input.teamId) await this.syncTeams(member.id, [input.teamId]);
     const account = await this.applyAccount({ ...member, userId: null }, input);
     if (input.childMemberIds?.length) await this.linkChildren(member.id, input.childMemberIds);
     return { member: await this.get(member.id), account };
@@ -222,7 +237,8 @@ export class MembersService {
         registeredAt: input.registeredAt,
       },
     });
-    if (input.teamId) await this.assignTeam(id, input.teamId);
+    if (input.teamIds) await this.syncTeams(id, input.teamIds);
+    else if (input.teamId) await this.syncTeams(id, [input.teamId]);
     const account = await this.applyAccount(
       { id, firstName: input.firstName ?? existing.firstName, lastName: input.lastName ?? existing.lastName, userId: existing.userId },
       input as CreateMemberInput,
@@ -398,17 +414,22 @@ export class MembersService {
     const rule = rules.find((r) => r.categoryCode === code);
     if (!code || !rule || !rule.defaultTeamId) return null;
 
-    const existing = await this.prisma.teamMembership.findUnique({
-      where: { memberId_seasonId: { memberId, seasonId } },
+    const memberships = await this.prisma.teamMembership.findMany({
+      where: { memberId, seasonId, leftAt: null },
       include: { team: true },
     });
-    if (existing?.isException) return existing.team.name; // ručná výnimka — nemeníme
-    if (existing && existing.team.teamCategoryId === rule.teamCategoryId) return existing.team.name;
+    // ak má hráč čo i len jednu manuálnu výnimku (aj viac skupín), nezasahujeme
+    if (memberships.some((m) => m.isException)) {
+      return memberships.map((m) => m.team.name).join(', ');
+    }
+    // už je v správnej vekovej kategórii (napr. presunutý do B tímu)
+    const inCategory = memberships.find((m) => m.team.teamCategoryId === rule.teamCategoryId);
+    if (inCategory) return inCategory.team.name;
 
-    await this.prisma.teamMembership.upsert({
-      where: { memberId_seasonId: { memberId, seasonId } },
-      create: { memberId, seasonId, teamId: rule.defaultTeamId },
-      update: { teamId: rule.defaultTeamId, isException: false },
+    // automatické zaradenie: nahraď staré auto-zaradenie predvoleným tímom
+    await this.prisma.teamMembership.deleteMany({ where: { memberId, seasonId, isException: false } });
+    await this.prisma.teamMembership.create({
+      data: { memberId, seasonId, teamId: rule.defaultTeamId },
     });
     return rule.defaultTeamName;
   }

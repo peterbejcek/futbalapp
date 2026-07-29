@@ -76,6 +76,8 @@ export const createMemberSchema = z.object({
   registeredAt: z.coerce.date().optional(),
   /// manuálne zaradenie do družstva (prepíše automatické podľa veku)
   teamId: z.string().optional(),
+  /// manuálne zaradenie do viacerých skupín naraz (nahrádza teamId)
+  teamIds: z.array(z.string()).optional(),
   /// funkcie/roly člena (na jeho prihlasovacom konte)
   roles: z.array(z.enum(ROLES)).optional(),
   /// vytvorenie/aktualizácia prihlasovacieho konta
