@@ -9,6 +9,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AccountsService } from '../auth/accounts.service';
 import { parseRosterXlsx, type RosterRow } from './roster-import';
+import type { Member as MemberRecord } from '@prisma/client';
 import type { AuthUser } from '../auth/current-user.decorator';
 
 /** Pravidlo zaradenia do kategórie + predvolené družstvo (pre import). */
@@ -271,39 +272,48 @@ export class MembersService {
 
     let created = 0;
     let updated = 0;
+    let unchanged = 0;
     const items: Array<{
       name: string;
-      action: 'created' | 'updated';
+      action: 'created' | 'updated' | 'unchanged';
       registrationValidUntil: Date | null;
       team: string | null;
     }> = [];
 
     for (const row of rows) {
       const existing = await this.findRosterMatch(row);
-      const data = {
-        firstName: row.firstName,
-        lastName: row.lastName,
-        birthDate: row.birthDate ?? undefined,
-        status: row.status,
-        registrationNumber: row.registrationNumber ?? undefined,
-        homeClub: row.homeClub ?? undefined,
-        guestClub: row.guestClub ?? undefined,
-        clubAffiliation: row.clubAffiliation ?? undefined,
-        registrationValidUntil: row.registrationValidUntil ?? undefined,
-        registeredAt: row.registeredAt ?? undefined,
-      };
 
       let memberId: string;
       let userId: string | null = null;
-      let action: 'created' | 'updated';
+      let action: 'created' | 'updated' | 'unchanged';
       if (existing) {
-        await this.prisma.member.update({ where: { id: existing.id }, data });
+        // aktualizuj len polia, ktoré sa naozaj líšia (prázdne z importu neprepisujú)
+        const changed = this.diffRosterData(existing, row);
+        if (Object.keys(changed).length > 0) {
+          await this.prisma.member.update({ where: { id: existing.id }, data: changed });
+          action = 'updated';
+          updated++;
+        } else {
+          action = 'unchanged';
+          unchanged++;
+        }
         memberId = existing.id;
         userId = existing.userId;
-        action = 'updated';
-        updated++;
       } else {
-        const m = await this.prisma.member.create({ data });
+        const m = await this.prisma.member.create({
+          data: {
+            firstName: row.firstName,
+            lastName: row.lastName,
+            birthDate: row.birthDate ?? undefined,
+            status: row.status,
+            registrationNumber: row.registrationNumber ?? undefined,
+            homeClub: row.homeClub ?? undefined,
+            guestClub: row.guestClub ?? undefined,
+            clubAffiliation: row.clubAffiliation ?? undefined,
+            registrationValidUntil: row.registrationValidUntil ?? undefined,
+            registeredAt: row.registeredAt ?? undefined,
+          },
+        });
         memberId = m.id;
         action = 'created';
         created++;
@@ -317,7 +327,38 @@ export class MembersService {
       items.push({ name: `${row.firstName} ${row.lastName}`, action, registrationValidUntil: row.registrationValidUntil, team });
     }
 
-    return { total: rows.length, created, updated, items };
+    return { total: rows.length, created, updated, unchanged, items };
+  }
+
+  /**
+   * Vráti len tie polia, ktoré sa v importe líšia od existujúceho člena.
+   * Prázdne hodnoty z importu neprepisujú vyplnené údaje v DB.
+   */
+  private diffRosterData(existing: MemberRecord, row: RosterRow) {
+    const changed: Record<string, unknown> = {};
+    const setIfDiff = (key: string, current: unknown, next: unknown) => {
+      if (next !== undefined && next !== null && next !== current) changed[key] = next;
+    };
+    // meno/priezvisko/stav sú vždy prítomné
+    setIfDiff('firstName', existing.firstName, row.firstName);
+    setIfDiff('lastName', existing.lastName, row.lastName);
+    setIfDiff('status', existing.status, row.status);
+    // dátumy porovnávame podľa času; prázdny import neprepisuje
+    if (row.birthDate && existing.birthDate?.getTime() !== row.birthDate.getTime()) changed.birthDate = row.birthDate;
+    if (
+      row.registrationValidUntil &&
+      existing.registrationValidUntil?.getTime() !== row.registrationValidUntil.getTime()
+    ) {
+      changed.registrationValidUntil = row.registrationValidUntil;
+    }
+    if (row.registeredAt && existing.registeredAt?.getTime() !== row.registeredAt.getTime()) {
+      changed.registeredAt = row.registeredAt;
+    }
+    setIfDiff('registrationNumber', existing.registrationNumber, row.registrationNumber);
+    setIfDiff('homeClub', existing.homeClub, row.homeClub);
+    setIfDiff('guestClub', existing.guestClub, row.guestClub);
+    setIfDiff('clubAffiliation', existing.clubAffiliation, row.clubAffiliation);
+    return changed;
   }
 
   /** Načíta pravidlá zaradenia do kategórií pre aktívnu sezónu (predvolené družstvá). */

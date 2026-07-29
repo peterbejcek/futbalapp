@@ -30,7 +30,8 @@ interface ImportResult {
   total: number;
   created: number;
   updated: number;
-  items: Array<{ name: string; action: 'created' | 'updated'; registrationValidUntil: string | null }>;
+  unchanged: number;
+  items: Array<{ name: string; action: 'created' | 'updated' | 'unchanged'; registrationValidUntil: string | null }>;
 }
 
 /** Farebné zvýraznenie platnosti preukazu: po platnosti / do 30 dní / ok. */
@@ -205,8 +206,8 @@ function MembersTable() {
           <div className="flex items-start justify-between gap-4">
             <div className="text-sm text-gray-700">
               <p className="font-semibold text-club-900">
-                Import dokončený: {importResult.created} pridaných, {importResult.updated} aktualizovaných
-                (spolu {importResult.total}).
+                Import dokončený: {importResult.created} pridaných, {importResult.updated} aktualizovaných,
+                {' '}{importResult.unchanged} bez zmeny (spolu {importResult.total}).
               </p>
               <p className="mt-1 text-xs text-gray-500">
                 Hráči sa zaradili do družstva podľa ročníka (ručné výnimky ostávajú). Existujúci sa spárovali podľa
