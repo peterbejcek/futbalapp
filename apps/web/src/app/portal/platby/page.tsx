@@ -63,14 +63,31 @@ export default function PaymentsPage() {
   );
 }
 
+interface Obligation {
+  id: string;
+  periodLabel: string;
+  amountCents: number;
+  paidCents: number;
+  status: string;
+}
+
 function Debtors() {
   const [debtors, setDebtors] = useState<Debtor[]>([]);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    api<Debtor[]>('/finance/debtors')
-      .then(setDebtors)
-      .catch((e) => setError(e.message));
+  const [manage, setManage] = useState<Debtor | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setDebtors(await api<Debtor[]>('/finance/debtors'));
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Chyba');
+    }
   }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
   return (
     <div className="space-y-3">
       <ErrorText>{error}</ErrorText>
@@ -85,6 +102,7 @@ function Debtors() {
                 <th className="px-4 py-3">Kontakt</th>
                 <th className="px-4 py-3">Obdobia</th>
                 <th className="px-4 py-3 text-right">Dlh</th>
+                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-club-100">
@@ -99,13 +117,107 @@ function Debtors() {
                   <td className="px-4 py-3 text-right font-semibold text-red-700">
                     {(d.owedCents / 100).toFixed(2)} €
                   </td>
+                  <td className="px-4 py-3 text-right">
+                    <button onClick={() => setManage(d)} className="text-club-600 hover:underline">
+                      Spravovať
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+      {manage && (
+        <DebtorModal
+          debtor={manage}
+          onClose={() => setManage(null)}
+          onChanged={() => {
+            void load();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function DebtorModal({ debtor, onClose, onChanged }: { debtor: Debtor; onClose: () => void; onChanged: () => void }) {
+  const [obligations, setObligations] = useState<Obligation[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const list = await api<Obligation[]>(`/finance/members/${debtor.member.id}/payments`);
+      setObligations(list.filter((o) => o.status !== 'PAID' && o.status !== 'WAIVED'));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Chyba');
+    }
+  }, [debtor.member.id]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function waive(id: string) {
+    await api(`/finance/obligations/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'WAIVED' }) }).catch((e) =>
+      setError(e instanceof Error ? e.message : 'Chyba'),
+    );
+    await load();
+    onChanged();
+  }
+  async function setAmount(id: string, eur: string) {
+    const amountCents = Math.round(parseFloat(eur) * 100);
+    if (!Number.isFinite(amountCents)) return;
+    await api(`/finance/obligations/${id}`, { method: 'PATCH', body: JSON.stringify({ amountCents }) }).catch((e) =>
+      setError(e instanceof Error ? e.message : 'Chyba'),
+    );
+    await load();
+    onChanged();
+  }
+  async function remove(id: string) {
+    await api(`/finance/obligations/${id}`, { method: 'DELETE' }).catch((e) =>
+      setError(e instanceof Error ? e.message : 'Chyba'),
+    );
+    await load();
+    onChanged();
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Dlh — ${debtor.member.lastName} ${debtor.member.firstName}`}>
+      <div className="space-y-3">
+        <ErrorText>{error}</ErrorText>
+        {obligations.length === 0 ? (
+          <p className="text-sm text-gray-500">Žiadne otvorené povinnosti.</p>
+        ) : (
+          <div className="divide-y divide-club-100 rounded-md border border-club-100">
+            {obligations.map((o) => (
+              <div key={o.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                <span className="text-gray-600">{o.periodLabel}</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    defaultValue={(o.amountCents / 100).toFixed(2)}
+                    onBlur={(e) => setAmount(o.id, e.target.value)}
+                    className="w-20 rounded border border-gray-300 px-2 py-1 text-right"
+                  />
+                  <span className="text-gray-400">€</span>
+                  <button onClick={() => waive(o.id)} className="text-amber-600 hover:underline">
+                    Odpustiť
+                  </button>
+                  <button onClick={() => remove(o.id)} className="text-red-600 hover:underline">
+                    Zmazať
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="text-xs text-gray-500">
+          „Odpustiť" označí povinnosť ako odpísanú (nebude dlhom). Sumu upravíte prepísaním hodnoty.
+        </p>
+        <div className="flex justify-end">
+          <Button onClick={onClose}>Zavrieť</Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -114,6 +226,7 @@ function Plans() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [seasonId, setSeasonId] = useState('');
   const [open, setOpen] = useState(false);
+  const [editPlan, setEditPlan] = useState<FeePlan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [genOpen, setGenOpen] = useState(false);
 
@@ -148,6 +261,7 @@ function Plans() {
               <th className="px-4 py-3">Suma</th>
               <th className="px-4 py-3">Periodicita</th>
               <th className="px-4 py-3">Priradení</th>
+              <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-club-100">
@@ -158,11 +272,30 @@ function Plans() {
                 <td className="px-4 py-3">{(p.amountCents / 100).toFixed(2)} €</td>
                 <td className="px-4 py-3">{p.period === 'MONTHLY' ? 'Mesačne' : p.period}</td>
                 <td className="px-4 py-3">{p.assignments.length}</td>
+                <td className="px-4 py-3 text-right">
+                  <div className="flex justify-end gap-3">
+                    <button onClick={() => setEditPlan(p)} className="text-club-600 hover:underline">
+                      Upraviť
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`Zmazať predpis „${p.name}"? Zmažú sa aj jeho priradenia a povinnosti.`)) return;
+                        await api(`/finance/fee-plans/${p.id}`, { method: 'DELETE' }).catch((e) =>
+                          setError(e instanceof Error ? e.message : 'Chyba'),
+                        );
+                        void load();
+                      }}
+                      className="text-red-600 hover:underline"
+                    >
+                      Zmazať
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
             {plans.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                   Zatiaľ žiadne predpisy.
                 </td>
               </tr>
@@ -182,8 +315,65 @@ function Plans() {
           }}
         />
       )}
+      {editPlan && (
+        <PlanEditModal
+          plan={editPlan}
+          onClose={() => setEditPlan(null)}
+          onDone={() => {
+            setEditPlan(null);
+            void load();
+          }}
+        />
+      )}
       {genOpen && <GenerateModal onClose={() => setGenOpen(false)} />}
     </div>
+  );
+}
+
+function PlanEditModal({ plan, onClose, onDone }: { plan: FeePlan; onClose: () => void; onDone: () => void }) {
+  const [name, setName] = useState(plan.name);
+  const [amount, setAmount] = useState((plan.amountCents / 100).toFixed(2));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/finance/fee-plans/${plan.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name, amountCents: Math.round(parseFloat(amount) * 100) }),
+      });
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Uloženie zlyhalo');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Upraviť predpis">
+      <div className="space-y-3">
+        <div>
+          <label className={labelCls}>Názov</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
+        </div>
+        <div>
+          <label className={labelCls}>Suma (€)</label>
+          <input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className={inputCls} />
+        </div>
+        <ErrorText>{error}</ErrorText>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            Zrušiť
+          </Button>
+          <Button onClick={submit} disabled={busy}>
+            {busy ? 'Ukladám…' : 'Uložiť'}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

@@ -311,6 +311,42 @@ export class FinanceService {
     });
   }
 
+  /** Úprava platobnej povinnosti (dlhu) — suma a/alebo stav (napr. odpustenie). */
+  async updateObligation(id: string, input: { amountCents?: number; status?: string }) {
+    const o = await this.prisma.paymentObligation.findUnique({ where: { id } });
+    if (!o) throw new NotFoundException('Povinnosť neexistuje');
+    const amountCents = input.amountCents ?? o.amountCents;
+    let status = input.status as typeof o.status | undefined;
+    if (!status) {
+      // prepočítaj stav podľa novej sumy a uhradenej časti
+      status =
+        o.paidCents >= amountCents ? 'PAID' : o.paidCents > 0 ? 'PARTIAL' : o.dueDate < new Date() ? 'OVERDUE' : 'PENDING';
+    }
+    return this.prisma.paymentObligation.update({ where: { id }, data: { amountCents, status } });
+  }
+
+  /** Zmazanie platobnej povinnosti (dlhu). */
+  async deleteObligation(id: string) {
+    await this.prisma.paymentObligation.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  /** Úprava predpisu poplatku. */
+  async updateFeePlan(id: string, input: { name?: string; amountCents?: number; dueDay?: number }) {
+    const plan = await this.prisma.feePlan.findUnique({ where: { id } });
+    if (!plan) throw new NotFoundException('Predpis neexistuje');
+    return this.prisma.feePlan.update({
+      where: { id },
+      data: { name: input.name, amountCents: input.amountCents, dueDay: input.dueDay },
+    });
+  }
+
+  /** Zmazanie predpisu poplatku (kaskádovo aj priradenia a povinnosti). */
+  async deleteFeePlan(id: string) {
+    await this.prisma.feePlan.delete({ where: { id } });
+    return { deleted: true };
+  }
+
   /** Prehľad dlžníkov: povinnosti po splatnosti, zoskupené po členoch. */
   async debtors() {
     await this.prisma.paymentObligation.updateMany({

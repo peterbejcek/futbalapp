@@ -2,9 +2,11 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UploadedFile,
@@ -29,6 +31,17 @@ const createFeePlanSchema = z.object({
 });
 
 const assignSchema = z.object({ memberId: z.string().min(1) });
+
+const updateFeePlanSchema = z.object({
+  name: z.string().min(2).optional(),
+  amountCents: z.number().int().positive().optional(),
+  dueDay: z.number().int().min(1).max(28).optional(),
+});
+
+const updateObligationSchema = z.object({
+  amountCents: z.number().int().min(0).optional(),
+  status: z.enum(['PENDING', 'PAID', 'PARTIAL', 'OVERDUE', 'WAIVED']).optional(),
+});
 
 const bankImportSchema = z.object({
   rows: z.array(
@@ -69,6 +82,30 @@ export class FinanceController {
   @Roles('ADMIN', 'MANAGER')
   createFeePlan(@Body(new ZodValidationPipe(createFeePlanSchema)) body: z.infer<typeof createFeePlanSchema>) {
     return this.financeService.createFeePlan(body);
+  }
+
+  @Patch('fee-plans/:id')
+  @Roles('ADMIN', 'MANAGER')
+  updateFeePlan(@Param('id') id: string, @Body(new ZodValidationPipe(updateFeePlanSchema)) body: z.infer<typeof updateFeePlanSchema>) {
+    return this.financeService.updateFeePlan(id, body);
+  }
+
+  @Delete('fee-plans/:id')
+  @Roles('ADMIN', 'MANAGER')
+  deleteFeePlan(@Param('id') id: string) {
+    return this.financeService.deleteFeePlan(id);
+  }
+
+  @Patch('obligations/:id')
+  @Roles('ADMIN', 'MANAGER')
+  updateObligation(@Param('id') id: string, @Body(new ZodValidationPipe(updateObligationSchema)) body: z.infer<typeof updateObligationSchema>) {
+    return this.financeService.updateObligation(id, body);
+  }
+
+  @Delete('obligations/:id')
+  @Roles('ADMIN', 'MANAGER')
+  deleteObligation(@Param('id') id: string) {
+    return this.financeService.deleteObligation(id);
   }
 
   @Post('obligations/generate')
