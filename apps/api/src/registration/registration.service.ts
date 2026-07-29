@@ -31,6 +31,7 @@ export class RegistrationService {
         addressHouseNumber: input.address.houseNumber,
         addressZip: input.address.zip,
         addressCity: input.address.city,
+        photoDataUrl: input.player.photoBase64,
         healthNotes: input.player.healthNotes,
         playerEmail: input.player.email?.toLowerCase(),
         parentFirstName: input.parent?.firstName,
@@ -82,6 +83,12 @@ export class RegistrationService {
         healthNotes: request.healthNotes,
       },
     });
+
+    // 1b. fotka hráča (ak bola nahraná pri registrácii)
+    if (request.photoDataUrl) {
+      await this.prisma.memberPhoto.create({ data: { memberId: player.id, dataUrl: request.photoDataUrl } });
+      await this.prisma.member.update({ where: { id: player.id }, data: { photoUrl: `/members/${player.id}/photo` } });
+    }
 
     // 2. voliteľné vlastné prihlásenie hráča (starší hráč / dospelý)
     let playerAccount: { email: string; tempPassword: string | null } | null = null;

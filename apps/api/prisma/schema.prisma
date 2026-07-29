@@ -138,6 +138,17 @@ model Member {
   bankPayerLinks     BankPayerLink[]
   suggestedTxns      BankTransaction[]   @relation("TxSuggestedMember")
   matchedTxns        BankTransaction[]   @relation("TxMatchedMember")
+  photo              MemberPhoto?
+}
+
+/// Fotka hráča uložená ako data URL (mimo zoznamu členov, aby ho nezaťažovala).
+model MemberPhoto {
+  id        String   @id @default(cuid())
+  memberId  String   @unique
+  dataUrl   String   // "data:image/jpeg;base64,..."
+  updatedAt DateTime @updatedAt
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
 }
 
 model Guardian {
@@ -175,6 +186,8 @@ model RegistrationRequest {
   addressHouseNumber String?
   addressZip         String?
   addressCity        String?
+  /// fotka hráča (data URL) — prenesie sa na člena pri schválení
+  photoDataUrl   String?
   healthNotes    String?
   /// voliteľné vlastné prihlásenie hráča (starší hráč / dospelý)
   playerEmail    String?

@@ -24,6 +24,8 @@ export const registrationRequestSchema = z
       birthDate: z.coerce.date().optional(), // odvodené z rodného čísla (server je autorita)
       // registračné číslo (hráč ho ešte nemusí mať pridelené)
       registrationNumber: z.string().max(40).optional(),
+      // fotka hráča ako data URL (voliteľná)
+      photoBase64: z.string().max(6_000_000).optional(),
       healthNotes: z.string().max(2000).optional(),
       // vlastné prihlásenie hráča (povinné pre dospelého, voliteľné pre staršie dieťa)
       email: z.string().email().optional(),

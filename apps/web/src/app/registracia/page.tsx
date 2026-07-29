@@ -18,6 +18,19 @@ export default function RegistrationPage() {
   const [birthNumber, setBirthNumber] = useState('');
   const [zip, setZip] = useState('');
   const [city, setCity] = useState('');
+  const [photo, setPhoto] = useState<string | null>(null); // data URL
+
+  function onPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) {
+      setError('Fotka je príliš veľká (max 4 MB).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setPhoto(typeof reader.result === 'string' ? reader.result : null);
+    reader.readAsDataURL(file);
+  }
 
   // dátum narodenia odvodený z rodného čísla (len na zobrazenie)
   const rc = parseRodneCislo(birthNumber);
@@ -58,6 +71,7 @@ export default function RegistrationPage() {
             lastName: data.get('playerLastName'),
             birthNumber,
             registrationNumber: data.get('registrationNumber') || undefined,
+            photoBase64: photo || undefined,
             healthNotes: data.get('healthNotes') || undefined,
             email: wantPlayerEmail ? data.get('playerEmail') : undefined,
           },
@@ -182,6 +196,20 @@ export default function RegistrationPage() {
             <div>
               <label className={label}>Registračné číslo (nepovinné)</label>
               <input name="registrationNumber" className={input} placeholder="ak už bolo pridelené" />
+            </div>
+            <div>
+              <label className={label}>Fotka hráča (nepovinné)</label>
+              <div className="mt-1 flex items-center gap-3">
+                {photo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={photo} alt="Náhľad fotky" className="h-16 w-16 rounded-md object-cover" />
+                ) : (
+                  <div className="flex h-16 w-16 items-center justify-center rounded-md bg-gray-100 text-xs text-gray-400">
+                    foto
+                  </div>
+                )}
+                <input type="file" accept="image/*" onChange={onPhotoChange} className="text-sm" />
+              </div>
             </div>
             <div>
               <label className={label}>Zdravotné obmedzenia (nepovinné)</label>

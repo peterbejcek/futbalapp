@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { api, apiUpload } from '@/lib/api';
+import { api, apiUpload, API_URL } from '@/lib/api';
 import { isAdmin, isStaff, useMe } from '@/lib/auth';
 import { Button, Card, ErrorText, Modal, inputCls, labelCls } from '@/components/ui';
 
@@ -17,6 +17,7 @@ interface MemberRow {
   status: string;
   futbalnetId?: string | null;
   healthNotes?: string | null;
+  photoUrl?: string | null;
   registrationValidUntil?: string | null;
   homeClub?: string | null;
   guestClub?: string | null;
@@ -366,9 +367,28 @@ function MemberModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [photoVer, setPhotoVer] = useState(0);
+  const [photoBusy, setPhotoBusy] = useState(false);
 
   const hasAccount = !!member?.user;
   const isParent = roles.includes('PARENT');
+
+  async function onPhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !member) return;
+    setPhotoBusy(true);
+    setError(null);
+    try {
+      await apiUpload(`/members/${member.id}/photo`, file);
+      member.photoUrl = `/members/${member.id}/photo`;
+      setPhotoVer((v) => v + 1); // bust cache
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nahranie fotky zlyhalo');
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
 
   // pri funkcii Rodič načítaj hráčov na priradenie dieťaťa
   useEffect(() => {
@@ -443,6 +463,32 @@ function MemberModal({
   return (
     <Modal open onClose={onClose} title={member ? 'Upraviť člena' : 'Nový člen'}>
       <div className="space-y-3">
+        {/* Fotka hráča (na karte) */}
+        <div className="flex items-center gap-4">
+          {member?.photoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={`${API_URL}${member.photoUrl}?v=${photoVer}`}
+              alt="Fotka"
+              className="h-20 w-20 rounded-md object-cover"
+            />
+          ) : (
+            <div className="flex h-20 w-20 items-center justify-center rounded-md bg-gray-100 text-xs text-gray-400">
+              bez fotky
+            </div>
+          )}
+          <div>
+            {member ? (
+              <label className="cursor-pointer text-sm text-club-600 hover:underline">
+                {photoBusy ? 'Nahrávam…' : member.photoUrl ? 'Zmeniť fotku' : 'Nahrať fotku'}
+                <input type="file" accept="image/*" onChange={onPhotoUpload} className="hidden" disabled={photoBusy} />
+              </label>
+            ) : (
+              <p className="text-xs text-gray-400">Fotku nahráte po uložení člena.</p>
+            )}
+          </div>
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelCls}>Meno</label>

@@ -251,6 +251,25 @@ export class MembersService {
     this.accounts.assertCanGrant({ id: '', email: '', roles: actorRoles.map((role) => ({ role, teamId: null })) }, roles);
   }
 
+  /** Uloží/nahradí fotku hráča (data URL) a nastaví jeho photoUrl. */
+  async setPhoto(memberId: string, dataUrl: string) {
+    const member = await this.prisma.member.findUnique({ where: { id: memberId } });
+    if (!member) throw new NotFoundException('Člen neexistuje');
+    await this.prisma.memberPhoto.upsert({
+      where: { memberId },
+      create: { memberId, dataUrl },
+      update: { dataUrl },
+    });
+    await this.prisma.member.update({ where: { id: memberId }, data: { photoUrl: `/members/${memberId}/photo` } });
+    return { photoUrl: `/members/${memberId}/photo` };
+  }
+
+  /** Vráti fotku hráča ako data URL (alebo null). */
+  async getPhoto(memberId: string): Promise<string | null> {
+    const p = await this.prisma.memberPhoto.findUnique({ where: { memberId } });
+    return p?.dataUrl ?? null;
+  }
+
   /** Je člen v niektorom z uvedených družstiev v aktívnej sezóne? (scope trénera) */
   async memberInTeams(memberId: string, teamIds: string[]): Promise<boolean> {
     if (teamIds.length === 0) return false;
