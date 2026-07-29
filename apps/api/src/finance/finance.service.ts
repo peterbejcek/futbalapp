@@ -59,7 +59,7 @@ export class FinanceService {
         seasonId: season.id,
         leftAt: null,
         team: category ? { teamCategoryId: category.id } : undefined,
-        member: { status: 'ACTIVE' },
+        member: { status: 'ACTIVE', socialCase: false },
       },
     });
     if (memberships.length > 0) {
@@ -81,7 +81,8 @@ export class FinanceService {
   async generateObligations(year: number, month: number) {
     if (month < 1 || month > 12) throw new BadRequestException('Neplatný mesiac');
     const assignments = await this.prisma.feeAssignment.findMany({
-      where: { active: true, feePlan: { period: 'MONTHLY' } },
+      // sociálnym prípadom sa poplatok nevytvára
+      where: { active: true, feePlan: { period: 'MONTHLY' }, member: { socialCase: false } },
       include: { feePlan: true, member: { select: { memberSeq: true } } },
     });
 

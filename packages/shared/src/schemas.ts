@@ -69,6 +69,10 @@ export const createMemberSchema = z.object({
   status: z.enum(MEMBER_STATUSES).default('ACTIVE'),
   futbalnetId: z.string().max(40).optional(),
   healthNotes: z.string().max(2000).optional(),
+  /// sociálny prípad — hráčovi sa nevytvára poplatok (len vedúci)
+  socialCase: z.boolean().optional(),
+  /// úroveň trénerskej licencie
+  licenseLevel: z.enum(['A_PRO', 'A', 'B', 'C', 'GK']).optional(),
   /// registračný preukaz / futbalnet
   registrationNumber: z.string().max(40).optional(),
   homeClub: z.string().max(120).optional(),

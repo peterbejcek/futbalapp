@@ -105,6 +105,10 @@ model Member {
   futbalnetId    String?      @unique
   healthNotes    String?
   photoUrl       String?
+  /// sociálny prípad — hráčovi sa nevytvára členský poplatok (nastaví vedúci)
+  socialCase     Boolean      @default(false)
+  /// úroveň trénerskej licencie: A_PRO | A | B | C | GK (brankár)
+  licenseLevel   String?
 
   // --- Registračný preukaz / futbalnet (import z Excelu) ---
   /// Registračné číslo hráča vo futbalnete — kľúč pre idempotentný import

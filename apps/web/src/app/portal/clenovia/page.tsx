@@ -20,6 +20,8 @@ interface MemberRow {
   registrationNumber?: string | null;
   healthNotes?: string | null;
   photoUrl?: string | null;
+  socialCase?: boolean;
+  licenseLevel?: string | null;
   registrationValidUntil?: string | null;
   homeClub?: string | null;
   guestClub?: string | null;
@@ -329,6 +331,7 @@ function MembersTable() {
           member={editing}
           teams={teams}
           canGrantAdmin={isAdmin(me)}
+          staff={staff}
           onClose={() => {
             setEditing(null);
             setCreating(false);
@@ -356,12 +359,14 @@ function MemberModal({
   member,
   teams,
   canGrantAdmin,
+  staff,
   onClose,
   onDone,
 }: {
   member: MemberRow | null;
   teams: Team[];
   canGrantAdmin: boolean;
+  staff: boolean;
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -373,6 +378,8 @@ function MemberModal({
   const [registrationValidUntil, setRegistrationValidUntil] = useState(
     member?.registrationValidUntil?.slice(0, 10) ?? '',
   );
+  const [socialCase, setSocialCase] = useState(member?.socialCase ?? false);
+  const [licenseLevel, setLicenseLevel] = useState(member?.licenseLevel ?? '');
   const [healthNotes, setHealthNotes] = useState(member?.healthNotes ?? '');
   const [teamIds, setTeamIds] = useState<string[]>(member?.memberships.map((m) => m.team.id) ?? []);
   const [roles, setRoles] = useState<string[]>(() => {
@@ -394,6 +401,7 @@ function MemberModal({
 
   const hasAccount = !!member?.user;
   const isParent = roles.includes('PARENT');
+  const isCoach = roles.includes('COACH');
 
   async function onPhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -439,6 +447,8 @@ function MemberModal({
       status,
       registrationNumber: registrationNumber || undefined,
       registrationValidUntil: registrationValidUntil || undefined,
+      socialCase,
+      licenseLevel: licenseLevel || undefined,
       healthNotes: healthNotes || undefined,
       teamIds,
       roles: roles.length ? roles : undefined,
@@ -653,7 +663,9 @@ function MemberModal({
         )}
 
         <div>
-          <label className={labelCls}>Platnosť registračného preukazu do</label>
+          <label className={labelCls}>
+            {isCoach ? 'Platnosť licencie do' : 'Platnosť registračného preukazu do'}
+          </label>
           <input
             type="date"
             value={registrationValidUntil}
@@ -661,6 +673,34 @@ function MemberModal({
             className={inputCls}
           />
         </div>
+
+        {/* Tréner: úroveň licencie (číslo licencie = registračné číslo vyššie) */}
+        {isCoach && (
+          <div>
+            <label className={labelCls}>Úroveň licencie</label>
+            <select value={licenseLevel} onChange={(e) => setLicenseLevel(e.target.value)} className={inputCls}>
+              <option value="">— nezadané —</option>
+              <option value="A_PRO">A PRO</option>
+              <option value="A">A</option>
+              <option value="B">B</option>
+              <option value="C">C</option>
+              <option value="GK">Brankár</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500">Číslo licencie zadajte do poľa „Registračné číslo".</p>
+          </div>
+        )}
+
+        {/* Sociálny prípad — len vedúci klubu */}
+        {staff && (
+          <label className="flex items-start gap-2 rounded-md bg-club-50 p-3 text-sm text-gray-700">
+            <input type="checkbox" checked={socialCase} onChange={(e) => setSocialCase(e.target.checked)} className="mt-0.5" />
+            <span>
+              Sociálny prípad
+              <span className="block text-xs text-gray-500">Hráčovi sa nebude vytvárať členský poplatok.</span>
+            </span>
+          </label>
+        )}
+
         <div>
           <label className={labelCls}>Zdravotné poznámky</label>
           <textarea value={healthNotes} onChange={(e) => setHealthNotes(e.target.value)} rows={2} className={inputCls} />
