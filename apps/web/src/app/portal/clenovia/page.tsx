@@ -402,6 +402,8 @@ function MemberModal({
   const hasAccount = !!member?.user;
   const isParent = roles.includes('PARENT');
   const isCoach = roles.includes('COACH');
+  // tréner/vedúci/admin potrebujú prihlasovacie konto (funkcia sa ukladá na konte)
+  const needsAccount = roles.some((r) => ['COACH', 'MANAGER', 'ADMIN'].includes(r));
 
   async function onPhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -439,7 +441,7 @@ function MemberModal({
   async function submit() {
     setBusy(true);
     setError(null);
-    const wantAccount = hasAccount || createAccount;
+    const wantAccount = hasAccount || createAccount || needsAccount;
     const body = JSON.stringify({
       firstName,
       lastName,
@@ -605,6 +607,14 @@ function MemberModal({
               <input value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
               <p className="mt-1 text-xs text-gray-500">Konto už existuje. Zmena rolí sa uloží.</p>
             </>
+          ) : needsAccount ? (
+            <>
+              <label className={labelCls}>E-mail (prihlasovacie konto)</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} placeholder="meno@email.sk" />
+              <p className="mt-1 text-xs text-amber-700">
+                Tréner a vedúci klubu potrebujú prihlasovacie konto — zadajte e-mail.
+              </p>
+            </>
           ) : (
             <>
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
@@ -711,7 +721,7 @@ function MemberModal({
           <Button variant="ghost" onClick={onClose}>
             Zrušiť
           </Button>
-          <Button onClick={submit} disabled={busy || !firstName || !lastName}>
+          <Button onClick={submit} disabled={busy || !firstName || !lastName || (needsAccount && !hasAccount && !email)}>
             {busy ? 'Ukladám…' : 'Uložiť'}
           </Button>
         </div>

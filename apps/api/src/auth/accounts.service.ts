@@ -21,8 +21,8 @@ export interface EnsureAccountInput {
   lastName: string;
   phone?: string;
   roles: Role[];
-  /** scope pre COACH rolu */
-  coachTeamId?: string;
+  /** scope pre COACH rolu — družstvá, ktoré tréner trénuje */
+  coachTeamIds?: string[];
 }
 
 @Injectable()
@@ -52,7 +52,7 @@ export class AccountsService {
 
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) {
-      await this.syncRoles(existing.id, input.roles, input.coachTeamId);
+      await this.syncRoles(existing.id, input.roles, input.coachTeamIds);
       return { userId: existing.id, email, tempPassword: null, created: false };
     }
 
@@ -66,17 +66,23 @@ export class AccountsService {
         passwordHash: await bcrypt.hash(tempPassword, 10),
       },
     });
-    await this.syncRoles(user.id, input.roles, input.coachTeamId);
+    await this.syncRoles(user.id, input.roles, input.coachTeamIds);
     return { userId: user.id, email, tempPassword, created: true };
   }
 
-  /** Nastaví roly používateľa (idempotentne pridá chýbajúce). */
-  async syncRoles(userId: string, roles: Role[], coachTeamId?: string) {
+  /**
+   * Nastaví roly používateľa (idempotentne pridá chýbajúce). Pri COACH sa
+   * vytvorí rola pre každé trénované družstvo (scope); ak nie je zadané žiadne,
+   * COACH bez scope-u (null).
+   */
+  async syncRoles(userId: string, roles: Role[], coachTeamIds?: string[]) {
     for (const role of roles) {
-      const teamId = role === 'COACH' ? (coachTeamId ?? null) : null;
-      const existing = await this.prisma.userRole.findFirst({ where: { userId, role, teamId } });
-      if (!existing) {
-        await this.prisma.userRole.create({ data: { userId, role, teamId } });
+      const teamIds = role === 'COACH' ? (coachTeamIds?.length ? coachTeamIds : [null]) : [null];
+      for (const teamId of teamIds) {
+        const existing = await this.prisma.userRole.findFirst({ where: { userId, role, teamId } });
+        if (!existing) {
+          await this.prisma.userRole.create({ data: { userId, role, teamId } });
+        }
       }
     }
   }

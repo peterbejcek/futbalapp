@@ -143,16 +143,44 @@ export class MembersService {
     }
   }
 
+  /**
+   * Rozhodne o zaradení do družstiev podľa roly: hráč → hráčske zaradenie
+   * (TeamMembership), tréner (bez roly hráč) → žiadne hráčske zaradenie (jeho
+   * družstvá sú scope na konte, rieši applyAccount). Ak teamIds/teamId nie sú
+   * zadané pri editácii, zaradenie sa nemení.
+   */
+  private async assignTeamsForRole(memberId: string, input: Partial<CreateMemberInput>) {
+    const roles = input.roles ?? [];
+    const coachOnly = roles.includes('COACH') && !roles.includes('PLAYER');
+    if (coachOnly) {
+      // tréner nie je hráč — odstráň prípadné hráčske zaradenia
+      await this.syncTeams(memberId, []);
+      return;
+    }
+    if (input.teamIds) await this.syncTeams(memberId, input.teamIds);
+    else if (input.teamId) await this.syncTeams(memberId, [input.teamId]);
+  }
+
   /** Vytvorí/prepojí konto člena a nastaví roly. Vráti dočasné heslo pri novom konte. */
   private async applyAccount(
     member: { id: string; firstName: string; lastName: string; userId: string | null },
     input: CreateMemberInput,
   ): Promise<AccountResult | null> {
     const roles = (input.roles ?? []) as Role[];
+    // pri trénerovi sú vybrané družstvá jeho scope (nie hráčske zaradenie)
+    const coachTeamIds = roles.includes('COACH')
+      ? (input.teamIds ?? (input.teamId ? [input.teamId] : []))
+      : undefined;
+    const STAFF_ROLES: Role[] = ['COACH', 'MANAGER', 'ADMIN'];
     // konto sa vytvára len ak je zadaný e-mail
     if (!input.account?.email) {
       // ak už konto existuje a menia sa roly, dopočítaj ich
-      if (member.userId && roles.length) await this.accounts.syncRoles(member.userId, roles, input.teamId);
+      if (member.userId && roles.length) {
+        await this.accounts.syncRoles(member.userId, roles, coachTeamIds);
+      } else if (!member.userId && roles.some((r) => STAFF_ROLES.includes(r))) {
+        // tréner/vedúci/admin musí mať konto, inak sa jeho funkcia nemá kde uložiť
+        throw new BadRequestException('Tréner alebo vedúci klubu potrebuje prihlasovacie konto — zadajte e-mail.');
+      }
       return null;
     }
     const result = await this.accounts.ensureAccount({
@@ -161,7 +189,7 @@ export class MembersService {
       firstName: member.firstName,
       lastName: member.lastName,
       roles: roles.length ? roles : ['PLAYER'],
-      coachTeamId: input.teamId,
+      coachTeamIds,
     });
     // prepoj člena s kontom (ak ešte nie je a konto nie je použité iným členom)
     if (!member.userId) {
@@ -212,8 +240,7 @@ export class MembersService {
         registeredAt: input.registeredAt,
       },
     });
-    if (input.teamIds) await this.syncTeams(member.id, input.teamIds);
-    else if (input.teamId) await this.syncTeams(member.id, [input.teamId]);
+    await this.assignTeamsForRole(member.id, input);
     const account = await this.applyAccount({ ...member, userId: null }, input);
     if (input.childMemberIds?.length) await this.linkChildren(member.id, input.childMemberIds);
     return { member: await this.get(member.id), account };
@@ -241,8 +268,7 @@ export class MembersService {
         registeredAt: input.registeredAt,
       },
     });
-    if (input.teamIds) await this.syncTeams(id, input.teamIds);
-    else if (input.teamId) await this.syncTeams(id, [input.teamId]);
+    await this.assignTeamsForRole(id, input);
     const account = await this.applyAccount(
       { id, firstName: input.firstName ?? existing.firstName, lastName: input.lastName ?? existing.lastName, userId: existing.userId },
       input as CreateMemberInput,
