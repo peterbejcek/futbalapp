@@ -16,6 +16,7 @@ interface MemberRow {
   birthDate: string | null;
   status: string;
   futbalnetId?: string | null;
+  registrationNumber?: string | null;
   healthNotes?: string | null;
   photoUrl?: string | null;
   registrationValidUntil?: string | null;
@@ -232,6 +233,7 @@ function MembersTable() {
               <th className="px-4 py-3">Meno</th>
               <th className="px-4 py-3">Funkcia</th>
               <th className="px-4 py-3">Ročník</th>
+              <th className="px-4 py-3">Reg. číslo</th>
               <th className="px-4 py-3">Družstvo</th>
               <th className="px-4 py-3">Materský klub</th>
               <th className="px-4 py-3">Hosťujúci klub</th>
@@ -258,6 +260,7 @@ function MembersTable() {
                   </span>
                 </td>
                 <td className="px-4 py-3">{m.birthDate ? new Date(m.birthDate).getFullYear() : '—'}</td>
+                <td className="px-4 py-3 font-medium text-club-800">{m.registrationNumber ?? '—'}</td>
                 <td className="px-4 py-3">
                   {m.memberships.length ? m.memberships.map((ms) => ms.team.name).join(', ') : '—'}
                 </td>
@@ -298,7 +301,7 @@ function MembersTable() {
             ))}
             {members.length === 0 && (
               <tr>
-                <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={12} className="px-4 py-8 text-center text-gray-500">
                   Žiadni členovia.
                 </td>
               </tr>
@@ -352,7 +355,7 @@ function MemberModal({
   const [lastName, setLastName] = useState(member?.lastName ?? '');
   const [birthDate, setBirthDate] = useState(member?.birthDate?.slice(0, 10) ?? '');
   const [status, setStatus] = useState(member?.status ?? 'ACTIVE');
-  const [futbalnetId, setFutbalnetId] = useState(member?.futbalnetId ?? '');
+  const [registrationNumber, setRegistrationNumber] = useState(member?.registrationNumber ?? '');
   const [registrationValidUntil, setRegistrationValidUntil] = useState(
     member?.registrationValidUntil?.slice(0, 10) ?? '',
   );
@@ -415,7 +418,7 @@ function MemberModal({
       lastName,
       birthDate: birthDate || undefined,
       status,
-      futbalnetId: futbalnetId || undefined,
+      registrationNumber: registrationNumber || undefined,
       registrationValidUntil: registrationValidUntil || undefined,
       healthNotes: healthNotes || undefined,
       teamIds,
@@ -498,6 +501,15 @@ function MemberModal({
             <label className={labelCls}>Priezvisko</label>
             <input value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputCls} />
           </div>
+        </div>
+        <div>
+          <label className={labelCls}>Registračné číslo</label>
+          <input
+            value={registrationNumber}
+            onChange={(e) => setRegistrationNumber(e.target.value)}
+            className={inputCls}
+            placeholder="registračné číslo hráča"
+          />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -621,28 +633,19 @@ function MemberModal({
           </div>
         )}
 
-        <details>
-          <summary className="cursor-pointer text-sm text-gray-500">Ďalšie údaje</summary>
-          <div className="mt-2 space-y-3">
-            <div>
-              <label className={labelCls}>Registračné číslo (futbalnet)</label>
-              <input value={futbalnetId} onChange={(e) => setFutbalnetId(e.target.value)} className={inputCls} />
-            </div>
-            <div>
-              <label className={labelCls}>Platnosť registračného preukazu do</label>
-              <input
-                type="date"
-                value={registrationValidUntil}
-                onChange={(e) => setRegistrationValidUntil(e.target.value)}
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>Zdravotné poznámky</label>
-              <textarea value={healthNotes} onChange={(e) => setHealthNotes(e.target.value)} rows={2} className={inputCls} />
-            </div>
-          </div>
-        </details>
+        <div>
+          <label className={labelCls}>Platnosť registračného preukazu do</label>
+          <input
+            type="date"
+            value={registrationValidUntil}
+            onChange={(e) => setRegistrationValidUntil(e.target.value)}
+            className={inputCls}
+          />
+        </div>
+        <div>
+          <label className={labelCls}>Zdravotné poznámky</label>
+          <textarea value={healthNotes} onChange={(e) => setHealthNotes(e.target.value)} rows={2} className={inputCls} />
+        </div>
 
         <ErrorText>{error}</ErrorText>
         <div className="flex justify-end gap-2">
