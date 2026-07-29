@@ -46,13 +46,13 @@ export default function CookieConsent() {
             onClick={() => decide('necessary')}
             className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
-            Iba nevyhnutné
+            Iba nutné
           </button>
           <button
             onClick={() => decide('all')}
             className="rounded-md bg-club-600 px-4 py-2 text-sm font-semibold text-white hover:bg-club-700"
           >
-            Prijať
+            Prijať všetky
           </button>
         </div>
       </div>

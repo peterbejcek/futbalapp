@@ -282,7 +282,13 @@ export default function RegistrationPage() {
           <fieldset className="space-y-2">
             <label className="flex items-start gap-2 text-sm text-gray-700">
               <input type="checkbox" name="gdpr" required className="mt-1" />
-              <span>Súhlasím so spracovaním osobných údajov na účely členstva v klube (povinné).</span>
+              <span>
+                Súhlasím so spracovaním osobných údajov na účely členstva a registrácie hráča podľa{' '}
+                <Link href="/dokumenty/ochrana-osobnych-udajov" target="_blank" className="text-club-600 underline">
+                  Zásad ochrany osobných údajov (GDPR)
+                </Link>{' '}
+                (povinné).
+              </span>
             </label>
             <label className="flex items-start gap-2 text-sm text-gray-700">
               <input type="checkbox" name="photos" className="mt-1" />
