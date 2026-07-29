@@ -3,10 +3,12 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
 import { AccountsService } from './accounts.service';
 import { AuthController } from './auth.controller';
+import { CaptchaModule } from '../captcha/captcha.module';
 
 @Global()
 @Module({
   imports: [
+    CaptchaModule,
     JwtModule.register({
       global: true,
       secret: process.env.JWT_SECRET ?? 'dev-secret',
