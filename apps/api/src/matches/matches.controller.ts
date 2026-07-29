@@ -14,6 +14,22 @@ export class MatchesController {
     return this.matchesService.playerStats({ categoryCode, teamId });
   }
 
+  /** Moje (a detí) nominácie na potvrdenie účasti (U17/U19/Muži). */
+  @Get('my/nominations')
+  myNominations(@CurrentUser() user: AuthUser) {
+    return this.matchesService.myNominations(user.id);
+  }
+
+  /** Hráč/rodič potvrdí alebo odmietne účasť na zápase. */
+  @Post('nominations/:nominationId/respond')
+  respond(
+    @Param('nominationId') nominationId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: { status: 'CONFIRMED' | 'DECLINED' },
+  ) {
+    return this.matchesService.respondNomination(nominationId, user.id, body.status);
+  }
+
   @Get(':id')
   get(@Param('id') id: string) {
     return this.matchesService.get(id);

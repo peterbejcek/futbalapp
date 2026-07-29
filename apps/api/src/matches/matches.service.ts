@@ -1,7 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { MatchEventInput } from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../notifications/push.service';
+
+/** Kategórie, kde hráč potvrdzuje účasť na zápase. */
+const CONFIRM_CATEGORIES = ['U17', 'U19', 'MUZI'];
 
 @Injectable()
 export class MatchesService {
@@ -64,6 +67,69 @@ export class MatchesService {
       });
     }
     return nomination;
+  }
+
+  /** Členovia, ku ktorým má používateľ prístup (vlastný člen + deti). */
+  private async myMemberIds(userId: string): Promise<string[]> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { member: { select: { id: true } }, guardianOf: { select: { memberId: true } } },
+    });
+    const ids = new Set<string>();
+    if (user?.member) ids.add(user.member.id);
+    for (const g of user?.guardianOf ?? []) ids.add(g.memberId);
+    return [...ids];
+  }
+
+  /**
+   * Nominácie prihláseného hráča (a jeho detí) na nadchádzajúce zápasy v
+   * kategóriách U17/U19/MUŽI, ktoré treba potvrdiť. Vráti aj už potvrdené/odmietnuté.
+   */
+  async myNominations(userId: string) {
+    const memberIds = await this.myMemberIds(userId);
+    if (memberIds.length === 0) return [];
+    const noms = await this.prisma.matchNomination.findMany({
+      where: {
+        memberId: { in: memberIds },
+        status: { not: 'REMOVED' },
+        match: {
+          event: {
+            startAt: { gte: new Date() },
+            team: { teamCategory: { code: { in: CONFIRM_CATEGORIES } } },
+          },
+        },
+      },
+      include: {
+        member: { select: { id: true, firstName: true, lastName: true } },
+        match: { include: { event: { include: { team: { include: { teamCategory: true } } } } } },
+      },
+      orderBy: { match: { event: { startAt: 'asc' } } },
+    });
+    return noms.map((n) => ({
+      id: n.id,
+      status: n.status,
+      member: n.member,
+      matchId: n.matchId,
+      title: n.match.event.title,
+      opponent: n.match.opponent,
+      isHome: n.match.isHome,
+      startAt: n.match.event.startAt,
+      location: n.match.event.location,
+      team: n.match.event.team?.name ?? null,
+      category: n.match.event.team?.teamCategory.code ?? null,
+    }));
+  }
+
+  /** Hráč (alebo rodič) potvrdí/odmietne vlastnú nomináciu. */
+  async respondNomination(nominationId: string, userId: string, status: 'CONFIRMED' | 'DECLINED') {
+    const nom = await this.prisma.matchNomination.findUnique({ where: { id: nominationId } });
+    if (!nom) throw new NotFoundException('Nominácia neexistuje');
+    if (nom.status === 'REMOVED') throw new BadRequestException('Nominácia bola zrušená');
+    const memberIds = await this.myMemberIds(userId);
+    if (!memberIds.includes(nom.memberId)) {
+      throw new ForbiddenException('Môžete potvrdiť len vlastnú nomináciu');
+    }
+    return this.prisma.matchNomination.update({ where: { id: nominationId }, data: { status } });
   }
 
   /** Odobratie hráča z nominácie — záznam ostáva pre históriu so statusom REMOVED. */

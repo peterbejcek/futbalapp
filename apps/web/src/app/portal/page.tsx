@@ -70,6 +70,7 @@ export default function DashboardPage() {
       </div>
 
       {staff && <StaffTiles />}
+      <MatchConfirmations />
       <RegistrationCards staff={staff} />
       {isParent(me) && me && <ChildrenPayments children={me.children} />}
       {isPlayer(me) && me?.memberId && <MyPayments memberId={me.memberId} />}
@@ -207,6 +208,85 @@ function PlayersByGroup() {
           })}
         </div>
       )}
+    </section>
+  );
+}
+
+interface Nomination {
+  id: string;
+  status: string;
+  member: { firstName: string; lastName: string };
+  opponent: string;
+  isHome: boolean;
+  startAt: string;
+  location: string | null;
+  team: string | null;
+  category: string | null;
+}
+
+/** Potvrdenie účasti na zápase (U17/U19/Muži) — pre hráča a rodiča. */
+function MatchConfirmations() {
+  const [noms, setNoms] = useState<Nomination[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  const load = () => api<Nomination[]>('/matches/my/nominations').then(setNoms).catch(() => {}).finally(() => setLoaded(true));
+  useEffect(() => {
+    void load();
+  }, []);
+
+  async function respond(id: string, status: 'CONFIRMED' | 'DECLINED') {
+    await api(`/matches/nominations/${id}/respond`, { method: 'POST', body: JSON.stringify({ status }) }).catch(() => {});
+    await load();
+  }
+
+  if (!loaded || noms.length === 0) return null;
+
+  return (
+    <section className="space-y-3">
+      <h2 className="font-semibold text-club-800">Potvrdenie účasti na zápase</h2>
+      <ul className="divide-y divide-club-100 rounded-lg border border-club-100 bg-white">
+        {noms.map((n) => {
+          const c = categoryColor(n.category);
+          const confirmed = n.status === 'CONFIRMED';
+          const declined = n.status === 'DECLINED';
+          return (
+            <li key={n.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+              <div>
+                <span
+                  className="mr-2 rounded px-2 py-0.5 text-xs font-medium"
+                  style={{ backgroundColor: c.bg, color: c.text }}
+                >
+                  Zápas{n.team ? ` · ${n.team}` : ''}
+                </span>
+                <span className="font-medium">
+                  {n.member.lastName} {n.member.firstName}
+                </span>
+                <span className="ml-2 text-sm text-gray-600">
+                  {n.isHome ? 'doma' : 'vonku'} vs {n.opponent} ·{' '}
+                  {new Date(n.startAt).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })}
+                  {n.location ? ` · ${n.location}` : ''}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {confirmed && <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Prídem ✓</span>}
+                {declined && <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">Neprídem</span>}
+                <button
+                  onClick={() => respond(n.id, 'CONFIRMED')}
+                  className={`rounded-md px-3 py-1 text-sm font-medium ${confirmed ? 'bg-green-600 text-white' : 'border border-green-600 text-green-700 hover:bg-green-50'}`}
+                >
+                  Prídem
+                </button>
+                <button
+                  onClick={() => respond(n.id, 'DECLINED')}
+                  className={`rounded-md px-3 py-1 text-sm font-medium ${declined ? 'bg-red-600 text-white' : 'border border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                >
+                  Neprídem
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
