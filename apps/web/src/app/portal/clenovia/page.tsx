@@ -358,6 +358,7 @@ function MemberModal({
   const [email, setEmail] = useState(member?.user?.email ?? '');
   const [createAccount, setCreateAccount] = useState(false);
   const [childMemberIds, setChildMemberIds] = useState<string[]>([]);
+  const [childSearch, setChildSearch] = useState('');
   const [players, setPlayers] = useState<Array<{ id: string; firstName: string; lastName: string }>>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -527,14 +528,37 @@ function MemberModal({
           <div className="rounded-md border border-club-100 p-3">
             <label className={labelCls}>Priradiť dieťa (hráča)</label>
             <p className="mb-2 text-xs text-gray-500">Vyžaduje konto rodiča (e-mail vyššie).</p>
+            <input
+              value={childSearch}
+              onChange={(e) => setChildSearch(e.target.value)}
+              placeholder="Hľadať podľa priezviska…"
+              className={`${inputCls} mb-2`}
+            />
             <div className="max-h-40 space-y-1 overflow-y-auto">
-              {players.map((p) => (
-                <label key={p.id} className="flex items-center gap-2 text-sm text-gray-700">
-                  <input type="checkbox" checked={childMemberIds.includes(p.id)} onChange={() => toggleChild(p.id)} />
-                  {p.lastName} {p.firstName}
-                </label>
-              ))}
-              {players.length === 0 && <p className="text-sm text-gray-400">Žiadni hráči.</p>}
+              {(() => {
+                const s = childSearch
+                  .normalize('NFD')
+                  .replace(/[\u0300-\u036f]/g, '')
+                  .toLowerCase()
+                  .trim();
+                const list = players.filter(
+                  (p) =>
+                    !s ||
+                    `${p.lastName} ${p.firstName}`
+                      .normalize('NFD')
+                      .replace(/[\u0300-\u036f]/g, '')
+                      .toLowerCase()
+                      .includes(s),
+                );
+                if (list.length === 0)
+                  return <p className="text-sm text-gray-400">{players.length ? 'Nič nenájdené.' : 'Žiadni hráči.'}</p>;
+                return list.map((p) => (
+                  <label key={p.id} className="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" checked={childMemberIds.includes(p.id)} onChange={() => toggleChild(p.id)} />
+                    {p.lastName} {p.firstName}
+                  </label>
+                ));
+              })()}
             </div>
           </div>
         )}
