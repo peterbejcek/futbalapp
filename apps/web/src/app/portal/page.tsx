@@ -45,7 +45,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const from = new Date().toISOString();
-    api<EventItem[]>(`/events?from=${from}`).then((l) => setEvents(l.slice(0, 8))).catch(() => {});
+    api<EventItem[]>(`/events?from=${from}`).then((l) => setEvents(l.slice(0, 50))).catch(() => {});
   }, []);
 
   const staff = isStaff(me);
@@ -73,36 +73,121 @@ export default function DashboardPage() {
       {isParent(me) && me && <ChildrenPayments children={me.children} />}
       {isPlayer(me) && me?.memberId && <MyPayments memberId={me.memberId} />}
 
-      <section>
-        <h2 className="mb-3 font-semibold text-club-800">Najbližšie udalosti</h2>
-        {events.length === 0 ? (
-          <Card className="text-sm text-gray-500">Zatiaľ žiadne naplánované udalosti.</Card>
-        ) : (
-          <ul className="divide-y divide-club-100 rounded-lg border border-club-100 bg-white">
-            {events.map((e) => {
-              const href = e.match ? `/portal/zapasy/${e.match.id}` : `/portal/dochadzka/${e.id}`;
-              return (
-                <li key={e.id}>
-                  <Link href={href} className="flex items-center justify-between px-4 py-3 hover:bg-club-50">
-                    <div>
-                      <span className="mr-2 rounded bg-club-100 px-2 py-0.5 text-xs font-medium text-club-800">
-                        {typeLabels[e.type] ?? e.type}
-                        {e.team ? ` · ${e.team.name}` : ''}
-                      </span>
-                      <span className="font-medium">{e.title}</span>
-                      {e.location && <span className="ml-2 text-sm text-gray-500">{e.location}</span>}
-                    </div>
-                    <time className="text-sm text-gray-600">
-                      {new Date(e.startAt).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })}
-                    </time>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+      {staff && <PlayersByGroup />}
+
+      {staff ? (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <EventList title="Najbližšie zápasy" events={events.filter((e) => e.type === 'MATCH').slice(0, 6)} />
+          <EventList title="Najbližšie tréningy" events={events.filter((e) => e.type === 'TRAINING').slice(0, 6)} />
+        </div>
+      ) : (
+        <EventList title="Najbližšie udalosti" events={events.slice(0, 8)} />
+      )}
     </div>
+  );
+}
+
+function EventList({ title, events }: { title: string; events: EventItem[] }) {
+  return (
+    <section>
+      <h2 className="mb-3 font-semibold text-club-800">{title}</h2>
+      {events.length === 0 ? (
+        <Card className="text-sm text-gray-500">Zatiaľ žiadne naplánované.</Card>
+      ) : (
+        <ul className="divide-y divide-club-100 rounded-lg border border-club-100 bg-white">
+          {events.map((e) => {
+            const href = e.match ? `/portal/zapasy/${e.match.id}` : `/portal/dochadzka/${e.id}`;
+            return (
+              <li key={e.id}>
+                <Link href={href} className="flex items-center justify-between px-4 py-3 hover:bg-club-50">
+                  <div>
+                    <span className="mr-2 rounded bg-club-100 px-2 py-0.5 text-xs font-medium text-club-800">
+                      {typeLabels[e.type] ?? e.type}
+                      {e.team ? ` · ${e.team.name}` : ''}
+                    </span>
+                    <span className="font-medium">{e.title}</span>
+                    {e.location && <span className="ml-2 text-sm text-gray-500">{e.location}</span>}
+                  </div>
+                  <time className="whitespace-nowrap text-sm text-gray-600">
+                    {new Date(e.startAt).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })}
+                  </time>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+interface PlayerRow {
+  id: string;
+  firstName: string;
+  lastName: string;
+  memberships: Array<{ team: { name: string; teamCategory: { code: string } } }>;
+}
+
+function PlayersByGroup() {
+  const [players, setPlayers] = useState<PlayerRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    api<PlayerRow[]>('/members?role=PLAYER')
+      .then(setPlayers)
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, []);
+
+  if (!loaded) return null;
+
+  // zoskup hráčov podľa skupiny (hráč vo viacerých skupinách sa objaví v každej)
+  const groups = new Map<string, PlayerRow[]>();
+  const add = (key: string, p: PlayerRow) => {
+    const arr = groups.get(key) ?? [];
+    arr.push(p);
+    groups.set(key, arr);
+  };
+  for (const p of players) {
+    if (p.memberships.length === 0) add('Nezaradení', p);
+    else for (const m of p.memberships) add(m.team.name, p);
+  }
+  const sorted = [...groups.entries()].sort((a, b) =>
+    a[0] === 'Nezaradení' ? 1 : b[0] === 'Nezaradení' ? -1 : a[0].localeCompare(b[0], 'sk'),
+  );
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-baseline justify-between">
+        <h2 className="font-semibold text-club-800">Hráči podľa skupín</h2>
+        <Link href="/portal/clenovia" className="text-xs text-club-600 hover:underline">
+          Všetci členovia →
+        </Link>
+      </div>
+      {sorted.length === 0 ? (
+        <Card className="text-sm text-gray-500">Zatiaľ žiadni hráči.</Card>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {sorted.map(([group, list]) => (
+            <Card key={group} className="space-y-1">
+              <div className="flex items-baseline justify-between border-b border-club-50 pb-1">
+                <span className="font-semibold text-club-900">{group}</span>
+                <span className="text-xs text-gray-400">{list.length}</span>
+              </div>
+              <ul className="max-h-48 space-y-0.5 overflow-y-auto text-sm text-gray-700">
+                {list
+                  .sort((a, b) => (a.lastName + a.firstName).localeCompare(b.lastName + b.firstName, 'sk'))
+                  .map((p) => (
+                    <li key={p.id}>
+                      {p.lastName} {p.firstName}
+                    </li>
+                  ))}
+              </ul>
+            </Card>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
