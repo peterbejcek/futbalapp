@@ -3,3 +3,5 @@ export * from './season';
 export * from './payments';
 export * from './recurrence';
 export * from './schemas';
+export * from './rodne-cislo';
+export * from './psc';

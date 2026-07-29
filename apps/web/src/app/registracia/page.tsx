@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { parseRodneCislo, pscToMesto } from '@fkknv/shared';
 
 type ApplicantType = 'CHILD' | 'ADULT';
 
@@ -14,6 +15,19 @@ export default function RegistrationPage() {
   const [loading, setLoading] = useState(false);
   const [captcha, setCaptcha] = useState<{ token: string; svg: string } | null>(null);
   const [captchaAnswer, setCaptchaAnswer] = useState('');
+  const [birthNumber, setBirthNumber] = useState('');
+  const [zip, setZip] = useState('');
+  const [city, setCity] = useState('');
+
+  // dátum narodenia odvodený z rodného čísla (len na zobrazenie)
+  const rc = parseRodneCislo(birthNumber);
+  const derivedBirthDate = rc ? rc.birthDate.toISOString().slice(0, 10) : '';
+
+  function onZipChange(value: string) {
+    setZip(value);
+    const guessed = pscToMesto(value);
+    if (guessed && !city) setCity(guessed); // doplň mesto, ak je prázdne
+  }
 
   const reloadCaptcha = useCallback(() => {
     setCaptchaAnswer('');
@@ -42,9 +56,17 @@ export default function RegistrationPage() {
           player: {
             firstName: data.get('playerFirstName'),
             lastName: data.get('playerLastName'),
-            birthDate: data.get('birthDate'),
+            birthNumber,
+            registrationNumber: data.get('registrationNumber') || undefined,
             healthNotes: data.get('healthNotes') || undefined,
             email: wantPlayerEmail ? data.get('playerEmail') : undefined,
+          },
+          originCountry: data.get('originCountry') || undefined,
+          address: {
+            street: data.get('street'),
+            houseNumber: data.get('houseNumber'),
+            zip,
+            city,
           },
           parent: isAdult
             ? undefined
@@ -136,14 +158,67 @@ export default function RegistrationPage() {
                 <input name="playerLastName" required minLength={2} className={input} />
               </div>
             </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className={label}>Rodné číslo</label>
+                <input
+                  value={birthNumber}
+                  onChange={(e) => setBirthNumber(e.target.value)}
+                  required
+                  inputMode="numeric"
+                  placeholder="RRMMDD/XXXX"
+                  className={input}
+                />
+                {birthNumber.replace(/\D/g, '').length >= 9 && !rc && (
+                  <p className="mt-1 text-xs text-red-600">Neplatné rodné číslo.</p>
+                )}
+              </div>
+              <div>
+                <label className={label}>Dátum narodenia</label>
+                <input type="date" value={derivedBirthDate} readOnly disabled className={`${input} bg-gray-50`} />
+                <p className="mt-1 text-xs text-gray-500">Odvodí sa z rodného čísla (zaradenie do kategórie).</p>
+              </div>
+            </div>
             <div>
-              <label className={label}>Dátum narodenia</label>
-              <input name="birthDate" type="date" required className={input} />
-              <p className="mt-1 text-xs text-gray-500">Podľa dátumu narodenia zaradíme hráča do vekovej kategórie.</p>
+              <label className={label}>Registračné číslo (nepovinné)</label>
+              <input name="registrationNumber" className={input} placeholder="ak už bolo pridelené" />
             </div>
             <div>
               <label className={label}>Zdravotné obmedzenia (nepovinné)</label>
               <textarea name="healthNotes" rows={2} className={input} />
+            </div>
+
+            {/* Bydlisko + krajina pôvodu */}
+            <div>
+              <label className={label}>Krajina pôvodu</label>
+              <input name="originCountry" defaultValue="Slovensko" className={input} />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="sm:col-span-2">
+                <label className={label}>Ulica</label>
+                <input name="street" required minLength={2} className={input} />
+              </div>
+              <div>
+                <label className={label}>Súpisné / orientačné č.</label>
+                <input name="houseNumber" required className={input} />
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div>
+                <label className={label}>PSČ</label>
+                <input
+                  value={zip}
+                  onChange={(e) => onZipChange(e.target.value)}
+                  required
+                  inputMode="numeric"
+                  placeholder="040 14"
+                  className={input}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className={label}>Mesto / obec</label>
+                <input value={city} onChange={(e) => setCity(e.target.value)} required minLength={2} className={input} />
+              </div>
             </div>
 
             {/* vlastné prihlásenie hráča */}
@@ -254,7 +329,7 @@ export default function RegistrationPage() {
 
           <button
             type="submit"
-            disabled={loading || !captcha || !captchaAnswer}
+            disabled={loading || !captcha || !captchaAnswer || !rc}
             className="w-full rounded-md bg-club-600 px-4 py-3 font-semibold text-white hover:bg-club-700 disabled:opacity-50"
           >
             {loading ? 'Odosielam…' : 'Odoslať prihlášku'}

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ROLES, MEMBER_STATUSES, ATTENDANCE_STATUSES, EVENT_TYPES, MATCH_EVENT_TYPES } from './enums';
+import { parseRodneCislo } from './rodne-cislo';
 
 export const loginSchema = z.object({
   email: z.string().email(),
@@ -14,10 +15,25 @@ export const registrationRequestSchema = z
     player: z.object({
       firstName: z.string().min(2).max(60),
       lastName: z.string().min(2).max(60),
-      birthDate: z.coerce.date(),
+      // rodné číslo je povinné; dátum narodenia sa z neho odvodí
+      birthNumber: z
+        .string()
+        .min(9)
+        .max(11)
+        .refine((v) => parseRodneCislo(v) !== null, { message: 'Neplatné rodné číslo' }),
+      birthDate: z.coerce.date().optional(), // odvodené z rodného čísla (server je autorita)
+      // registračné číslo (hráč ho ešte nemusí mať pridelené)
+      registrationNumber: z.string().max(40).optional(),
       healthNotes: z.string().max(2000).optional(),
       // vlastné prihlásenie hráča (povinné pre dospelého, voliteľné pre staršie dieťa)
       email: z.string().email().optional(),
+    }),
+    originCountry: z.string().max(60).optional(),
+    address: z.object({
+      street: z.string().min(2).max(120),
+      houseNumber: z.string().min(1).max(20),
+      zip: z.string().min(4).max(10),
+      city: z.string().min(2).max(120),
     }),
     parent: z
       .object({

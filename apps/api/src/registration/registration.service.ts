@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import type { RegistrationRequestInput } from '@fkknv/shared';
+import { parseRodneCislo, type RegistrationRequestInput } from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { SeasonsService } from '../seasons/seasons.service';
 import { AccountsService } from '../auth/accounts.service';
@@ -13,12 +13,24 @@ export class RegistrationService {
   ) {}
 
   submit(input: RegistrationRequestInput) {
+    // dátum narodenia a pohlavie sú autoritatívne odvodené z rodného čísla
+    const rc = parseRodneCislo(input.player.birthNumber);
+    if (!rc) throw new BadRequestException('Neplatné rodné číslo');
+
     return this.prisma.registrationRequest.create({
       data: {
         applicantType: input.applicantType,
         childFirstName: input.player.firstName,
         childLastName: input.player.lastName,
-        childBirthDate: input.player.birthDate,
+        childBirthDate: rc.birthDate,
+        birthNumber: input.player.birthNumber.replace(/\s/g, ''),
+        sex: rc.sex,
+        playerRegistrationNumber: input.player.registrationNumber,
+        originCountry: input.originCountry,
+        addressStreet: input.address.street,
+        addressHouseNumber: input.address.houseNumber,
+        addressZip: input.address.zip,
+        addressCity: input.address.city,
         healthNotes: input.player.healthNotes,
         playerEmail: input.player.email?.toLowerCase(),
         parentFirstName: input.parent?.firstName,
@@ -59,6 +71,14 @@ export class RegistrationService {
         firstName: request.childFirstName,
         lastName: request.childLastName,
         birthDate: request.childBirthDate,
+        birthNumber: request.birthNumber,
+        sex: request.sex,
+        registrationNumber: request.playerRegistrationNumber || undefined,
+        originCountry: request.originCountry,
+        addressStreet: request.addressStreet,
+        addressHouseNumber: request.addressHouseNumber,
+        addressZip: request.addressZip,
+        addressCity: request.addressCity,
         healthNotes: request.healthNotes,
       },
     });

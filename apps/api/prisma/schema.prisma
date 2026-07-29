@@ -90,6 +90,17 @@ model Member {
   /// Voliteľné — hráči majú dátum narodenia (zaradenie do kategórie),
   /// nehráčski členovia (rodič, tréner) nemusia.
   birthDate      DateTime?
+  /// Rodné číslo (RRMMDD/XXXX) — z neho sa odvodzuje dátum narodenia a pohlavie
+  birthNumber    String?
+  /// Pohlavie odvodené z rodného čísla: M | F
+  sex            String?
+  /// Krajina pôvodu
+  originCountry  String?
+  // --- Bydlisko ---
+  addressStreet      String?
+  addressHouseNumber String?
+  addressZip         String?
+  addressCity        String?
   status         MemberStatus @default(ACTIVE)
   futbalnetId    String?      @unique
   healthNotes    String?
@@ -154,6 +165,16 @@ model RegistrationRequest {
   childFirstName String
   childLastName  String
   childBirthDate DateTime
+  /// Rodné číslo hráča (povinné v novom formulári)
+  birthNumber    String?
+  sex            String?
+  /// Registračné číslo hráča (nemusí byť pridelené)
+  playerRegistrationNumber String?
+  originCountry  String?
+  addressStreet      String?
+  addressHouseNumber String?
+  addressZip         String?
+  addressCity        String?
   healthNotes    String?
   /// voliteľné vlastné prihlásenie hráča (starší hráč / dospelý)
   playerEmail    String?
