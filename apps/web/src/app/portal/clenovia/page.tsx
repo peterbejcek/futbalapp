@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api, apiUpload, API_URL } from '@/lib/api';
+import { categoryColor } from '@fkknv/shared';
 import { isAdmin, isStaff, useMe } from '@/lib/auth';
 import { Button, Card, ErrorText, Modal, inputCls, labelCls } from '@/components/ui';
 
@@ -230,64 +231,77 @@ function MembersTable() {
         <table className="w-full text-sm">
           <thead className="bg-club-50 text-left text-club-800">
             <tr>
-              <th className="px-4 py-3">Meno</th>
-              <th className="px-4 py-3">Funkcia</th>
-              <th className="px-4 py-3">Ročník</th>
-              <th className="px-4 py-3">Reg. číslo</th>
-              <th className="px-4 py-3">Družstvo</th>
-              <th className="px-4 py-3">Materský klub</th>
-              <th className="px-4 py-3">Hosťujúci klub</th>
-              <th className="px-4 py-3">Klub. príslušnosť</th>
-              <th className="px-4 py-3">Preukaz do</th>
-              <th className="px-4 py-3">Konto</th>
-              <th className="px-4 py-3">Stav</th>
-              <th className="px-4 py-3"></th>
+              <th className="whitespace-nowrap px-3 py-2">Meno</th>
+              <th className="whitespace-nowrap px-3 py-2">Funkcia</th>
+              <th className="whitespace-nowrap px-3 py-2">Ročník</th>
+              <th className="whitespace-nowrap px-3 py-2">Reg. číslo</th>
+              <th className="whitespace-nowrap px-3 py-2">Družstvo</th>
+              <th className="whitespace-nowrap px-3 py-2">Materský klub</th>
+              <th className="whitespace-nowrap px-3 py-2">Hosťujúci klub</th>
+              <th className="whitespace-nowrap px-3 py-2">Klub. príslušnosť</th>
+              <th className="whitespace-nowrap px-3 py-2">Preukaz do</th>
+              <th className="whitespace-nowrap px-3 py-2">Konto</th>
+              <th className="whitespace-nowrap px-3 py-2">Stav</th>
+              <th className="whitespace-nowrap px-3 py-2"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-club-100">
             {sortedMembers.map((m) => (
               <tr key={m.id}>
-                <td className="px-4 py-3 font-medium">
+                <td className="whitespace-nowrap px-3 py-2 font-medium">
                   {m.lastName} {m.firstName}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-2">
                   <span className="flex flex-wrap gap-1">
-                    {memberFunctions(m).map((f, i) => (
-                      <span key={i} className="rounded bg-club-100 px-1.5 py-0.5 text-xs text-club-800">
-                        {f}
-                      </span>
-                    ))}
+                    {memberFunctions(m).map((f, i) => {
+                      const cat = m.memberships[0]?.team.teamCategory.code;
+                      const style =
+                        f === 'Hráč' && cat
+                          ? { backgroundColor: categoryColor(cat).bg, color: categoryColor(cat).text }
+                          : undefined;
+                      return (
+                        <span
+                          key={i}
+                          className={`whitespace-nowrap rounded px-1.5 py-0.5 text-xs ${style ? '' : 'bg-club-100 text-club-800'}`}
+                          style={style}
+                        >
+                          {f}
+                        </span>
+                      );
+                    })}
                   </span>
                 </td>
-                <td className="px-4 py-3">{m.birthDate ? new Date(m.birthDate).getFullYear() : '—'}</td>
-                <td className="px-4 py-3 font-medium text-club-800">{m.registrationNumber ?? '—'}</td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-2">{m.birthDate ? new Date(m.birthDate).getFullYear() : '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2 font-medium text-club-800">{m.registrationNumber ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2">
                   {m.memberships.length ? m.memberships.map((ms) => ms.team.name).join(', ') : '—'}
                 </td>
-                <td className="px-4 py-3 text-gray-600">{m.homeClub ?? '—'}</td>
-                <td className="px-4 py-3 text-gray-600">{m.guestClub ?? '—'}</td>
-                <td className="px-4 py-3 text-gray-600">{m.clubAffiliation ?? '—'}</td>
-                <td className="px-4 py-3">
+                <td className="whitespace-nowrap px-3 py-2 text-gray-600">{m.homeClub ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-gray-600">{m.guestClub ?? '—'}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-gray-600">{m.clubAffiliation ?? '—'}</td>
+                <td className="px-3 py-2">
                   {(() => {
                     const b = cardBadge(m.registrationValidUntil);
                     return b ? (
-                      <span className={`rounded px-2 py-0.5 text-xs font-medium ${b.cls}`}>
+                      <span className={`whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium ${b.cls}`}>
                         {b.text}
-                        {b.expired ? ' · po platnosti' : ''}
+                        {b.expired ? ' · po pl.' : ''}
                       </span>
                     ) : (
                       <span className="text-gray-400">—</span>
                     );
                   })()}
                 </td>
-                <td className="px-4 py-3 text-gray-600">{m.user?.email ?? '—'}</td>
-                <td className="px-4 py-3">
+                <td className="whitespace-nowrap px-3 py-2 text-gray-600">{m.user?.email ?? '—'}</td>
+                <td className="px-3 py-2">
                   <span
-                    className={
+                    className={`whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium ${
                       m.status === 'ACTIVE'
-                        ? 'rounded bg-club-100 px-2 py-0.5 text-xs text-club-800'
-                        : 'rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600'
-                    }
+                        ? 'bg-green-100 text-green-700'
+                        : m.status === 'GUEST'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-red-100 text-red-700'
+                    }`}
                   >
                     {m.status === 'ACTIVE' ? 'Aktívny' : m.status === 'GUEST' ? 'Hosť' : 'Neaktívny'}
                   </span>
@@ -361,7 +375,12 @@ function MemberModal({
   );
   const [healthNotes, setHealthNotes] = useState(member?.healthNotes ?? '');
   const [teamIds, setTeamIds] = useState<string[]>(member?.memberships.map((m) => m.team.id) ?? []);
-  const [roles, setRoles] = useState<string[]>(member?.user?.roles.map((r) => r.role) ?? []);
+  const [roles, setRoles] = useState<string[]>(() => {
+    const r = member?.user?.roles.map((x) => x.role) ?? [];
+    // hráč bez explicitných rolí (má zaradenie do skupiny) → zvýrazni Hráč
+    if (r.length === 0 && (member?.memberships.length ?? 0) > 0) return ['PLAYER'];
+    return r;
+  });
   const [email, setEmail] = useState(member?.user?.email ?? '');
   const [createAccount, setCreateAccount] = useState(false);
   const [childMemberIds, setChildMemberIds] = useState<string[]>([]);

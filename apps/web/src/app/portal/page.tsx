@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { categoryColor } from '@fkknv/shared';
 import { coachTeams, isParent, isPlayer, isStaff, useMe } from '@/lib/auth';
 import { Card } from '@/components/ui';
 
@@ -12,7 +13,7 @@ interface EventItem {
   title: string;
   startAt: string;
   location: string | null;
-  team: { name: string } | null;
+  team: { name: string; teamCategory?: { code: string } } | null;
   match: { id: string } | null;
 }
 interface Payment {
@@ -97,11 +98,15 @@ function EventList({ title, events }: { title: string; events: EventItem[] }) {
         <ul className="divide-y divide-club-100 rounded-lg border border-club-100 bg-white">
           {events.map((e) => {
             const href = e.match ? `/portal/zapasy/${e.match.id}` : `/portal/dochadzka/${e.id}`;
+            const c = categoryColor(e.team?.teamCategory?.code);
             return (
               <li key={e.id}>
                 <Link href={href} className="flex items-center justify-between px-4 py-3 hover:bg-club-50">
                   <div>
-                    <span className="mr-2 rounded bg-club-100 px-2 py-0.5 text-xs font-medium text-club-800">
+                    <span
+                      className="mr-2 rounded px-2 py-0.5 text-xs font-medium"
+                      style={{ backgroundColor: c.bg, color: c.text }}
+                    >
                       {typeLabels[e.type] ?? e.type}
                       {e.team ? ` · ${e.team.name}` : ''}
                     </span>
@@ -127,6 +132,10 @@ interface PlayerRow {
   lastName: string;
   memberships: Array<{ team: { name: string; teamCategory: { code: string } } }>;
 }
+interface Group {
+  players: PlayerRow[];
+  categoryCode: string | null;
+}
 
 function PlayersByGroup() {
   const [players, setPlayers] = useState<PlayerRow[]>([]);
@@ -142,15 +151,15 @@ function PlayersByGroup() {
   if (!loaded) return null;
 
   // zoskup hráčov podľa skupiny (hráč vo viacerých skupinách sa objaví v každej)
-  const groups = new Map<string, PlayerRow[]>();
-  const add = (key: string, p: PlayerRow) => {
-    const arr = groups.get(key) ?? [];
-    arr.push(p);
-    groups.set(key, arr);
+  const groups = new Map<string, Group>();
+  const add = (key: string, code: string | null, p: PlayerRow) => {
+    const g = groups.get(key) ?? { players: [], categoryCode: code };
+    g.players.push(p);
+    groups.set(key, g);
   };
   for (const p of players) {
-    if (p.memberships.length === 0) add('Nezaradení', p);
-    else for (const m of p.memberships) add(m.team.name, p);
+    if (p.memberships.length === 0) add('Nezaradení', null, p);
+    else for (const m of p.memberships) add(m.team.name, m.team.teamCategory.code, p);
   }
   const sorted = [...groups.entries()].sort((a, b) =>
     a[0] === 'Nezaradení' ? 1 : b[0] === 'Nezaradení' ? -1 : a[0].localeCompare(b[0], 'sk'),
@@ -168,23 +177,34 @@ function PlayersByGroup() {
         <Card className="text-sm text-gray-500">Zatiaľ žiadni hráči.</Card>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {sorted.map(([group, list]) => (
-            <Card key={group} className="space-y-1">
-              <div className="flex items-baseline justify-between border-b border-club-50 pb-1">
-                <span className="font-semibold text-club-900">{group}</span>
-                <span className="text-xs text-gray-400">{list.length}</span>
+          {sorted.map(([group, g]) => {
+            const c = categoryColor(g.categoryCode);
+            return (
+              <div
+                key={group}
+                className="rounded-lg border p-4"
+                style={{ backgroundColor: c.bg, borderColor: c.text + '33' }}
+              >
+                <div className="flex items-baseline justify-between border-b pb-1" style={{ borderColor: c.text + '22' }}>
+                  <span className="font-semibold" style={{ color: c.text }}>
+                    {group}
+                  </span>
+                  <span className="text-xs" style={{ color: c.text }}>
+                    {g.players.length}
+                  </span>
+                </div>
+                <ul className="mt-1 max-h-48 space-y-0.5 overflow-y-auto text-sm" style={{ color: c.text }}>
+                  {g.players
+                    .sort((a, b) => (a.lastName + a.firstName).localeCompare(b.lastName + b.firstName, 'sk'))
+                    .map((p) => (
+                      <li key={p.id}>
+                        {p.lastName} {p.firstName}
+                      </li>
+                    ))}
+                </ul>
               </div>
-              <ul className="max-h-48 space-y-0.5 overflow-y-auto text-sm text-gray-700">
-                {list
-                  .sort((a, b) => (a.lastName + a.firstName).localeCompare(b.lastName + b.firstName, 'sk'))
-                  .map((p) => (
-                    <li key={p.id}>
-                      {p.lastName} {p.firstName}
-                    </li>
-                  ))}
-              </ul>
-            </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </section>

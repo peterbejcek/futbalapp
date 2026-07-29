@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { WEEKDAY_SHORT_SK } from '@fkknv/shared';
+import { WEEKDAY_SHORT_SK, eventTypeColor } from '@fkknv/shared';
 import { api } from '@/lib/api';
 import { canManage, coachTeams, isStaff, useMe } from '@/lib/auth';
 import { Button, Card, ErrorText, Modal, inputCls, labelCls } from '@/components/ui';
@@ -138,11 +138,15 @@ function EventList({ title, events, empty }: { title: string; events: EventItem[
         <ul className="divide-y divide-club-100 rounded-lg border border-club-100 bg-white">
           {events.map((e) => {
             const href = e.match ? `/portal/zapasy/${e.match.id}` : `/portal/dochadzka/${e.id}`;
+            const c = eventTypeColor(e.type);
             return (
               <li key={e.id}>
                 <Link href={href} className="flex items-center justify-between px-4 py-3 hover:bg-club-50">
                   <div>
-                    <span className="mr-2 rounded bg-club-100 px-2 py-0.5 text-xs font-medium text-club-800">
+                    <span
+                      className="mr-2 rounded px-2 py-0.5 text-xs font-medium"
+                      style={{ backgroundColor: c.bg, color: c.text }}
+                    >
                       {typeLabels[e.type] ?? e.type}
                       {e.team ? ` · ${e.team.name}` : ''}
                       {e.recurrenceGroupId ? ' · séria' : ''}

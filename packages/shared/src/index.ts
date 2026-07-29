@@ -5,3 +5,4 @@ export * from './recurrence';
 export * from './schemas';
 export * from './rodne-cislo';
 export * from './psc';
+export * from './colors';
