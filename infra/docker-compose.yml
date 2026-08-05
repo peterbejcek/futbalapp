@@ -1,10 +1,19 @@
+# FKKNV portál — produkčné nasadenie na JEDEN VPS (Lumadock/Contabo/Hetzner…).
+# Jeden server obsluhuje databázu, API aj web; Caddy vybaví HTTPS automaticky.
+#
+#   cd infra
+#   cp .env.example .env      # vyplňte heslá
+#   chmod 600 .env
+#   docker compose --env-file .env up -d --build
+#
+# Premenné (POSTGRES_PASSWORD, JWT_SECRET, voliteľne RESEND_*) sú v infra/.env.
 services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: fkknv
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fkknv}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD je povinný}
       POSTGRES_DB: fkknv
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -14,12 +23,6 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    volumes:
-      - redis_data:/data
-
   api:
     build:
       context: ..
@@ -28,14 +31,25 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_started
     environment:
-      DATABASE_URL: postgresql://fkknv:${POSTGRES_PASSWORD:-fkknv}@postgres:5432/fkknv?schema=public
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://fkknv:${POSTGRES_PASSWORD}@postgres:5432/fkknv?schema=public
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET je povinný}
       CORS_ORIGIN: https://fkknv.sk
+      EMAIL_FROM: ${EMAIL_FROM:-FK Košická Nová Ves <noreply@fkknv.sk>}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
       PORT: 3001
+    # migrácie prebehnú automaticky pri štarte (viď Dockerfile.api CMD)
+
+  web:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.web
+      args:
+        # zapeká sa do klientskeho bundle-u pri builde — musí byť verejná adresa API
+        NEXT_PUBLIC_API_URL: https://api.fkknv.sk/api/v1
+    restart: unless-stopped
+    depends_on:
+      - api
 
   caddy:
     image: caddy:2-alpine
@@ -49,9 +63,9 @@ services:
       - caddy_config:/config
     depends_on:
       - api
+      - web
 
 volumes:
   postgres_data:
-  redis_data:
   caddy_data:
   caddy_config:

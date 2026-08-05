@@ -1,13 +1,30 @@
-# fkknv.sk — web beží na Verceli (DNS A/CNAME mimo tohto servera).
-# Tento server obsluhuje API.
+# FKKNV portál — jeden VPS obsluhuje web (fkknv.sk) aj API (api.fkknv.sk).
+# Caddy si automaticky vybaví a obnovuje HTTPS certifikáty (Let's Encrypt).
+# Podmienka: DNS oboch domén (fkknv.sk, www.fkknv.sk, api.fkknv.sk) smeruje
+# na IP tohto servera a sú otvorené porty 80 a 443.
 
-api.fkknv.sk {
-	reverse_proxy api:3001
+# Web (Next.js)
+fkknv.sk {
+	reverse_proxy web:3000
 	encode gzip
-
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
-		X-Frame-Options "DENY"
+		X-Frame-Options "SAMEORIGIN"
+	}
+}
+
+# www → apex presmerovanie
+www.fkknv.sk {
+	redir https://fkknv.sk{uri} permanent
+}
+
+# API (NestJS) — vrátane WebSocket chatu (Caddy rieši upgrade automaticky)
+api.fkknv.sk {
+	reverse_proxy api:3001
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
 	}
 }
