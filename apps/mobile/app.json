@@ -35,7 +35,12 @@
       ]
     ],
     "extra": {
-      "apiUrl": "https://api.fkknv.sk/api/v1"
-    }
+      "apiUrl": "https://api.fkknv.sk/api/v1",
+      "router": {},
+      "eas": {
+        "projectId": "f79e91e9-bd0c-4900-ae53-37821748c371"
+      }
+    },
+    "owner": "petobejos-team"
   }
 }
