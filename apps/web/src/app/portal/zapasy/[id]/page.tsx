@@ -4,8 +4,9 @@ import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { MATCH_EVENT_LABELS_SK, type MatchEventType } from '@fkknv/shared';
 import { api } from '@/lib/api';
-import { canManage, useMe } from '@/lib/auth';
+import { canManage, isStaff, useMe } from '@/lib/auth';
 import { Button, Card } from '@/components/ui';
+import { EventAdminActions } from '@/components/event-admin-actions';
 
 interface Member {
   id: string;
@@ -29,7 +30,7 @@ interface MatchDetail {
   scoreUs: number | null;
   scoreThem: number | null;
   state: string;
-  event: { title: string; startAt: string; location: string | null; team: { id: string; name: string } | null };
+  event: { id: string; title: string; startAt: string; endAt: string | null; location: string | null; team: { id: string; name: string } | null };
   nominations: Nomination[];
   events: MatchEventRow[];
 }
@@ -134,6 +135,18 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                 Ukončiť zápas
               </Button>
             )}
+          </div>
+        )}
+        {isStaff(me) && match.state === 'PLANNED' && (
+          <div className="mt-2 flex justify-center gap-2">
+            <EventAdminActions
+              eventId={match.event.id}
+              startAt={match.event.startAt}
+              endAt={match.event.endAt}
+              kind="match"
+              matchId={match.id}
+              onChanged={load}
+            />
           </div>
         )}
       </Card>

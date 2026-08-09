@@ -3,7 +3,9 @@
 import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import { Button, Card } from '@/components/ui';
+import { isStaff, useMe } from '@/lib/auth';
+import { Card } from '@/components/ui';
+import { EventAdminActions } from '@/components/event-admin-actions';
 
 interface AttendanceRow {
   id: string;
@@ -14,7 +16,9 @@ interface EventDetail {
   id: string;
   title: string;
   startAt: string;
+  endAt: string | null;
   location: string | null;
+  recurrenceGroupId: string | null;
   team: { name: string } | null;
   attendances: AttendanceRow[];
 }
@@ -37,6 +41,7 @@ const colors: Record<string, string> = {
 
 export default function AttendancePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { me } = useMe();
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,6 +83,18 @@ export default function AttendancePage({ params }: { params: Promise<{ id: strin
               {event.team?.name} · {new Date(event.startAt).toLocaleString('sk-SK')} · Prítomní: {present}/
               {event.attendances.length}
             </p>
+            {isStaff(me) && (
+              <div className="mt-3 flex gap-2">
+                <EventAdminActions
+                  eventId={event.id}
+                  startAt={event.startAt}
+                  endAt={event.endAt}
+                  kind="training"
+                  recurrenceGroupId={event.recurrenceGroupId}
+                  onChanged={load}
+                />
+              </div>
+            )}
           </div>
           <Card className="p-0">
             <ul className="divide-y divide-club-100">
