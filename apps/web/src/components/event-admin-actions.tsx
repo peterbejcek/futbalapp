@@ -10,9 +10,11 @@ function pad(n: number) {
 }
 
 /**
- * Akcie pre admina/vedúceho nad udalosťou v kalendári: Presunúť (na iný termín)
- * a Zrušiť. Pri zápase sa Zrušiť rieši stavom CANCELLED (ostane v prehľade),
- * pri tréningu sa udalosť odstráni (pri sérii voliteľne aj budúce termíny).
+ * Akcie pre admina/vedúceho nad udalosťou v kalendári:
+ *  - Presunúť (na iný termín)
+ *  - Zrušiť (len zápas) — stav CANCELLED, ostane v prehľade ako „Zrušený"
+ *  - Odstrániť — natrvalo zmaže udalosť (kaskádovo aj zápas, nomináciu, dochádzku).
+ * Pri opakovanom tréningu možno odstrániť len tento termín alebo aj všetky budúce.
  */
 export function EventAdminActions({
   eventId,
@@ -20,6 +22,7 @@ export function EventAdminActions({
   endAt,
   kind,
   matchId,
+  matchState,
   recurrenceGroupId,
   onChanged,
 }: {
@@ -28,6 +31,7 @@ export function EventAdminActions({
   endAt?: string | null;
   kind: 'match' | 'training';
   matchId?: string;
+  matchState?: string;
   recurrenceGroupId?: string | null;
   onChanged: () => void;
 }) {
@@ -37,10 +41,13 @@ export function EventAdminActions({
   const [time, setTime] = useState(`${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`);
   const [moveOpen, setMoveOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const label = kind === 'match' ? 'zápas' : 'tréning';
+  const canReschedule = kind === 'training' || matchState === 'PLANNED';
+  const canCancel = kind === 'match' && matchState === 'PLANNED';
 
   async function move() {
     setBusy(true);
@@ -76,27 +83,35 @@ export function EventAdminActions({
     }
   }
 
-  async function cancelTraining(scope: 'one' | 'future') {
+  async function deleteEvent(scope: 'one' | 'future') {
     setBusy(true);
     setError(null);
     try {
       await api(`/events/${eventId}?scope=${scope}`, { method: 'DELETE' });
       router.push('/portal/udalosti');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Zrušenie zlyhalo');
+      setError(e instanceof Error ? e.message : 'Odstránenie zlyhalo');
       setBusy(false);
     }
   }
 
   return (
     <>
-      <Button variant="ghost" onClick={() => setMoveOpen(true)}>
-        Presunúť
-      </Button>
-      <Button variant="danger" onClick={() => setCancelOpen(true)}>
-        Zrušiť
+      {canReschedule && (
+        <Button variant="ghost" onClick={() => setMoveOpen(true)}>
+          Presunúť
+        </Button>
+      )}
+      {canCancel && (
+        <Button variant="ghost" onClick={() => setCancelOpen(true)}>
+          Zrušiť
+        </Button>
+      )}
+      <Button variant="danger" onClick={() => setDeleteOpen(true)}>
+        Odstrániť
       </Button>
 
+      {/* Presunúť */}
       <Modal open={moveOpen} onClose={() => setMoveOpen(false)} title={`Presunúť ${label}`}>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
@@ -121,36 +136,52 @@ export function EventAdminActions({
         </div>
       </Modal>
 
-      <Modal open={cancelOpen} onClose={() => setCancelOpen(false)} title={`Zrušiť ${label}`}>
+      {/* Zrušiť (len zápas) — CANCELLED, ostane v prehľade */}
+      <Modal open={cancelOpen} onClose={() => setCancelOpen(false)} title="Zrušiť zápas">
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            {kind === 'match'
-              ? 'Zápas sa označí ako zrušený a ostane v prehľade so stavom „Zrušený".'
-              : recurrenceGroupId
-                ? 'Tento tréning je súčasťou opakovanej série. Zrušiť len tento termín, alebo aj všetky budúce?'
-                : 'Naozaj zrušiť tento tréning? Odstráni sa z kalendára.'}
+            Zápas sa označí ako <strong>zrušený</strong> (napr. zväzom či klubom) a ostane v prehľade so stavom
+            „Zrušený". Ak ide o chybný zápis, použite radšej <strong>Odstrániť</strong>.
           </p>
           <ErrorText>{error}</ErrorText>
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setCancelOpen(false)}>
               Späť
             </Button>
-            {kind === 'match' ? (
-              <Button variant="danger" onClick={cancelMatch} disabled={busy}>
-                {busy ? 'Rušim…' : 'Zrušiť zápas'}
-              </Button>
-            ) : recurrenceGroupId ? (
+            <Button variant="danger" onClick={cancelMatch} disabled={busy}>
+              {busy ? 'Rušim…' : 'Označiť ako zrušený'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Odstrániť natrvalo */}
+      <Modal open={deleteOpen} onClose={() => setDeleteOpen(false)} title={`Odstrániť ${label}`}>
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            {kind === 'match'
+              ? 'Natrvalo odstrániť tento zápas vrátane nominácie a zápisu? Túto akciu nie je možné vrátiť.'
+              : recurrenceGroupId
+                ? 'Tento tréning je súčasťou opakovanej série. Odstrániť len tento termín, alebo aj všetky budúce? Vrátane dochádzky, nedá sa vrátiť.'
+                : 'Natrvalo odstrániť tento tréning vrátane dochádzky? Túto akciu nie je možné vrátiť.'}
+          </p>
+          <ErrorText>{error}</ErrorText>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="ghost" onClick={() => setDeleteOpen(false)}>
+              Späť
+            </Button>
+            {kind === 'training' && recurrenceGroupId ? (
               <>
-                <Button variant="ghost" onClick={() => cancelTraining('one')} disabled={busy}>
+                <Button variant="danger" onClick={() => deleteEvent('one')} disabled={busy}>
                   Len tento termín
                 </Button>
-                <Button variant="danger" onClick={() => cancelTraining('future')} disabled={busy}>
+                <Button variant="danger" onClick={() => deleteEvent('future')} disabled={busy}>
                   Tento aj budúce
                 </Button>
               </>
             ) : (
-              <Button variant="danger" onClick={() => cancelTraining('one')} disabled={busy}>
-                {busy ? 'Rušim…' : 'Zrušiť tréning'}
+              <Button variant="danger" onClick={() => deleteEvent('one')} disabled={busy}>
+                {busy ? 'Odstraňujem…' : 'Odstrániť natrvalo'}
               </Button>
             )}
           </div>

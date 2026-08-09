@@ -137,14 +137,15 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
             )}
           </div>
         )}
-        {isStaff(me) && match.state === 'PLANNED' && (
-          <div className="mt-2 flex justify-center gap-2">
+        {isStaff(me) && (
+          <div className="mt-2 flex flex-wrap justify-center gap-2">
             <EventAdminActions
               eventId={match.event.id}
               startAt={match.event.startAt}
               endAt={match.event.endAt}
               kind="match"
               matchId={match.id}
+              matchState={match.state}
               onChanged={load}
             />
           </div>
