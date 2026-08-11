@@ -4,10 +4,16 @@ import { useCallback, useEffect, useState } from 'react';
 import { API_URL, api, getToken } from '@/lib/api';
 import { Button, Card, ErrorText, inputCls, labelCls } from '@/components/ui';
 
+interface TeamRow {
+  id: string;
+  name: string;
+  sportnetProgramUrl?: string | null;
+  sportnetTeamName?: string | null;
+}
 interface Category {
   code: string;
   name: string;
-  teams: { id: string; name: string }[];
+  teams: TeamRow[];
 }
 
 export default function SettingsPage() {
@@ -124,6 +130,22 @@ export default function SettingsPage() {
       </Card>
 
       <Card className="space-y-3">
+        <h2 className="font-semibold text-club-800">Rozpis zápasov zo sportnetu (per družstvo)</h2>
+        <p className="text-sm text-gray-500">
+          Pre družstvo zadajte odkaz na <strong>program</strong> súťaže na sportnet.sme.sk a presný názov družstva
+          tak, ako je uvedený na sportnete. Po „Vytvoriť rozpis" sa načítajú a doplnia zápasy družstva (idempotentne).
+        </p>
+        {categories.flatMap((c) => c.teams).length === 0 && (
+          <p className="text-sm text-gray-500">Zatiaľ žiadne družstvá — najprv ich vytvorte vyššie.</p>
+        )}
+        {categories.map((c) =>
+          c.teams.map((t) => (
+            <SportnetTeamRow key={t.id} team={t} categoryName={c.name} onMsg={setMsg} onErr={setError} onDone={load} />
+          )),
+        )}
+      </Card>
+
+      <Card className="space-y-3">
         <h2 className="font-semibold text-club-800">Exporty do Excelu</h2>
         <div className="flex flex-wrap gap-2">
           <Button variant="ghost" onClick={() => download('/reports/export/members', 'clenovia.xlsx')}>
@@ -134,6 +156,91 @@ export default function SettingsPage() {
           </Button>
         </div>
       </Card>
+    </div>
+  );
+}
+
+function SportnetTeamRow({
+  team,
+  categoryName,
+  onMsg,
+  onErr,
+  onDone,
+}: {
+  team: TeamRow;
+  categoryName: string;
+  onMsg: (s: string) => void;
+  onErr: (s: string) => void;
+  onDone: () => void;
+}) {
+  const [url, setUrl] = useState(team.sportnetProgramUrl ?? '');
+  const [name, setName] = useState(team.sportnetTeamName ?? '');
+  const [busy, setBusy] = useState(false);
+
+  async function persist() {
+    await api(`/futbalnet/team/${team.id}`, {
+      method: 'POST',
+      body: JSON.stringify({ programUrl: url.trim() || null, teamName: name.trim() || null }),
+    });
+  }
+
+  async function save() {
+    setBusy(true);
+    try {
+      await persist();
+      onMsg(`Uložené: ${categoryName} · ${team.name}`);
+      onDone();
+    } catch (e) {
+      onErr(e instanceof Error ? e.message : 'Chyba');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importNow() {
+    setBusy(true);
+    try {
+      await persist();
+      const r = await api<{ total: number; ours: number; created: number; updated: number }>(
+        `/futbalnet/team/${team.id}/import`,
+        { method: 'POST' },
+      );
+      onMsg(`${team.name}: našich zápasov ${r.ours} · vytvorené ${r.created}, aktualizované ${r.updated} (z ${r.total} v programe)`);
+      onDone();
+    } catch (e) {
+      onErr(e instanceof Error ? e.message : 'Import zlyhal');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-club-100 p-3">
+      <div className="mb-2 text-sm font-medium text-club-800">
+        {categoryName} · {team.name}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          className={inputCls}
+          placeholder="https://sportnet.sme.sk/futbalnet/z/…/s/…/program/"
+        />
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className={inputCls}
+          placeholder="Názov na sportnete, napr. FK Košická Nová Ves B"
+        />
+      </div>
+      <div className="mt-2 flex gap-2">
+        <Button variant="ghost" onClick={save} disabled={busy}>
+          Uložiť
+        </Button>
+        <Button onClick={importNow} disabled={busy || !url.trim() || !name.trim()}>
+          {busy ? 'Pracujem…' : 'Vytvoriť rozpis'}
+        </Button>
+      </div>
     </div>
   );
 }

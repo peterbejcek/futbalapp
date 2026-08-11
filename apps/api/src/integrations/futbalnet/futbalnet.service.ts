@@ -2,6 +2,8 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { parseMatchesFromHtml, type NormalizedMatch } from './futbalnet.parser';
+import { parseSportnetProgram, sportnetMatchKey } from './sportnet.parser';
+import { ClubsService } from '../../clubs/clubs.service';
 
 /** Zápas nášho tímu odvodený z futbalnet dát. */
 interface OurMatch extends NormalizedMatch {
@@ -13,7 +15,98 @@ interface OurMatch extends NormalizedMatch {
 export class FutbalnetService {
   private readonly logger = new Logger(FutbalnetService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly clubs: ClubsService,
+  ) {}
+
+  /** Uloží sportnet program URL + názov nášho tímu pre konkrétne družstvo. */
+  async setTeamSportnet(teamId: string, programUrl: string | null, teamName: string | null) {
+    const team = await this.prisma.team.findUnique({ where: { id: teamId } });
+    if (!team) throw new NotFoundException('Družstvo neexistuje');
+    return this.prisma.team.update({
+      where: { id: teamId },
+      data: {
+        sportnetProgramUrl: programUrl?.trim() || null,
+        sportnetTeamName: teamName?.trim() || null,
+      },
+    });
+  }
+
+  /**
+   * Stiahne program súťaže zo sportnet.sme.sk a vytvorí/aktualizuje zápasy
+   * daného družstva (idempotentne podľa stabilného kľúča zápasu).
+   */
+  async importTeamProgram(teamId: string) {
+    const team = await this.prisma.team.findUnique({ where: { id: teamId } });
+    if (!team) throw new NotFoundException('Družstvo neexistuje');
+    if (!team.sportnetProgramUrl || !team.sportnetTeamName) {
+      throw new BadRequestException('Najprv nastavte odkaz na program a názov tímu na sportnete.');
+    }
+    const season = await this.prisma.season.findFirst({ where: { isActive: true } });
+    if (!season) throw new BadRequestException('Neexistuje aktívna sezóna');
+
+    const response = await fetch(team.sportnetProgramUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (fkknv.sk portal)' },
+    });
+    if (!response.ok) {
+      throw new BadRequestException(`Stránku sa nepodarilo načítať (HTTP ${response.status}).`);
+    }
+    const html = await response.text();
+    const fixtures = parseSportnetProgram(html);
+    const ourName = team.sportnetTeamName.trim().toLowerCase();
+
+    let created = 0;
+    let updated = 0;
+    let ours = 0;
+    for (const f of fixtures) {
+      const homeIsUs = f.home.toLowerCase() === ourName;
+      const awayIsUs = f.away.toLowerCase() === ourName;
+      if (!homeIsUs && !awayIsUs) continue;
+      ours++;
+
+      const opponent = homeIsUs ? f.away : f.home;
+      const opponentLogo = (homeIsUs ? f.awayLogo : f.homeLogo) ?? null;
+      // doplň klub do registra (aj s logom)
+      await this.clubs.create({ name: opponent, logoUrl: opponentLogo });
+
+      const title = homeIsUs ? `${team.name} vs ${opponent}` : `${opponent} vs ${team.name}`;
+      const externalId = sportnetMatchKey(f);
+
+      const existing = await this.prisma.event.findUnique({
+        where: { futbalnetId: externalId },
+        include: { match: true },
+      });
+      if (existing) {
+        await this.prisma.event.update({
+          where: { id: existing.id },
+          data: { startAt: f.startAt, title, teamId: team.id },
+        });
+        if (existing.match) {
+          await this.prisma.match.update({
+            where: { id: existing.match.id },
+            data: { opponent, isHome: homeIsUs, opponentLogo },
+          });
+        }
+        updated++;
+      } else {
+        await this.prisma.event.create({
+          data: {
+            type: 'MATCH',
+            seasonId: season.id,
+            teamId: team.id,
+            title,
+            startAt: f.startAt,
+            source: 'FUTBALNET',
+            futbalnetId: externalId,
+            match: { create: { opponent, isHome: homeIsUs, opponentLogo } },
+          },
+        });
+        created++;
+      }
+    }
+    return { total: fixtures.length, ours, created, updated };
+  }
 
   /** Uloží konfiguráciu sync-u pre kategóriu (URL súťaže + názov nášho tímu). */
   async configure(categoryCode: string, url: string | null, teamName: string | null) {

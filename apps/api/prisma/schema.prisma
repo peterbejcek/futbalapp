@@ -253,6 +253,10 @@ model Team {
   teamCategoryId String
   name           String
   sortOrder      Int    @default(0)
+  /// URL programu súťaže tohto družstva na sportnet.sme.sk (zdroj rozpisu zápasov)
+  sportnetProgramUrl String?
+  /// Presný názov tohto družstva na sportnete (napr. "FK Košická Nová Ves B")
+  sportnetTeamName   String?
 
   teamCategory TeamCategory     @relation(fields: [teamCategoryId], references: [id])
   memberships  TeamMembership[]

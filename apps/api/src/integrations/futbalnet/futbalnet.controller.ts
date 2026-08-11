@@ -43,6 +43,21 @@ export class FutbalnetController {
     return this.futbalnetService.setSportnetUrl(categoryCode, body.url);
   }
 
+  /** Nastaví sportnet program URL + názov tímu pre družstvo. */
+  @Post('team/:teamId')
+  setTeam(
+    @Param('teamId') teamId: string,
+    @Body() body: { programUrl: string | null; teamName: string | null },
+  ) {
+    return this.futbalnetService.setTeamSportnet(teamId, body.programUrl, body.teamName);
+  }
+
+  /** Vytvorí/aktualizuje rozpis zápasov družstva zo sportnetu. */
+  @Post('team/:teamId/import')
+  importTeam(@Param('teamId') teamId: string) {
+    return this.futbalnetService.importTeamProgram(teamId);
+  }
+
   /** Sync všetkých nakonfigurovaných kategórií (inak beží v pondelok 5:00). */
   @Post('sync')
   syncAll() {
