@@ -237,6 +237,9 @@ model TeamCategory {
   futbalnetCompetitionUrl String?
   /// Názov tímu na futbalnete (na rozpoznanie domáci/hostia), napr. "FK Košická Nová Ves"
   futbalnetTeamName       String?
+  /// Verejná URL súťaže na sportnet.sme.sk (základ pre embed programu a tabuľky),
+  /// napr. https://sportnet.sme.sk/futbalnet/z/mfz-kosice/s/pripravka-u11
+  sportnetUrl             String?
 
   rules    CategoryRule[]
   feePlans FeePlan[]

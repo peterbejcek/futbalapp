@@ -37,6 +37,12 @@ export class FutbalnetController {
     return this.futbalnetService.configure(categoryCode, body.url, body.teamName);
   }
 
+  /** Nastaví verejnú sportnet.sme.sk URL súťaže pre kategóriu (embed programu/tabuľky). */
+  @Post('sportnet/:categoryCode')
+  setSportnet(@Param('categoryCode') categoryCode: string, @Body() body: { url: string | null }) {
+    return this.futbalnetService.setSportnetUrl(categoryCode, body.url);
+  }
+
   /** Sync všetkých nakonfigurovaných kategórií (inak beží v pondelok 5:00). */
   @Post('sync')
   syncAll() {

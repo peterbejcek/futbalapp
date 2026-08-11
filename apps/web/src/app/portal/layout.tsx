@@ -17,6 +17,7 @@ const navigation: NavItem[] = [
   { href: '/portal', label: 'Prehľad', show: () => true },
   { href: '/portal/clenovia', label: 'Členovia', show: ({ manage }) => manage },
   { href: '/portal/udalosti', label: 'Kalendár', show: () => true },
+  { href: '/portal/tabulka', label: 'Tabuľka', show: () => true },
   { href: '/portal/platby', label: 'Platby', show: ({ staff }) => staff },
   { href: '/portal/registracie', label: 'Registrácie', show: ({ staff }) => staff },
   { href: '/portal/chat', label: 'Komunikácia', show: () => true },

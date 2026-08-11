@@ -25,6 +25,14 @@ export class FutbalnetService {
     });
   }
 
+  /** Nastaví verejnú sportnet.sme.sk URL súťaže pre kategóriu (embed programu/tabuľky). */
+  async setSportnetUrl(categoryCode: string, url: string | null) {
+    const category = await this.prisma.teamCategory.findUnique({ where: { code: categoryCode } });
+    if (!category) throw new NotFoundException(`Kategória ${categoryCode} neexistuje`);
+    const clean = url?.trim().replace(/\/+$/, '') || null;
+    return this.prisma.teamCategory.update({ where: { id: category.id }, data: { sportnetUrl: clean } });
+  }
+
   /** Týždenný sync všetkých nakonfigurovaných kategórií (pondelok 5:00). */
   @Cron('0 5 * * 1')
   async syncAll() {
