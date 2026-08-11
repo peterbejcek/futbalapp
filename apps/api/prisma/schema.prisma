@@ -535,9 +535,22 @@ enum MatchEventType {
   PENALTY_MISSED
 }
 
+/// Register klubov (súperov) — meno a logo (napr. z futbalnetu). Pre našepkávač
+/// a zobrazenie loga súpera pri zápase. Napĺňa sa ručne alebo importom.
+model Club {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  logoUrl   String?
+  /// futbalnet doména klubu (napr. fk-galaktik.futbalnet.sk) — kľúč k logu
+  sportnetDomain String?
+  createdAt DateTime @default(now())
+}
+
 model Match {
   id          String     @id @default(cuid())
   eventId     String     @unique
+  /// logo súpera (denormalizované z registra klubov pri založení zápasu)
+  opponentLogo String?
   opponent    String
   isHome      Boolean    @default(true)
   competition String?

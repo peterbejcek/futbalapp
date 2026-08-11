@@ -7,10 +7,14 @@ import {
   type MarkAttendanceInput,
 } from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
+import { ClubsService } from '../clubs/clubs.service';
 
 @Injectable()
 export class EventsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly clubs: ClubsService,
+  ) {}
 
   list(params: { categoryCode?: string; teamId?: string; from?: Date; to?: Date; type?: string }) {
     return this.prisma.event.findMany({
@@ -68,6 +72,13 @@ export class EventsService {
     const team = await this.resolveTeam(input.teamId);
     const isMatch = input.type === 'MATCH' || input.type === 'TOURNAMENT';
 
+    // logo súpera z registra klubov + doplnenie nového súpera do registra
+    let opponentLogo: string | null = null;
+    if (isMatch && input.opponent) {
+      opponentLogo = await this.clubs.logoForName(input.opponent);
+      await this.clubs.ensure(input.opponent);
+    }
+
     const event = await this.prisma.event.create({
       data: {
         type: input.type,
@@ -80,7 +91,7 @@ export class EventsService {
         surface: input.surface,
         createdById,
         match: isMatch
-          ? { create: { opponent: input.opponent ?? 'Neznámy súper', isHome: input.isHome ?? true } }
+          ? { create: { opponent: input.opponent ?? 'Neznámy súper', isHome: input.isHome ?? true, opponentLogo } }
           : undefined,
       },
       include: { match: true },

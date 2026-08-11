@@ -27,6 +27,7 @@ interface MatchEventRow {
 interface MatchDetail {
   id: string;
   opponent: string;
+  opponentLogo: string | null;
   isHome: boolean;
   scoreUs: number | null;
   scoreThem: number | null;
@@ -43,6 +44,9 @@ interface MatchDetail {
   nominations: Nomination[];
   events: MatchEventRow[];
 }
+
+// logo nášho klubu (FK Košická Nová Ves) z futbalnetu
+const OUR_LOGO = 'https://api.sportnet.online/data/ppo/fk-kosicka-nova-ves.futbalnet.sk/logo';
 
 // akcie viazané na hráča vs tímové
 const PLAYER_ACTIONS: MatchEventType[] = ['GOAL', 'ASSIST', 'PENALTY_SCORED', 'PENALTY_MISSED', 'YELLOW', 'RED', 'FOUL', 'SHOT'];
@@ -148,6 +152,24 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       </Link>
 
       <Card className="text-center">
+        <div className="mb-1 flex items-center justify-center gap-4">
+          {/* poradie log podľa doma/vonku: doma = my vľavo, vonku = my vpravo */}
+          {/* eslint-disable @next/next/no-img-element */}
+          <img
+            src={match.isHome ? OUR_LOGO : match.opponentLogo ?? OUR_LOGO}
+            alt=""
+            className="h-12 w-12 object-contain"
+            onError={(e) => (e.currentTarget.style.visibility = 'hidden')}
+          />
+          <span className="text-xs font-medium text-gray-400">{match.isHome ? 'DOMA' : 'VONKU'}</span>
+          <img
+            src={match.isHome ? match.opponentLogo ?? OUR_LOGO : OUR_LOGO}
+            alt=""
+            className="h-12 w-12 object-contain"
+            onError={(e) => (e.currentTarget.style.visibility = 'hidden')}
+          />
+          {/* eslint-enable @next/next/no-img-element */}
+        </div>
         <p className="text-sm text-gray-500">{match.event.title}</p>
         <p className="my-1 text-5xl font-extrabold text-club-800">
           {match.scoreUs ?? 0} : {match.scoreThem ?? 0}

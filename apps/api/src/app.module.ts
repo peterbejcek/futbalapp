@@ -11,6 +11,7 @@ import { SeasonsModule } from './seasons/seasons.module';
 import { RegistrationModule } from './registration/registration.module';
 import { EventsModule } from './events/events.module';
 import { MatchesModule } from './matches/matches.module';
+import { ClubsModule } from './clubs/clubs.module';
 import { FinanceModule } from './finance/finance.module';
 import { ChatModule } from './chat/chat.module';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -31,6 +32,7 @@ import { HealthController } from './health.controller';
     RegistrationModule,
     EventsModule,
     MatchesModule,
+    ClubsModule,
     FinanceModule,
     ChatModule,
     ReportsModule,

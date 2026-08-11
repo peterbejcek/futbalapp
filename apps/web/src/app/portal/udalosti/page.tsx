@@ -22,7 +22,7 @@ interface EventItem {
   surface: SurfaceCode | null;
   recurrenceGroupId: string | null;
   team: { name: string; teamCategory: { code: string } } | null;
-  match: { id: string; state: string; scoreUs: number | null; scoreThem: number | null } | null;
+  match: { id: string; state: string; scoreUs: number | null; scoreThem: number | null; opponentLogo: string | null } | null;
 }
 
 const typeLabels: Record<string, string> = {
@@ -66,7 +66,15 @@ export default function EventsPage() {
   useEffect(() => {
     api<Team[]>('/seasons/teams').then(setTeams).catch(() => {});
     api<string[]>('/events/locations').then(setVenues).catch(() => {});
-    api<string[]>('/matches/opponents').then(setOpponents).catch(() => {});
+    Promise.all([
+      api<string[]>('/matches/opponents').catch(() => []),
+      api<Array<{ name: string }>>('/clubs').catch(() => []),
+    ])
+      .then(([opp, clubs]) => {
+        const names = new Set<string>([...opp, ...clubs.map((c) => c.name)]);
+        setOpponents([...names].sort((a, b) => a.localeCompare(b, 'sk')));
+      })
+      .catch(() => {});
   }, []);
   useEffect(() => {
     void load();
@@ -166,6 +174,10 @@ function EventList({ title, events, empty }: { title: string; events: EventItem[
                       {e.team ? ` · ${e.team.name}` : ''}
                       {e.recurrenceGroupId ? ' · séria' : ''}
                     </span>
+                    {e.match?.opponentLogo && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={e.match.opponentLogo} alt="" className="mr-1 inline h-5 w-5 object-contain align-text-bottom" />
+                    )}
                     <span className="font-medium">{e.title}</span>
                     {e.location && <span className="ml-2 text-sm text-gray-500">{e.location}</span>}
                     {e.surface && <span className="ml-2 text-xs text-gray-400">{SURFACE_LABELS_SK[e.surface]}</span>}

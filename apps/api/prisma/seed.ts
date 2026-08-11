@@ -94,6 +94,27 @@ async function main() {
     await prisma.channel.create({ data: { kind: 'CLUB_ANNOUNCEMENT', name: 'Oznamy klubu' } });
   }
 
+  // Register klubov (súperi) — MFZ Košice, logá z futbalnetu (idempotentne)
+  const logo = (domain: string) => `https://api.sportnet.online/data/ppo/${domain}/logo`;
+  const CLUBS: Array<{ name: string; domain: string }> = [
+    { name: 'FK GALAKTIK', domain: 'fk-galaktik.futbalnet.sk' },
+    { name: 'Slávia TU Košice', domain: 'slavia-tu-kosice.futbalnet.sk' },
+    { name: 'FK Košická Nová Ves', domain: 'fk-kosicka-nova-ves.futbalnet.sk' },
+    { name: 'FA BENECOL KOŠICE', domain: 'fa-benecol-kosice.futbalnet.sk' },
+    { name: 'FK Junior Košice', domain: 'fk-junior-kosice.futbalnet.sk' },
+    { name: 'KAC Jednota Košice', domain: 'kac-jednota-kosice.futbalnet.sk' },
+    { name: 'ŠK Pyramída Košice', domain: 'sk-pyramida-kosice.futbalnet.sk' },
+    { name: 'FK Považská Sokoľ', domain: 'sk-sokol.futbalnet.sk' },
+    { name: 'MŠK Moldava nad Bodvou B', domain: 'issf_club_10136' },
+  ];
+  for (const c of CLUBS) {
+    await prisma.club.upsert({
+      where: { name: c.name },
+      create: { name: c.name, sportnetDomain: c.domain, logoUrl: logo(c.domain) },
+      update: { sportnetDomain: c.domain, logoUrl: logo(c.domain) },
+    });
+  }
+
   console.log(`Seed hotový: sezóna ${season.name}, ${CATEGORY_CODES.length} kategórií (družstvá + podkanály)`);
 }
 
