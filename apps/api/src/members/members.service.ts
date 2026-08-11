@@ -277,6 +277,14 @@ export class MembersService {
     return { member: await this.get(id), account };
   }
 
+  /** Natrvalo odstráni člena (kaskádovo aj členstvá, dochádzku, poplatky, nominácie…). */
+  async remove(id: string) {
+    const member = await this.prisma.member.findUnique({ where: { id } });
+    if (!member) throw new NotFoundException('Člen neexistuje');
+    await this.prisma.member.delete({ where: { id } });
+    return { deleted: true };
+  }
+
   private assertGrant(actorRoles: Role[], roles: Role[]) {
     this.accounts.assertCanGrant({ id: '', email: '', roles: actorRoles.map((role) => ({ role, teamId: null })) }, roles);
   }

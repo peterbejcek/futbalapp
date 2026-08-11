@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { SURFACE_CODES, SURFACE_LABELS_SK } from '@fkknv/shared';
 import { api } from '@/lib/api';
 import { Button, ErrorText, Modal, inputCls, labelCls } from '@/components/ui';
 
@@ -21,6 +22,9 @@ export function EventAdminActions({
   startAt,
   endAt,
   kind,
+  title,
+  location,
+  surface,
   matchId,
   matchState,
   recurrenceGroupId,
@@ -30,6 +34,9 @@ export function EventAdminActions({
   startAt: string;
   endAt?: string | null;
   kind: 'match' | 'training';
+  title?: string;
+  location?: string | null;
+  surface?: string | null;
   matchId?: string;
   matchState?: string;
   recurrenceGroupId?: string | null;
@@ -39,6 +46,9 @@ export function EventAdminActions({
   const d = new Date(startAt);
   const [date, setDate] = useState(`${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`);
   const [time, setTime] = useState(`${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`);
+  const [titleVal, setTitleVal] = useState(title ?? '');
+  const [locationVal, setLocationVal] = useState(location ?? '');
+  const [surfaceVal, setSurfaceVal] = useState(surface ?? '');
   const [moveOpen, setMoveOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -49,12 +59,17 @@ export function EventAdminActions({
   const canReschedule = kind === 'training' || matchState === 'PLANNED';
   const canCancel = kind === 'match' && matchState === 'PLANNED';
 
-  async function move() {
+  async function save() {
     setBusy(true);
     setError(null);
     try {
       const startMs = Date.parse(`${date}T${time}:00Z`);
-      const body: { startAt: string; endAt?: string } = { startAt: new Date(startMs).toISOString() };
+      const body: Record<string, unknown> = {
+        startAt: new Date(startMs).toISOString(),
+        location: locationVal || undefined,
+        surface: surfaceVal || undefined,
+      };
+      if (titleVal.trim()) body.title = titleVal.trim();
       if (endAt) {
         const dur = Date.parse(endAt) - Date.parse(startAt);
         if (dur > 0) body.endAt = new Date(startMs + dur).toISOString();
@@ -63,7 +78,7 @@ export function EventAdminActions({
       setMoveOpen(false);
       onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Presun zlyhal');
+      setError(e instanceof Error ? e.message : 'Úprava zlyhala');
     } finally {
       setBusy(false);
     }
@@ -99,7 +114,7 @@ export function EventAdminActions({
     <>
       {canReschedule && (
         <Button variant="ghost" onClick={() => setMoveOpen(true)}>
-          Presunúť
+          Upraviť
         </Button>
       )}
       {canCancel && (
@@ -111,26 +126,47 @@ export function EventAdminActions({
         Odstrániť
       </Button>
 
-      {/* Presunúť */}
-      <Modal open={moveOpen} onClose={() => setMoveOpen(false)} title={`Presunúť ${label}`}>
+      {/* Upraviť (termín, miesto, povrch, názov) */}
+      <Modal open={moveOpen} onClose={() => setMoveOpen(false)} title={`Upraviť ${label}`}>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>Nový dátum</label>
+              <label className={labelCls}>Dátum</label>
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Nový čas</label>
+              <label className={labelCls}>Čas</label>
               <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={inputCls} />
             </div>
+          </div>
+          {title !== undefined && (
+            <div>
+              <label className={labelCls}>Názov</label>
+              <input value={titleVal} onChange={(e) => setTitleVal(e.target.value)} className={inputCls} />
+            </div>
+          )}
+          <div>
+            <label className={labelCls}>Miesto</label>
+            <input value={locationVal} onChange={(e) => setLocationVal(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Povrch</label>
+            <select value={surfaceVal} onChange={(e) => setSurfaceVal(e.target.value)} className={inputCls}>
+              <option value="">—</option>
+              {SURFACE_CODES.map((s) => (
+                <option key={s} value={s}>
+                  {s} — {SURFACE_LABELS_SK[s]}
+                </option>
+              ))}
+            </select>
           </div>
           <ErrorText>{error}</ErrorText>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setMoveOpen(false)}>
               Späť
             </Button>
-            <Button onClick={move} disabled={busy || !date || !time}>
-              {busy ? 'Ukladám…' : 'Presunúť'}
+            <Button onClick={save} disabled={busy || !date || !time}>
+              {busy ? 'Ukladám…' : 'Uložiť'}
             </Button>
           </div>
         </div>

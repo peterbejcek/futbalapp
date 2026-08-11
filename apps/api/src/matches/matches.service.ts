@@ -141,11 +141,19 @@ export class MatchesService {
   }
 
   async setState(matchId: string, state: 'PLANNED' | 'LIVE' | 'FINISHED' | 'CANCELLED') {
-    const match = await this.prisma.match.update({ where: { id: matchId }, data: { state } });
-    if (state === 'FINISHED') {
-      await this.recomputeScore(matchId);
-    }
-    return match;
+    // Skóre sa neprepočítava pri ukončení — môže byť zadané ručne (setScore)
+    // aj bez zápisu jednotlivých gólov. Pri živom zápise sa skóre dopĺňa
+    // priebežne pri každom góle (addMatchEvent → recomputeScore).
+    return this.prisma.match.update({ where: { id: matchId }, data: { state } });
+  }
+
+  /** Ručné nastavenie výsledku (napr. bez zápisu jednotlivých gólov). */
+  async setScore(matchId: string, scoreUs: number, scoreThem: number) {
+    const clamp = (n: number) => Math.max(0, Math.min(Math.trunc(Number(n) || 0), 99));
+    return this.prisma.match.update({
+      where: { id: matchId },
+      data: { scoreUs: clamp(scoreUs), scoreThem: clamp(scoreThem) },
+    });
   }
 
   /**
@@ -166,6 +174,7 @@ export class MatchesService {
         clientId: input.clientId,
         matchId,
         minute: input.minute,
+        stoppage: input.stoppage,
         type: input.type,
         memberId: input.memberId,
         relatedMemberId: input.relatedMemberId,

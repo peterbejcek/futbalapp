@@ -10,6 +10,17 @@ export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
 export const EVENT_TYPES = ['TRAINING', 'MATCH', 'TOURNAMENT', 'CLUB_EVENT'] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
+/** Povrch ihriska. */
+export const SURFACE_CODES = ['PT', 'UT', 'VT', 'MT', 'MI'] as const;
+export type SurfaceCode = (typeof SURFACE_CODES)[number];
+export const SURFACE_LABELS_SK: Record<SurfaceCode, string> = {
+  PT: 'Prírodná tráva',
+  UT: 'Umelá tráva',
+  VT: 'Veľká telocvičňa',
+  MT: 'Malá telocvičňa',
+  MI: 'Multifunkčné ihrisko',
+};
+
 export const PAYMENT_STATUSES = ['PENDING', 'PAID', 'PARTIAL', 'OVERDUE', 'WAIVED'] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 

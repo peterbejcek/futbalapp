@@ -47,6 +47,12 @@ export class MatchesController {
     return this.matchesService.removeNomination(matchId, memberId);
   }
 
+  @Post(':id/score')
+  @Roles('ADMIN', 'MANAGER', 'COACH')
+  setScore(@Param('id') matchId: string, @Body() body: { scoreUs: number; scoreThem: number }) {
+    return this.matchesService.setScore(matchId, body.scoreUs, body.scoreThem);
+  }
+
   @Post(':id/state')
   @Roles('ADMIN', 'MANAGER', 'COACH')
   setState(

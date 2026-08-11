@@ -2,7 +2,7 @@
 
 import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { MATCH_EVENT_LABELS_SK, type MatchEventType } from '@fkknv/shared';
+import { MATCH_EVENT_LABELS_SK, SURFACE_LABELS_SK, type MatchEventType, type SurfaceCode } from '@fkknv/shared';
 import { api } from '@/lib/api';
 import { canManage, isStaff, useMe } from '@/lib/auth';
 import { Button, Card } from '@/components/ui';
@@ -20,6 +20,7 @@ interface Nomination {
 interface MatchEventRow {
   id: string;
   minute: number;
+  stoppage: number | null;
   type: MatchEventType;
   member: Member | null;
 }
@@ -30,7 +31,15 @@ interface MatchDetail {
   scoreUs: number | null;
   scoreThem: number | null;
   state: string;
-  event: { id: string; title: string; startAt: string; endAt: string | null; location: string | null; team: { id: string; name: string } | null };
+  event: {
+    id: string;
+    title: string;
+    startAt: string;
+    endAt: string | null;
+    location: string | null;
+    surface: SurfaceCode | null;
+    team: { id: string; name: string } | null;
+  };
   nominations: Nomination[];
   events: MatchEventRow[];
 }
@@ -39,6 +48,10 @@ interface MatchDetail {
 const PLAYER_ACTIONS: MatchEventType[] = ['GOAL', 'ASSIST', 'PENALTY_SCORED', 'PENALTY_MISSED', 'YELLOW', 'RED', 'FOUL', 'SHOT'];
 const TEAM_ACTIONS: MatchEventType[] = ['GOAL_CONCEDED', 'CORNER'];
 
+function fmtMinute(minute: number, stoppage: number | null) {
+  return stoppage ? `${minute}+${stoppage}` : `${minute}`;
+}
+
 export default function MatchPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { me } = useMe();
@@ -46,7 +59,10 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   const [match, setMatch] = useState<MatchDetail | null>(null);
   const [roster, setRoster] = useState<Member[]>([]);
   const [selected, setSelected] = useState<Nomination | null>(null);
-  const [minute, setMinute] = useState(0);
+  const [minute, setMinute] = useState('0');
+  const [stoppage, setStoppage] = useState('');
+  const [scoreUs, setScoreUs] = useState('0');
+  const [scoreThem, setScoreThem] = useState('0');
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -54,10 +70,6 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       const m = await api<MatchDetail>(`/matches/${id}`);
       setMatch(m);
       if (m.event.team) setRoster(await api<Member[]>(`/members?team=${m.event.team.id}`));
-      if (m.state === 'LIVE') {
-        const mins = Math.floor((Date.now() - new Date(m.event.startAt).getTime()) / 60000);
-        setMinute(Math.max(0, Math.min(mins, 120)));
-      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Načítanie zlyhalo');
     }
@@ -67,8 +79,25 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
     void load();
   }, [load]);
 
+  // skóre v poliach drž zosynchronizované s načítaným zápasom
+  useEffect(() => {
+    if (match) {
+      setScoreUs(String(match.scoreUs ?? 0));
+      setScoreThem(String(match.scoreThem ?? 0));
+    }
+  }, [match?.scoreUs, match?.scoreThem]);
+
   async function setState(state: string) {
     await api(`/matches/${id}/state`, { method: 'POST', body: JSON.stringify({ state }) });
+    await load();
+  }
+
+  async function saveScore() {
+    setError(null);
+    await api(`/matches/${id}/score`, {
+      method: 'POST',
+      body: JSON.stringify({ scoreUs: Number(scoreUs) || 0, scoreThem: Number(scoreThem) || 0 }),
+    });
     await load();
   }
 
@@ -80,7 +109,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
 
   async function record(type: MatchEventType, needsPlayer: boolean) {
     if (needsPlayer && !selected) {
-      setError('Najprv vyberte hráča v nominácii.');
+      setError('Najprv ťuknite na hráča v riadku „Hráč" nižšie.');
       return;
     }
     setError(null);
@@ -88,7 +117,8 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       method: 'POST',
       body: JSON.stringify({
         clientId: crypto.randomUUID(),
-        minute,
+        minute: Number(minute) || 0,
+        stoppage: Number(stoppage) > 0 ? Number(stoppage) : undefined,
         type,
         memberId: needsPlayer ? selected!.member.id : undefined,
       }),
@@ -109,6 +139,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   }
 
   const nominatedIds = new Set(match.nominations.map((n) => n.member.id));
+  const recording = manage && (match.state === 'LIVE' || match.state === 'FINISHED');
 
   return (
     <div className="space-y-5">
@@ -126,13 +157,49 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           {' · '}
           {new Date(match.event.startAt).toLocaleString('sk-SK')}
           {match.event.location ? ` · ${match.event.location}` : ''}
+          {match.event.surface ? ` · ${SURFACE_LABELS_SK[match.event.surface]}` : ''}
         </p>
+
+        {manage && (
+          <div className="mt-3 flex items-end justify-center gap-2">
+            <div>
+              <label className="block text-xs text-gray-500">Domáci</label>
+              <input
+                type="number"
+                min={0}
+                value={scoreUs}
+                onChange={(e) => setScoreUs(e.target.value)}
+                className="w-16 rounded-md border border-gray-300 px-2 py-1 text-center text-lg font-bold"
+              />
+            </div>
+            <span className="pb-1 text-lg font-bold text-gray-400">:</span>
+            <div>
+              <label className="block text-xs text-gray-500">Hostia</label>
+              <input
+                type="number"
+                min={0}
+                value={scoreThem}
+                onChange={(e) => setScoreThem(e.target.value)}
+                className="w-16 rounded-md border border-gray-300 px-2 py-1 text-center text-lg font-bold"
+              />
+            </div>
+            <Button variant="ghost" onClick={saveScore}>
+              Uložiť výsledok
+            </Button>
+          </div>
+        )}
+
         {manage && (
           <div className="mt-3 flex justify-center gap-2">
             {match.state === 'PLANNED' && <Button onClick={() => setState('LIVE')}>Začať zápas</Button>}
             {match.state === 'LIVE' && (
               <Button variant="danger" onClick={() => setState('FINISHED')}>
                 Ukončiť zápas
+              </Button>
+            )}
+            {match.state === 'FINISHED' && (
+              <Button variant="ghost" onClick={() => setState('LIVE')}>
+                Znovu otvoriť
               </Button>
             )}
           </div>
@@ -144,6 +211,9 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
               startAt={match.event.startAt}
               endAt={match.event.endAt}
               kind="match"
+              title={match.event.title}
+              location={match.event.location}
+              surface={match.event.surface}
               matchId={match.id}
               matchState={match.state}
               onChanged={load}
@@ -176,7 +246,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                       <span>
                         {m.lastName} {m.firstName}
                       </span>
-                      <span className={on ? 'text-club-600' : 'text-gray-400'}>{on ? '✓ v nominácii' : '+'}</span>
+                      <span className={on ? 'text-club-600' : 'text-gray-400'}>{on ? '✓ v nominácii' : '+ pridať'}</span>
                     </button>
                   </li>
                 );
@@ -197,22 +267,64 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
         {/* Živý zápis */}
         <Card>
           <h2 className="mb-3 font-semibold text-club-800">Priebeh zápasu</h2>
-          {manage && match.state === 'LIVE' && (
+          {recording && (
             <div className="mb-4 space-y-3 rounded-md bg-club-50 p-3">
-              <div className="flex items-center justify-center gap-3">
-                <button onClick={() => setMinute((m) => Math.max(0, m - 1))} className="h-8 w-8 rounded-full bg-white text-lg font-bold text-club-800">
-                  −
-                </button>
-                <span className="min-w-20 text-center text-lg font-bold">{minute}. min</span>
-                <button onClick={() => setMinute((m) => m + 1)} className="h-8 w-8 rounded-full bg-white text-lg font-bold text-club-800">
-                  +
-                </button>
+              {/* minúta + nadstavenie */}
+              <div className="flex flex-wrap items-end justify-center gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500">Minúta</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={130}
+                    value={minute}
+                    onChange={(e) => setMinute(e.target.value)}
+                    className="w-20 rounded-md border border-gray-300 px-2 py-1 text-center text-lg font-bold"
+                  />
+                </div>
+                <span className="pb-1 text-lg font-bold text-gray-400">+</span>
+                <div>
+                  <label className="block text-xs text-gray-500">Nadstavenie</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={30}
+                    value={stoppage}
+                    onChange={(e) => setStoppage(e.target.value)}
+                    placeholder="0"
+                    className="w-20 rounded-md border border-gray-300 px-2 py-1 text-center text-lg font-bold"
+                  />
+                </div>
               </div>
-              {selected && (
-                <p className="text-center text-sm text-club-700">
-                  Vybraný: <strong>{selected.member.lastName}</strong> (ťuknite na akciu)
-                </p>
-              )}
+
+              {/* výber hráča */}
+              <div>
+                <p className="mb-1 text-xs font-medium text-gray-500">Hráč (pre gól, kartu, asistenciu…):</p>
+                {match.nominations.length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {match.nominations.map((n) => (
+                      <button
+                        key={n.id}
+                        onClick={() => setSelected(selected?.id === n.id ? null : n)}
+                        className={`rounded px-2 py-1 text-xs ${
+                          selected?.id === n.id ? 'bg-club-600 text-white' : 'bg-white text-club-700 hover:bg-club-100'
+                        }`}
+                      >
+                        {n.member.lastName}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400">Najprv pridajte hráčov do nominácie vľavo.</p>
+                )}
+                {selected && (
+                  <p className="mt-1 text-center text-sm text-club-700">
+                    Vybraný: <strong>{selected.member.lastName}</strong> — ťuknite na akciu
+                  </p>
+                )}
+              </div>
+
+              {/* akcie */}
               <div className="grid grid-cols-2 gap-2">
                 {PLAYER_ACTIONS.map((t) => (
                   <button
@@ -233,27 +345,12 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                   </button>
                 ))}
               </div>
-              {match.nominations.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {match.nominations.map((n) => (
-                    <button
-                      key={n.id}
-                      onClick={() => setSelected(selected?.id === n.id ? null : n)}
-                      className={`rounded px-2 py-1 text-xs ${
-                        selected?.id === n.id ? 'bg-club-600 text-white' : 'bg-white text-club-700'
-                      }`}
-                    >
-                      {n.member.lastName}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           )}
           <ul className="space-y-1 text-sm">
             {match.events.map((e) => (
               <li key={e.id} className="flex gap-3 border-b border-club-50 py-1">
-                <span className="w-10 font-semibold text-club-600">{e.minute}'</span>
+                <span className="w-12 font-semibold text-club-600">{fmtMinute(e.minute, e.stoppage)}'</span>
                 <span>
                   {MATCH_EVENT_LABELS_SK[e.type]}
                   {e.member ? ` — ${e.member.lastName}` : ''}

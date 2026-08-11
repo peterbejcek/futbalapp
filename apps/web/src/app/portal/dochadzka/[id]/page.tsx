@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { SURFACE_LABELS_SK, type SurfaceCode } from '@fkknv/shared';
 import { api } from '@/lib/api';
 import { isStaff, useMe } from '@/lib/auth';
 import { Card } from '@/components/ui';
@@ -18,6 +19,7 @@ interface EventDetail {
   startAt: string;
   endAt: string | null;
   location: string | null;
+  surface: SurfaceCode | null;
   recurrenceGroupId: string | null;
   team: { name: string } | null;
   attendances: AttendanceRow[];
@@ -80,7 +82,9 @@ export default function AttendancePage({ params }: { params: Promise<{ id: strin
           <div>
             <h1 className="text-2xl font-bold text-club-900">{event.title}</h1>
             <p className="text-sm text-gray-500">
-              {event.team?.name} · {new Date(event.startAt).toLocaleString('sk-SK')} · Prítomní: {present}/
+              {event.team?.name} · {new Date(event.startAt).toLocaleString('sk-SK')}
+              {event.location ? ` · ${event.location}` : ''}
+              {event.surface ? ` · ${SURFACE_LABELS_SK[event.surface]}` : ''} · Prítomní: {present}/
               {event.attendances.length}
             </p>
             {isStaff(me) && (
@@ -90,6 +94,9 @@ export default function AttendancePage({ params }: { params: Promise<{ id: strin
                   startAt={event.startAt}
                   endAt={event.endAt}
                   kind="training"
+                  title={event.title}
+                  location={event.location}
+                  surface={event.surface}
                   recurrenceGroupId={event.recurrenceGroupId}
                   onChanged={load}
                 />

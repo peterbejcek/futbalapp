@@ -472,6 +472,8 @@ model Event {
   startAt  DateTime
   endAt    DateTime?
   location String?
+  /// Povrch ihriska: PT | UT | VT | MT | MI (prír./umelá tráva, veľká/malá telocvičňa, multifunkčné)
+  surface  String?
   source   EventSource @default(INTERNAL)
   futbalnetId String?  @unique
   /// Spoločné ID pre všetky výskyty opakovaného tréningu (napr. utorky+piatky)
@@ -569,6 +571,8 @@ model MatchEvent {
   clientId        String         @unique
   matchId         String
   minute          Int
+  /// Nadstavený čas (napr. 45+2 → minute=45, stoppage=2)
+  stoppage        Int?
   type            MatchEventType
   memberId        String?
   relatedMemberId String?

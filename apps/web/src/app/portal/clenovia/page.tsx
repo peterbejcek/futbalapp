@@ -394,6 +394,7 @@ function MemberModal({
   const [childSearch, setChildSearch] = useState('');
   const [players, setPlayers] = useState<Array<{ id: string; firstName: string; lastName: string }>>([]);
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [photoVer, setPhotoVer] = useState(0);
@@ -436,6 +437,19 @@ function MemberModal({
   }
   function toggleChild(id: string) {
     setChildMemberIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  async function remove() {
+    if (!member) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/members/${member.id}`, { method: 'DELETE' });
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Odstránenie zlyhalo');
+      setBusy(false);
+    }
   }
 
   async function submit() {
@@ -717,14 +731,39 @@ function MemberModal({
         </div>
 
         <ErrorText>{error}</ErrorText>
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>
-            Zrušiť
-          </Button>
-          <Button onClick={submit} disabled={busy || !firstName || !lastName || (needsAccount && !hasAccount && !email)}>
-            {busy ? 'Ukladám…' : 'Uložiť'}
-          </Button>
-        </div>
+        {staff && member && confirmDelete ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-red-50 p-3">
+            <span className="text-sm text-red-700">
+              Natrvalo odstrániť člena {firstName} {lastName}? Vrátane členstiev, dochádzky a poplatkov. Nedá sa vrátiť.
+            </span>
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
+                Späť
+              </Button>
+              <Button variant="danger" onClick={remove} disabled={busy}>
+                {busy ? 'Odstraňujem…' : 'Áno, odstrániť'}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-between gap-2">
+            {staff && member ? (
+              <Button variant="danger" onClick={() => setConfirmDelete(true)}>
+                Odstrániť
+              </Button>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={onClose}>
+                Zrušiť
+              </Button>
+              <Button onClick={submit} disabled={busy || !firstName || !lastName || (needsAccount && !hasAccount && !email)}>
+                {busy ? 'Ukladám…' : 'Uložiť'}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </Modal>
   );

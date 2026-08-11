@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { WEEKDAY_SHORT_SK, eventTypeColor } from '@fkknv/shared';
+import { WEEKDAY_SHORT_SK, eventTypeColor, SURFACE_CODES, SURFACE_LABELS_SK, type SurfaceCode } from '@fkknv/shared';
 import { api } from '@/lib/api';
 import { canManage, coachTeams, isStaff, useMe } from '@/lib/auth';
 import { Button, Card, ErrorText, Modal, inputCls, labelCls } from '@/components/ui';
@@ -19,6 +19,7 @@ interface EventItem {
   startAt: string;
   endAt: string | null;
   location: string | null;
+  surface: SurfaceCode | null;
   recurrenceGroupId: string | null;
   team: { name: string; teamCategory: { code: string } } | null;
   match: { id: string; state: string; scoreUs: number | null; scoreThem: number | null } | null;
@@ -153,6 +154,7 @@ function EventList({ title, events, empty }: { title: string; events: EventItem[
                     </span>
                     <span className="font-medium">{e.title}</span>
                     {e.location && <span className="ml-2 text-sm text-gray-500">{e.location}</span>}
+                    {e.surface && <span className="ml-2 text-xs text-gray-400">{SURFACE_LABELS_SK[e.surface]}</span>}
                     {e.match && e.match.scoreUs !== null && (
                       <span className="ml-2 text-sm font-semibold text-club-700">
                         {e.match.scoreUs}:{e.match.scoreThem}
@@ -188,6 +190,7 @@ function TrainingModal({
   const [title, setTitle] = useState('Tréning');
   const [location, setLocation] = useState('');
   const [weekdays, setWeekdays] = useState<number[]>([2, 5]);
+  const [surface, setSurface] = useState('');
   const [startTime, setStartTime] = useState('16:00');
   const [endTime, setEndTime] = useState('17:00');
   const [from, setFrom] = useState('');
@@ -211,12 +214,12 @@ function TrainingModal({
       if (recurring) {
         await api('/events/recurring', {
           method: 'POST',
-          body: JSON.stringify({ title, teamId, weekdays, startTime, endTime, from, until, location: location || undefined }),
+          body: JSON.stringify({ title, teamId, weekdays, startTime, endTime, from, until, location: location || undefined, surface: surface || undefined }),
         });
       } else {
         await api('/events', {
           method: 'POST',
-          body: JSON.stringify({ type: 'TRAINING', title, teamId, startAt: `${date}T${startTime}`, location: location || undefined }),
+          body: JSON.stringify({ type: 'TRAINING', title, teamId, startAt: `${date}T${startTime}`, location: location || undefined, surface: surface || undefined }),
         });
       }
       onDone();
@@ -303,6 +306,17 @@ function TrainingModal({
           <label className={labelCls}>Miesto</label>
           <input value={location} onChange={(e) => setLocation(e.target.value)} className={inputCls} placeholder="Ihrisko KNV" />
         </div>
+        <div>
+          <label className={labelCls}>Povrch</label>
+          <select value={surface} onChange={(e) => setSurface(e.target.value)} className={inputCls}>
+            <option value="">—</option>
+            {SURFACE_CODES.map((s) => (
+              <option key={s} value={s}>
+                {s} — {SURFACE_LABELS_SK[s]}
+              </option>
+            ))}
+          </select>
+        </div>
 
         <ErrorText>{error}</ErrorText>
         <div className="flex justify-end gap-2">
@@ -336,6 +350,7 @@ function MatchModal({
   const [date, setDate] = useState('');
   const [time, setTime] = useState('10:00');
   const [location, setLocation] = useState('');
+  const [surface, setSurface] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -356,6 +371,7 @@ function MatchModal({
           teamId,
           startAt: `${date}T${time}`,
           location: location || undefined,
+          surface: surface || undefined,
           opponent,
           isHome,
         }),
@@ -414,6 +430,17 @@ function MatchModal({
         <div>
           <label className={labelCls}>Miesto</label>
           <input value={location} onChange={(e) => setLocation(e.target.value)} className={inputCls} />
+        </div>
+        <div>
+          <label className={labelCls}>Povrch</label>
+          <select value={surface} onChange={(e) => setSurface(e.target.value)} className={inputCls}>
+            <option value="">—</option>
+            {SURFACE_CODES.map((s) => (
+              <option key={s} value={s}>
+                {s} — {SURFACE_LABELS_SK[s]}
+              </option>
+            ))}
+          </select>
         </div>
         <ErrorText>{error}</ErrorText>
         <div className="flex justify-end gap-2">

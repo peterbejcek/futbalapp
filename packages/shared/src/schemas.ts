@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ROLES, MEMBER_STATUSES, ATTENDANCE_STATUSES, EVENT_TYPES, MATCH_EVENT_TYPES } from './enums';
+import { ROLES, MEMBER_STATUSES, ATTENDANCE_STATUSES, EVENT_TYPES, MATCH_EVENT_TYPES, SURFACE_CODES } from './enums';
 import { parseRodneCislo } from './rodne-cislo';
 
 export const loginSchema = z.object({
@@ -105,6 +105,7 @@ export const createEventSchema = z.object({
   startAt: z.coerce.date(),
   endAt: z.coerce.date().optional(),
   location: z.string().max(200).optional(),
+  surface: z.enum(SURFACE_CODES).optional(),
   opponent: z.string().max(120).optional(),
   isHome: z.boolean().optional(),
 });
@@ -119,6 +120,7 @@ export const createRecurringTrainingSchema = z.object({
   from: z.coerce.date(),
   until: z.coerce.date(),
   location: z.string().max(200).optional(),
+  surface: z.enum(SURFACE_CODES).optional(),
 });
 export type CreateRecurringTrainingInput = z.infer<typeof createRecurringTrainingSchema>;
 
@@ -137,6 +139,7 @@ export type MarkAttendanceInput = z.infer<typeof markAttendanceSchema>;
 export const matchEventSchema = z.object({
   clientId: z.string().uuid().describe('Idempotentné ID z klienta pre offline sync'),
   minute: z.number().int().min(0).max(150),
+  stoppage: z.number().int().min(0).max(30).optional(),
   type: z.enum(MATCH_EVENT_TYPES),
   memberId: z.string().optional(),
   relatedMemberId: z.string().optional(),

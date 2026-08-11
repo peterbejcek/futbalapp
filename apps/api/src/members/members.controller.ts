@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Param,
@@ -128,5 +129,11 @@ export class MembersController {
       throw new ForbiddenException('Hráča z iného družstva nemôžete upravovať');
     }
     return this.membersService.update(id, body, user.roles.map((r) => r.role));
+  }
+
+  @Delete(':id')
+  @Roles('ADMIN', 'MANAGER')
+  remove(@Param('id') id: string) {
+    return this.membersService.remove(id);
   }
 }

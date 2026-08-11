@@ -66,6 +66,7 @@ export class EventsService {
         startAt: input.startAt,
         endAt: input.endAt,
         location: input.location,
+        surface: input.surface,
         createdById,
         match: isMatch
           ? { create: { opponent: input.opponent ?? 'Neznámy súper', isHome: input.isHome ?? true } }
@@ -112,6 +113,7 @@ export class EventsService {
           startAt: occ.startAt,
           endAt: occ.endAt,
           location: input.location,
+          surface: input.surface,
           recurrenceGroupId,
           createdById,
         },
@@ -131,6 +133,7 @@ export class EventsService {
         startAt: input.startAt,
         endAt: input.endAt,
         location: input.location,
+        surface: input.surface,
       },
     });
   }
@@ -150,6 +153,16 @@ export class EventsService {
   }
 
   async attendance(eventId: string) {
+    // Aktuálny zoznam hráčov: doplní do dochádzky členov, ktorí pribudli do
+    // družstva po vytvorení udalosti (chýbajúce riadky sa pridajú, existujúce
+    // ostanú aj s už zaznamenaným stavom). Nikoho neodstraňuje.
+    const base = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { id: true, teamId: true, seasonId: true },
+    });
+    if (!base) throw new NotFoundException('Udalosť neexistuje');
+    if (base.teamId) await this.prepareAttendance(base.id, base.teamId, base.seasonId);
+
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
       include: {
