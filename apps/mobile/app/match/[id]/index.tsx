@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Link, useLocalSearchParams } from 'expo-router';
 import * as Crypto from 'expo-crypto';
 import { MATCH_EVENT_LABELS_SK, type MatchEventType } from '@fkknv/shared';
@@ -15,6 +15,7 @@ interface Nomination {
 interface MatchEventRow {
   id: string;
   minute: number;
+  stoppage?: number | null;
   type: string;
   member: { lastName: string } | null;
 }
@@ -37,11 +38,18 @@ const eventLabels: Record<string, string> = MATCH_EVENT_LABELS_SK;
 const PLAYER_ACTIONS: MatchEventType[] = ['GOAL', 'ASSIST', 'PENALTY_SCORED', 'PENALTY_MISSED', 'YELLOW', 'RED', 'FOUL', 'SHOT'];
 const TEAM_ACTIONS: MatchEventType[] = ['GOAL_CONCEDED', 'CORNER'];
 
+function fmtMinute(minute: number, stoppage?: number | null) {
+  return stoppage ? `${minute}+${stoppage}` : `${minute}`;
+}
+
 export default function MatchLiveScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [match, setMatch] = useState<MatchDetail | null>(null);
   const [selected, setSelected] = useState<Nomination | null>(null);
-  const [minute, setMinute] = useState(0);
+  const [minute, setMinute] = useState('0');
+  const [stoppage, setStoppage] = useState('');
+  const [scoreUs, setScoreUs] = useState('0');
+  const [scoreThem, setScoreThem] = useState('0');
   const [pending, setPending] = useState(0);
 
   const load = useCallback(async () => {
@@ -50,11 +58,6 @@ export default function MatchLiveScreen() {
     try {
       const detail = await api<MatchDetail>(`/matches/${id}`);
       setMatch(detail);
-      // odhad aktuálnej minúty z času výkopu (tréner môže doladiť tlačidlami)
-      if (detail.state === 'LIVE') {
-        const elapsed = Math.floor((Date.now() - new Date(detail.event.startAt).getTime()) / 60000);
-        setMinute(Math.max(0, Math.min(elapsed, 120)));
-      }
     } catch {
       // offline — pracujeme s poslednym stavom
     }
@@ -63,6 +66,14 @@ export default function MatchLiveScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // skóre v poliach drž zosynchronizované s načítaným zápasom
+  useEffect(() => {
+    if (match) {
+      setScoreUs(String(match.scoreUs ?? 0));
+      setScoreThem(String(match.scoreThem ?? 0));
+    }
+  }, [match?.scoreUs, match?.scoreThem]);
 
   async function setState(state: string) {
     try {
@@ -73,14 +84,30 @@ export default function MatchLiveScreen() {
     }
   }
 
+  async function saveScore() {
+    try {
+      await api(`/matches/${id}/score`, {
+        method: 'POST',
+        body: JSON.stringify({ scoreUs: Number(scoreUs) || 0, scoreThem: Number(scoreThem) || 0 }),
+      });
+      await load();
+      Alert.alert('Uložené', 'Výsledok bol uložený.');
+    } catch (e) {
+      Alert.alert('Chyba', e instanceof Error ? e.message : 'Uloženie výsledku zlyhalo');
+    }
+  }
+
   async function record(type: string, needsPlayer: boolean) {
     if (needsPlayer && !selected) {
-      Alert.alert('Vyberte hráča', 'Najprv ťuknite na hráča v nominácii.');
+      Alert.alert('Vyberte hráča', 'Najprv ťuknite na hráča v zozname nižšie.');
       return;
     }
+    const min = Number(minute) || 0;
+    const stop = Number(stoppage) > 0 ? Number(stoppage) : undefined;
     const payload = {
       clientId: Crypto.randomUUID(),
-      minute,
+      minute: min,
+      stoppage: stop,
       type,
       memberId: needsPlayer ? selected!.member.id : undefined,
     };
@@ -89,13 +116,14 @@ export default function MatchLiveScreen() {
       prev
         ? {
             ...prev,
-            scoreUs: type === 'GOAL' ? (prev.scoreUs ?? 0) + 1 : prev.scoreUs,
+            scoreUs: type === 'GOAL' || type === 'PENALTY_SCORED' ? (prev.scoreUs ?? 0) + 1 : prev.scoreUs,
             scoreThem: type === 'GOAL_CONCEDED' ? (prev.scoreThem ?? 0) + 1 : prev.scoreThem,
             events: [
               ...prev.events,
               {
                 id: payload.clientId,
-                minute,
+                minute: min,
+                stoppage: stop,
                 type,
                 member: needsPlayer ? { lastName: selected!.member.lastName } : null,
               },
@@ -116,6 +144,8 @@ export default function MatchLiveScreen() {
     );
   }
 
+  const recording = match.state === 'LIVE' || match.state === 'FINISHED';
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
       <Text style={styles.title}>{match.event.title}</Text>
@@ -123,10 +153,36 @@ export default function MatchLiveScreen() {
         {match.scoreUs ?? 0} : {match.scoreThem ?? 0}
       </Text>
       <Text style={styles.stateText}>
-        {match.state === 'LIVE' ? '● NAŽIVO' : match.state === 'FINISHED' ? 'Ukončený' : 'Plánovaný'}
+        {match.state === 'LIVE' ? '● NAŽIVO' : match.state === 'FINISHED' ? 'Ukončený' : match.state === 'CANCELLED' ? 'Zrušený' : 'Plánovaný'}
       </Text>
-      {pending > 0 && (
-        <Text style={styles.offline}>Offline — {pending} udalostí čaká na odoslanie.</Text>
+      {pending > 0 && <Text style={styles.offline}>Offline — {pending} udalostí čaká na odoslanie.</Text>}
+
+      {/* editovateľný výsledok */}
+      {recording && (
+        <View style={styles.scoreEditRow}>
+          <View style={styles.scoreEditCol}>
+            <Text style={styles.scoreEditLabel}>Domáci</Text>
+            <TextInput
+              style={styles.numInput}
+              keyboardType="number-pad"
+              value={scoreUs}
+              onChangeText={setScoreUs}
+            />
+          </View>
+          <Text style={styles.scoreColon}>:</Text>
+          <View style={styles.scoreEditCol}>
+            <Text style={styles.scoreEditLabel}>Hostia</Text>
+            <TextInput
+              style={styles.numInput}
+              keyboardType="number-pad"
+              value={scoreThem}
+              onChangeText={setScoreThem}
+            />
+          </View>
+          <Pressable style={styles.saveScoreBtn} onPress={saveScore}>
+            <Text style={styles.saveScoreText}>Uložiť</Text>
+          </Pressable>
+        </View>
       )}
 
       <View style={styles.buttonRow}>
@@ -140,6 +196,11 @@ export default function MatchLiveScreen() {
             <Text style={styles.primaryBtnText}>Ukončiť zápas</Text>
           </Pressable>
         )}
+        {match.state === 'FINISHED' && (
+          <Pressable style={styles.secondaryBtn} onPress={() => setState('LIVE')}>
+            <Text style={styles.secondaryBtnText}>Znovu otvoriť</Text>
+          </Pressable>
+        )}
         <Link href={`/match/${id}/nomination`} asChild>
           <Pressable style={styles.secondaryBtn}>
             <Text style={styles.secondaryBtnText}>Nominácia</Text>
@@ -147,16 +208,30 @@ export default function MatchLiveScreen() {
         </Link>
       </View>
 
-      {match.state === 'LIVE' && (
+      {recording && (
         <>
+          {/* minúta + nadstavenie */}
           <View style={styles.minuteRow}>
-            <Pressable style={styles.minuteBtn} onPress={() => setMinute((m) => Math.max(0, m - 1))}>
-              <Text style={styles.minuteBtnText}>−</Text>
-            </Pressable>
-            <Text style={styles.minuteText}>{minute}. min</Text>
-            <Pressable style={styles.minuteBtn} onPress={() => setMinute((m) => m + 1)}>
-              <Text style={styles.minuteBtnText}>+</Text>
-            </Pressable>
+            <View style={styles.minuteCol}>
+              <Text style={styles.minuteLabel}>Minúta</Text>
+              <TextInput
+                style={styles.numInput}
+                keyboardType="number-pad"
+                value={minute}
+                onChangeText={setMinute}
+              />
+            </View>
+            <Text style={styles.plus}>+</Text>
+            <View style={styles.minuteCol}>
+              <Text style={styles.minuteLabel}>Nadstavenie</Text>
+              <TextInput
+                style={styles.numInput}
+                keyboardType="number-pad"
+                value={stoppage}
+                onChangeText={setStoppage}
+                placeholder="0"
+              />
+            </View>
           </View>
 
           {selected && (
@@ -177,11 +252,12 @@ export default function MatchLiveScreen() {
             ))}
           </View>
 
-          <Text style={styles.sectionTitle}>Nominácia — ťuknutím vyberte hráča</Text>
+          <Text style={styles.sectionTitle}>Hráč — ťuknutím vyberte</Text>
           <FlatList
             data={match.nominations}
             keyExtractor={(item) => item.id}
             scrollEnabled={false}
+            ListEmptyComponent={<Text style={styles.empty}>Najprv pridajte hráčov cez „Nominácia".</Text>}
             renderItem={({ item }) => (
               <Pressable
                 style={[styles.playerRow, selected?.id === item.id && styles.playerRowSelected]}
@@ -201,7 +277,7 @@ export default function MatchLiveScreen() {
       {match.events.length === 0 && <Text style={styles.empty}>Zatiaľ žiadne udalosti.</Text>}
       {match.events.map((e) => (
         <View key={e.id} style={styles.logRow}>
-          <Text style={styles.logMinute}>{e.minute}'</Text>
+          <Text style={styles.logMinute}>{fmtMinute(e.minute, e.stoppage)}'</Text>
           <Text style={styles.logText}>
             {eventLabels[e.type] ?? e.type}
             {e.member ? ` — ${e.member.lastName}` : ''}
@@ -219,6 +295,18 @@ const styles = StyleSheet.create({
   score: { fontSize: 48, fontWeight: '800', color: colors.club800, textAlign: 'center', marginVertical: 4 },
   stateText: { textAlign: 'center', color: colors.club600, fontWeight: '700', marginBottom: 12 },
   offline: { backgroundColor: '#fef3c7', color: '#92400e', padding: 8, borderRadius: 6, marginBottom: 8, fontSize: 13 },
+  scoreEditRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 8, marginBottom: 14 },
+  scoreEditCol: { alignItems: 'center' },
+  scoreEditLabel: { fontSize: 11, color: colors.gray, marginBottom: 2 },
+  scoreColon: { fontSize: 20, fontWeight: '800', color: colors.gray, paddingBottom: 8 },
+  saveScoreBtn: {
+    backgroundColor: colors.club100,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignSelf: 'flex-end',
+  },
+  saveScoreText: { color: colors.club800, fontWeight: '700' },
   buttonRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   primaryBtn: { flex: 1, backgroundColor: colors.club600, borderRadius: 8, padding: 14, alignItems: 'center' },
   primaryBtnText: { color: colors.white, fontWeight: '700' },
@@ -231,17 +319,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   secondaryBtnText: { color: colors.club600, fontWeight: '700' },
-  minuteRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 12 },
-  minuteBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.club100,
-    alignItems: 'center',
-    justifyContent: 'center',
+  minuteRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 12, marginBottom: 12 },
+  minuteCol: { alignItems: 'center' },
+  minuteLabel: { fontSize: 11, color: colors.gray, marginBottom: 2 },
+  plus: { fontSize: 22, fontWeight: '800', color: colors.gray, paddingBottom: 8 },
+  numInput: {
+    width: 72,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.club100,
+    borderRadius: 8,
+    paddingVertical: 8,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.club900,
   },
-  minuteBtnText: { fontSize: 24, color: colors.club800, fontWeight: '700' },
-  minuteText: { fontSize: 20, fontWeight: '700', color: colors.club900, minWidth: 80, textAlign: 'center' },
   selectedHint: { textAlign: 'center', color: colors.club700, marginBottom: 8, fontSize: 13 },
   actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   actionBtn: {
@@ -271,7 +364,7 @@ const styles = StyleSheet.create({
   playerName: { fontWeight: '600', color: colors.club900 },
   check: { color: colors.club600, fontWeight: '800' },
   logRow: { flexDirection: 'row', gap: 12, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.club100 },
-  logMinute: { width: 36, fontWeight: '700', color: colors.club600 },
+  logMinute: { width: 44, fontWeight: '700', color: colors.club600 },
   logText: { color: colors.club900 },
   empty: { color: colors.gray, fontSize: 13 },
 });
