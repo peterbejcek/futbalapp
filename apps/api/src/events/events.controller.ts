@@ -34,6 +34,12 @@ export class EventsController {
     });
   }
 
+  @Get('locations')
+  @Roles('ADMIN', 'MANAGER', 'COACH')
+  locations() {
+    return this.eventsService.locations();
+  }
+
   @Post()
   @Roles('ADMIN', 'MANAGER', 'COACH')
   create(@Body(new ZodValidationPipe(createEventSchema)) body: CreateEventInput, @CurrentUser() user: AuthUser) {

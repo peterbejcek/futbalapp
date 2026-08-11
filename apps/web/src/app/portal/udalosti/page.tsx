@@ -40,6 +40,7 @@ export default function EventsPage() {
   const [error, setError] = useState<string | null>(null);
   const [trainingOpen, setTrainingOpen] = useState(false);
   const [matchOpen, setMatchOpen] = useState(false);
+  const [venues, setVenues] = useState<string[]>([]);
 
   // tréner vidí len svoje družstvá; vedenie všetky
   const availableTeams = useMemo(() => {
@@ -63,6 +64,7 @@ export default function EventsPage() {
 
   useEffect(() => {
     api<Team[]>('/seasons/teams').then(setTeams).catch(() => {});
+    api<string[]>('/events/locations').then(setVenues).catch(() => {});
   }, []);
   useEffect(() => {
     void load();
@@ -78,6 +80,11 @@ export default function EventsPage() {
 
   return (
     <div className="space-y-6">
+      <datalist id="venue-list">
+        {venues.map((v) => (
+          <option key={v} value={v} />
+        ))}
+      </datalist>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-club-900">Kalendár</h1>
         {canManage(me) && (
@@ -304,7 +311,7 @@ function TrainingModal({
         </div>
         <div>
           <label className={labelCls}>Miesto</label>
-          <input value={location} onChange={(e) => setLocation(e.target.value)} className={inputCls} placeholder="Ihrisko KNV" />
+          <input value={location} onChange={(e) => setLocation(e.target.value)} className={inputCls} placeholder="Ihrisko KNV" list="venue-list" />
         </div>
         <div>
           <label className={labelCls}>Povrch</label>
@@ -429,7 +436,7 @@ function MatchModal({
         </div>
         <div>
           <label className={labelCls}>Miesto</label>
-          <input value={location} onChange={(e) => setLocation(e.target.value)} className={inputCls} />
+          <input value={location} onChange={(e) => setLocation(e.target.value)} className={inputCls} list="venue-list" />
         </div>
         <div>
           <label className={labelCls}>Povrch</label>

@@ -18,8 +18,8 @@ interface EventDetail {
   attendances: AttendanceRow[];
 }
 
-/** Poradie cyklovania stavov jedným ťuknutím. */
-const CYCLE = ['PRESENT', 'ABSENT', 'EXCUSED', 'INJURED'] as const;
+/** Poradie cyklovania stavov jedným ťuknutím (posledný = zrušenie voľby). */
+const CYCLE = ['PRESENT', 'ABSENT', 'EXCUSED', 'INJURED', 'UNKNOWN'] as const;
 
 const statusLabels: Record<string, string> = {
   PRESENT: 'Prítomný',

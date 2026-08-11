@@ -27,6 +27,17 @@ export class EventsService {
     });
   }
 
+  /** Zoznam doteraz použitých miest (ihrísk) pre našepkávač — bez duplicít. */
+  async locations(): Promise<string[]> {
+    const rows = await this.prisma.event.findMany({
+      where: { location: { not: null } },
+      distinct: ['location'],
+      select: { location: true },
+      orderBy: { location: 'asc' },
+    });
+    return rows.map((r) => r.location).filter((l): l is string => !!l && l.trim().length > 0);
+  }
+
   private async resolveTeam(teamId?: string) {
     if (!teamId) return null;
     const team = await this.prisma.team.findUnique({ where: { id: teamId } });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { SURFACE_CODES, SURFACE_LABELS_SK } from '@fkknv/shared';
 import { api } from '@/lib/api';
@@ -54,6 +54,13 @@ export function EventAdminActions({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [venues, setVenues] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (moveOpen && venues.length === 0) {
+      api<string[]>('/events/locations').then(setVenues).catch(() => {});
+    }
+  }, [moveOpen, venues.length]);
 
   const label = kind === 'match' ? 'zápas' : 'tréning';
   const canReschedule = kind === 'training' || matchState === 'PLANNED';
@@ -147,7 +154,12 @@ export function EventAdminActions({
           )}
           <div>
             <label className={labelCls}>Miesto</label>
-            <input value={locationVal} onChange={(e) => setLocationVal(e.target.value)} className={inputCls} />
+            <input value={locationVal} onChange={(e) => setLocationVal(e.target.value)} className={inputCls} list="venue-list-edit" />
+            <datalist id="venue-list-edit">
+              {venues.map((v) => (
+                <option key={v} value={v} />
+              ))}
+            </datalist>
           </div>
           <div>
             <label className={labelCls}>Povrch</label>

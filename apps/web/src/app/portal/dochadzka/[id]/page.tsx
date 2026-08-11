@@ -60,12 +60,14 @@ export default function AttendancePage({ params }: { params: Promise<{ id: strin
   }, [load]);
 
   async function setStatus(row: AttendanceRow, status: string) {
+    // opätovný klik na už zvolený stav ho zruší (žiadna voľba = UNKNOWN)
+    const next = row.status === status ? 'UNKNOWN' : status;
     setEvent((prev) =>
-      prev ? { ...prev, attendances: prev.attendances.map((a) => (a.id === row.id ? { ...a, status } : a)) } : prev,
+      prev ? { ...prev, attendances: prev.attendances.map((a) => (a.id === row.id ? { ...a, status: next } : a)) } : prev,
     );
     await api(`/events/${id}/attendance`, {
       method: 'POST',
-      body: JSON.stringify({ memberId: row.member.id, status }),
+      body: JSON.stringify({ memberId: row.member.id, status: next }),
     }).catch(() => load());
   }
 

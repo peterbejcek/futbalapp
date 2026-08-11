@@ -233,7 +233,7 @@ function MembersTable() {
         <table className="w-full text-sm">
           <thead className="bg-club-50 text-left text-club-800">
             <tr>
-              <th className="whitespace-nowrap px-3 py-2">Meno</th>
+              <th className="sticky left-0 z-20 whitespace-nowrap bg-club-50 px-3 py-2 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]">Meno</th>
               <th className="whitespace-nowrap px-3 py-2">Funkcia</th>
               <th className="whitespace-nowrap px-3 py-2">Ročník</th>
               <th className="whitespace-nowrap px-3 py-2">Reg. číslo</th>
@@ -243,14 +243,13 @@ function MembersTable() {
               <th className="whitespace-nowrap px-3 py-2">Klub. príslušnosť</th>
               <th className="whitespace-nowrap px-3 py-2">Preukaz do</th>
               <th className="whitespace-nowrap px-3 py-2">Konto</th>
-              <th className="whitespace-nowrap px-3 py-2">Stav</th>
-              <th className="whitespace-nowrap px-3 py-2"></th>
+              <th className="sticky right-0 z-20 whitespace-nowrap bg-club-50 px-3 py-2 text-right shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.15)]">Stav / akcie</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-club-100">
             {sortedMembers.map((m) => (
               <tr key={m.id}>
-                <td className="whitespace-nowrap px-3 py-2 font-medium">
+                <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-3 py-2 font-medium shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]">
                   {m.lastName} {m.firstName}
                 </td>
                 <td className="px-3 py-2">
@@ -295,29 +294,29 @@ function MembersTable() {
                   })()}
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 text-gray-600">{m.user?.email ?? '—'}</td>
-                <td className="px-3 py-2">
-                  <span
-                    className={`whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium ${
-                      m.status === 'ACTIVE'
-                        ? 'bg-green-100 text-green-700'
-                        : m.status === 'GUEST'
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-red-100 text-red-700'
-                    }`}
-                  >
-                    {m.status === 'ACTIVE' ? 'Aktívny' : m.status === 'GUEST' ? 'Hosť' : 'Neaktívny'}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <button onClick={() => setEditing(m)} className="text-club-600 hover:underline">
-                    Upraviť
-                  </button>
+                <td className="sticky right-0 z-10 bg-white px-3 py-2 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.15)]">
+                  <div className="flex items-center justify-end gap-2">
+                    <span
+                      className={`whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium ${
+                        m.status === 'ACTIVE'
+                          ? 'bg-green-100 text-green-700'
+                          : m.status === 'GUEST'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-red-100 text-red-700'
+                      }`}
+                    >
+                      {m.status === 'ACTIVE' ? 'Aktívny' : m.status === 'GUEST' ? 'Hosť' : 'Neaktívny'}
+                    </span>
+                    <button onClick={() => setEditing(m)} className="whitespace-nowrap text-club-600 hover:underline">
+                      Upraviť
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
             {members.length === 0 && (
               <tr>
-                <td colSpan={12} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
                   Žiadni členovia.
                 </td>
               </tr>
