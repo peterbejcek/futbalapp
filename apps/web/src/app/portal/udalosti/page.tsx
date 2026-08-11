@@ -56,21 +56,29 @@ function Logo({ src, size = 20 }: { src: string; size?: number }) {
   );
 }
 
-/** Zápas so správnym poradím log: FK KNV pred naším družstvom, súper pred klubom súpera. */
-function MatchInline({ e }: { e: EventItem }) {
+/** Zápas ako mini-tabuľka: domáci hore, hostia dole (s logami a skóre). */
+function MatchTeams({ e }: { e: EventItem }) {
   const m = e.match!;
   const our = { name: e.team?.name ?? 'FK KNV', logo: OUR_LOGO };
   const opp = { name: m.opponent, logo: m.opponentLogo };
   const home = m.isHome ? our : opp;
   const away = m.isHome ? opp : our;
+  const hasScore = m.scoreUs !== null && m.scoreThem !== null;
+  const homeScore = m.isHome ? m.scoreUs : m.scoreThem;
+  const awayScore = m.isHome ? m.scoreThem : m.scoreUs;
   return (
-    <span className="inline-flex flex-wrap items-center gap-1 font-medium">
-      {home.logo && <Logo src={home.logo} />}
-      <span>{home.name}</span>
-      <span className="text-gray-400">vs</span>
-      {away.logo && <Logo src={away.logo} />}
-      <span>{away.name}</span>
-    </span>
+    <div className="mt-2 space-y-1">
+      <div className="flex items-center gap-2">
+        {home.logo && <Logo src={home.logo} size={24} />}
+        <span className="font-medium text-club-900">{home.name}</span>
+        {hasScore && <span className="ml-auto text-lg font-bold text-club-800">{homeScore}</span>}
+      </div>
+      <div className="flex items-center gap-2">
+        {away.logo && <Logo src={away.logo} size={24} />}
+        <span className="font-medium text-club-900">{away.name}</span>
+        {hasScore && <span className="ml-auto text-lg font-bold text-club-800">{awayScore}</span>}
+      </div>
+    </div>
   );
 }
 
@@ -265,28 +273,28 @@ function EventList({ title, events, empty }: { title: string; events: EventItem[
             const c = eventTypeColor(e.type);
             return (
               <li key={e.id}>
-                <Link href={href} className="flex items-center justify-between px-4 py-3 hover:bg-club-50">
-                  <div>
+                <Link href={href} className="block px-4 py-3 hover:bg-club-50">
+                  <div className="flex items-center justify-between gap-2">
                     <span
-                      className="mr-2 rounded px-2 py-0.5 text-xs font-medium"
+                      className="rounded px-2 py-0.5 text-xs font-medium"
                       style={{ backgroundColor: c.bg, color: c.text }}
                     >
                       {typeLabels[e.type] ?? e.type}
                       {e.team ? ` · ${e.team.name}` : ''}
                       {e.recurrenceGroupId ? ' · séria' : ''}
                     </span>
-                    {e.match ? <MatchInline e={e} /> : <span className="font-medium">{e.title}</span>}
-                    {e.location && <span className="ml-2 text-sm text-gray-500">{e.location}</span>}
-                    {e.surface && <span className="ml-2 text-xs text-gray-400">{SURFACE_LABELS_SK[e.surface]}</span>}
-                    {e.match && e.match.scoreUs !== null && (
-                      <span className="ml-2 text-sm font-semibold text-club-700">
-                        {e.match.scoreUs}:{e.match.scoreThem}
-                      </span>
-                    )}
+                    <time className="whitespace-nowrap text-sm text-gray-600">
+                      {new Date(e.startAt).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })}
+                    </time>
                   </div>
-                  <time className="text-sm text-gray-600">
-                    {new Date(e.startAt).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })}
-                  </time>
+                  {e.match ? <MatchTeams e={e} /> : <div className="mt-1 font-medium">{e.title}</div>}
+                  {(e.location || e.surface) && (
+                    <div className="mt-1 text-xs text-gray-500">
+                      {e.location}
+                      {e.location && e.surface ? ' · ' : ''}
+                      {e.surface ? SURFACE_LABELS_SK[e.surface] : ''}
+                    </div>
+                  )}
                 </Link>
               </li>
             );

@@ -26,9 +26,30 @@ function DashLogo({ src }: { src: string }) {
     <img
       src={src}
       alt=""
-      className="inline-block h-5 w-5 object-contain align-text-bottom"
+      className="inline-block h-6 w-6 object-contain"
       onError={(ev) => (ev.currentTarget.style.visibility = 'hidden')}
     />
+  );
+}
+
+/** Zápas ako mini-tabuľka: domáci hore, hostia dole. */
+function DashMatchTeams({ e }: { e: EventItem }) {
+  const m = e.match!;
+  const our = { name: e.team?.name ?? 'FK KNV', logo: OUR_LOGO };
+  const opp = { name: m.opponent, logo: m.opponentLogo };
+  const home = m.isHome ? our : opp;
+  const away = m.isHome ? opp : our;
+  return (
+    <div className="mt-2 space-y-1">
+      <div className="flex items-center gap-2">
+        {home.logo && <DashLogo src={home.logo} />}
+        <span className="font-medium text-club-900">{home.name}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        {away.logo && <DashLogo src={away.logo} />}
+        <span className="font-medium text-club-900">{away.name}</span>
+      </div>
+    </div>
   );
 }
 interface Payment {
@@ -117,39 +138,21 @@ function EventList({ title, events }: { title: string; events: EventItem[] }) {
             const c = categoryColor(e.team?.teamCategory?.code);
             return (
               <li key={e.id}>
-                <Link href={href} className="flex items-center justify-between px-4 py-3 hover:bg-club-50">
-                  <div>
+                <Link href={href} className="block px-4 py-3 hover:bg-club-50">
+                  <div className="flex items-center justify-between gap-2">
                     <span
-                      className="mr-2 rounded px-2 py-0.5 text-xs font-medium"
+                      className="rounded px-2 py-0.5 text-xs font-medium"
                       style={{ backgroundColor: c.bg, color: c.text }}
                     >
                       {typeLabels[e.type] ?? e.type}
                       {e.team ? ` · ${e.team.name}` : ''}
                     </span>
-                    {e.match ? (
-                      (() => {
-                        const our = { name: e.team?.name ?? 'FK KNV', logo: OUR_LOGO };
-                        const opp = { name: e.match.opponent, logo: e.match.opponentLogo };
-                        const home = e.match.isHome ? our : opp;
-                        const away = e.match.isHome ? opp : our;
-                        return (
-                          <span className="inline-flex flex-wrap items-center gap-1 font-medium">
-                            {home.logo && <DashLogo src={home.logo} />}
-                            <span>{home.name}</span>
-                            <span className="text-gray-400">vs</span>
-                            {away.logo && <DashLogo src={away.logo} />}
-                            <span>{away.name}</span>
-                          </span>
-                        );
-                      })()
-                    ) : (
-                      <span className="font-medium">{e.title}</span>
-                    )}
-                    {e.location && <span className="ml-2 text-sm text-gray-500">{e.location}</span>}
+                    <time className="whitespace-nowrap text-sm text-gray-600">
+                      {new Date(e.startAt).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })}
+                    </time>
                   </div>
-                  <time className="whitespace-nowrap text-sm text-gray-600">
-                    {new Date(e.startAt).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })}
-                  </time>
+                  {e.match ? <DashMatchTeams e={e} /> : <div className="mt-1 font-medium">{e.title}</div>}
+                  {e.location && <div className="mt-1 text-xs text-gray-500">{e.location}</div>}
                 </Link>
               </li>
             );
