@@ -35,6 +35,16 @@ export class MatchesService {
     return match;
   }
 
+  /** Doteraz zadaní súperi (bez duplicít) pre našepkávač pri tvorbe zápasu. */
+  async opponents(): Promise<string[]> {
+    const rows = await this.prisma.match.findMany({
+      distinct: ['opponent'],
+      select: { opponent: true },
+      orderBy: { opponent: 'asc' },
+    });
+    return rows.map((r) => r.opponent).filter((o) => !!o && o !== 'Neznámy súper');
+  }
+
   /** Pridanie hráča do nominácie (aj tesne pred zápasom). Notifikuje hráča a rodičov. */
   async nominate(matchId: string, memberId: string) {
     const nomination = await this.prisma.matchNomination.upsert({

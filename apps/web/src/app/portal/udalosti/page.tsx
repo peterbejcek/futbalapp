@@ -41,6 +41,7 @@ export default function EventsPage() {
   const [trainingOpen, setTrainingOpen] = useState(false);
   const [matchOpen, setMatchOpen] = useState(false);
   const [venues, setVenues] = useState<string[]>([]);
+  const [opponents, setOpponents] = useState<string[]>([]);
 
   // tréner vidí len svoje družstvá; vedenie všetky
   const availableTeams = useMemo(() => {
@@ -65,6 +66,7 @@ export default function EventsPage() {
   useEffect(() => {
     api<Team[]>('/seasons/teams').then(setTeams).catch(() => {});
     api<string[]>('/events/locations').then(setVenues).catch(() => {});
+    api<string[]>('/matches/opponents').then(setOpponents).catch(() => {});
   }, []);
   useEffect(() => {
     void load();
@@ -83,6 +85,11 @@ export default function EventsPage() {
       <datalist id="venue-list">
         {venues.map((v) => (
           <option key={v} value={v} />
+        ))}
+      </datalist>
+      <datalist id="opponent-list">
+        {opponents.map((o) => (
+          <option key={o} value={o} />
         ))}
       </datalist>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -422,7 +429,7 @@ function MatchModal({
         </div>
         <div>
           <label className={labelCls}>Súper</label>
-          <input value={opponent} onChange={(e) => setOpponent(e.target.value)} className={inputCls} />
+          <input value={opponent} onChange={(e) => setOpponent(e.target.value)} className={inputCls} list="opponent-list" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>

@@ -30,6 +30,12 @@ export class MatchesController {
     return this.matchesService.respondNomination(nominationId, user.id, body.status);
   }
 
+  /** Doteraz zadaní súperi pre našepkávač. */
+  @Get('opponents')
+  opponents() {
+    return this.matchesService.opponents();
+  }
+
   @Get(':id')
   get(@Param('id') id: string) {
     return this.matchesService.get(id);
