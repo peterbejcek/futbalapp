@@ -22,7 +22,15 @@ interface EventItem {
   surface: SurfaceCode | null;
   recurrenceGroupId: string | null;
   team: { name: string; teamCategory: { code: string } } | null;
-  match: { id: string; state: string; scoreUs: number | null; scoreThem: number | null; opponentLogo: string | null } | null;
+  match: {
+    id: string;
+    state: string;
+    scoreUs: number | null;
+    scoreThem: number | null;
+    opponent: string;
+    isHome: boolean;
+    opponentLogo: string | null;
+  } | null;
 }
 
 const typeLabels: Record<string, string> = {
@@ -31,6 +39,40 @@ const typeLabels: Record<string, string> = {
   TOURNAMENT: 'Turnaj',
   CLUB_EVENT: 'Podujatie',
 };
+
+// logo nášho klubu (FK Košická Nová Ves) z futbalnetu
+const OUR_LOGO = 'https://api.sportnet.online/data/ppo/fk-kosicka-nova-ves.futbalnet.sk/logo';
+
+function Logo({ src, size = 20 }: { src: string; size?: number }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt=""
+      style={{ width: size, height: size }}
+      className="inline-block object-contain align-text-bottom"
+      onError={(ev) => (ev.currentTarget.style.visibility = 'hidden')}
+    />
+  );
+}
+
+/** Zápas so správnym poradím log: FK KNV pred naším družstvom, súper pred klubom súpera. */
+function MatchInline({ e }: { e: EventItem }) {
+  const m = e.match!;
+  const our = { name: e.team?.name ?? 'FK KNV', logo: OUR_LOGO };
+  const opp = { name: m.opponent, logo: m.opponentLogo };
+  const home = m.isHome ? our : opp;
+  const away = m.isHome ? opp : our;
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1 font-medium">
+      {home.logo && <Logo src={home.logo} />}
+      <span>{home.name}</span>
+      <span className="text-gray-400">vs</span>
+      {away.logo && <Logo src={away.logo} />}
+      <span>{away.name}</span>
+    </span>
+  );
+}
 
 export default function EventsPage() {
   const { me } = useMe();
@@ -42,6 +84,11 @@ export default function EventsPage() {
   const [matchOpen, setMatchOpen] = useState(false);
   const [venues, setVenues] = useState<string[]>([]);
   const [opponents, setOpponents] = useState<string[]>([]);
+  const [view, setView] = useState<'list' | 'month'>('list');
+  const [month, setMonth] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
 
   // tréner vidí len svoje družstvá; vedenie všetky
   const availableTeams = useMemo(() => {
@@ -52,16 +99,24 @@ export default function EventsPage() {
 
   const load = useCallback(async () => {
     try {
-      const from = new Date();
-      from.setMonth(from.getMonth() - 1);
       const q = teamFilter ? `&team=${teamFilter}` : '';
-      const list = await api<EventItem[]>(`/events?from=${from.toISOString()}${q}`);
+      let url: string;
+      if (view === 'month') {
+        const from = new Date(month.getFullYear(), month.getMonth(), 1);
+        const to = new Date(month.getFullYear(), month.getMonth() + 1, 0, 23, 59, 59);
+        url = `/events?from=${from.toISOString()}&to=${to.toISOString()}${q}`;
+      } else {
+        const from = new Date();
+        from.setMonth(from.getMonth() - 1);
+        url = `/events?from=${from.toISOString()}${q}`;
+      }
+      const list = await api<EventItem[]>(url);
       setEvents(list);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Načítanie zlyhalo');
     }
-  }, [teamFilter]);
+  }, [teamFilter, view, month]);
 
   useEffect(() => {
     api<Team[]>('/seasons/teams').then(setTeams).catch(() => {});
@@ -112,22 +167,68 @@ export default function EventsPage() {
         )}
       </div>
 
-      <div className="flex items-center gap-2">
-        <label className="text-sm text-gray-600">Družstvo:</label>
-        <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-sm">
-          <option value="">Všetky</option>
-          {teams.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </select>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600">Družstvo:</label>
+          <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-sm">
+            <option value="">Všetky</option>
+            {teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {/* prepínač zobrazenia */}
+        <div className="ml-auto inline-flex overflow-hidden rounded-md border border-club-200">
+          <button
+            onClick={() => setView('list')}
+            className={`px-3 py-1 text-sm ${view === 'list' ? 'bg-club-600 text-white' : 'bg-white text-club-700'}`}
+          >
+            Najbližšie
+          </button>
+          <button
+            onClick={() => setView('month')}
+            className={`px-3 py-1 text-sm ${view === 'month' ? 'bg-club-600 text-white' : 'bg-white text-club-700'}`}
+          >
+            Mesiac
+          </button>
+        </div>
       </div>
+
+      {view === 'month' && (
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" onClick={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}>
+            ‹
+          </Button>
+          <input
+            type="month"
+            value={`${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`}
+            onChange={(e) => {
+              const [y, mo] = e.target.value.split('-').map(Number);
+              if (y && mo) setMonth(new Date(y, mo - 1, 1));
+            }}
+            className="rounded-md border border-gray-300 px-2 py-1 text-sm"
+          />
+          <Button variant="ghost" onClick={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}>
+            ›
+          </Button>
+          <Button variant="ghost" onClick={() => { const d = new Date(); setMonth(new Date(d.getFullYear(), d.getMonth(), 1)); }}>
+            Dnes
+          </Button>
+        </div>
+      )}
 
       <ErrorText>{error}</ErrorText>
 
-      <EventList title="Najbližšie" events={grouped.upcoming} empty="Žiadne naplánované udalosti." />
-      {grouped.past.length > 0 && <EventList title="Odohrané" events={grouped.past.slice(0, 20)} empty="" />}
+      {view === 'list' ? (
+        <>
+          <EventList title="Najbližšie" events={grouped.upcoming} empty="Žiadne naplánované udalosti." />
+          {grouped.past.length > 0 && <EventList title="Odohrané" events={grouped.past.slice(0, 20)} empty="" />}
+        </>
+      ) : (
+        <MonthView month={month} events={events} />
+      )}
 
       <TrainingModal
         open={trainingOpen}
@@ -174,11 +275,7 @@ function EventList({ title, events, empty }: { title: string; events: EventItem[
                       {e.team ? ` · ${e.team.name}` : ''}
                       {e.recurrenceGroupId ? ' · séria' : ''}
                     </span>
-                    {e.match?.opponentLogo && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={e.match.opponentLogo} alt="" className="mr-1 inline h-5 w-5 object-contain align-text-bottom" />
-                    )}
-                    <span className="font-medium">{e.title}</span>
+                    {e.match ? <MatchInline e={e} /> : <span className="font-medium">{e.title}</span>}
                     {e.location && <span className="ml-2 text-sm text-gray-500">{e.location}</span>}
                     {e.surface && <span className="ml-2 text-xs text-gray-400">{SURFACE_LABELS_SK[e.surface]}</span>}
                     {e.match && e.match.scoreUs !== null && (
@@ -197,6 +294,81 @@ function EventList({ title, events, empty }: { title: string; events: EventItem[
         </ul>
       )}
     </section>
+  );
+}
+
+function MonthView({ month, events }: { month: Date; events: EventItem[] }) {
+  const year = month.getFullYear();
+  const m = month.getMonth();
+  const startWeekday = (new Date(year, m, 1).getDay() + 6) % 7; // Po = 0
+  const daysInMonth = new Date(year, m + 1, 0).getDate();
+
+  const byDay = new Map<number, EventItem[]>();
+  for (const e of events) {
+    const d = new Date(e.startAt);
+    if (d.getFullYear() === year && d.getMonth() === m) {
+      const arr = byDay.get(d.getDate()) ?? [];
+      arr.push(e);
+      byDay.set(d.getDate(), arr);
+    }
+  }
+
+  const cells: Array<number | null> = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const today = new Date();
+  const isToday = (d: number) => today.getFullYear() === year && today.getMonth() === m && today.getDate() === d;
+
+  return (
+    <div className="overflow-x-auto">
+      <div className="min-w-[640px]">
+        <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-gray-500">
+          {['Po', 'Ut', 'St', 'Št', 'Pi', 'So', 'Ne'].map((w) => (
+            <div key={w} className="py-1">
+              {w}
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {cells.map((d, i) => (
+            <div
+              key={i}
+              className={`min-h-[6rem] rounded border p-1 ${d ? 'border-club-100 bg-white' : 'border-transparent'}`}
+            >
+              {d && (
+                <>
+                  <div className={`mb-1 text-xs font-semibold ${isToday(d) ? 'text-club-700' : 'text-gray-400'}`}>{d}</div>
+                  <div className="space-y-1">
+                    {(byDay.get(d) ?? [])
+                      .slice()
+                      .sort((a, b) => a.startAt.localeCompare(b.startAt))
+                      .map((e) => {
+                        const href = e.match ? `/portal/zapasy/${e.match.id}` : `/portal/dochadzka/${e.id}`;
+                        const c = eventTypeColor(e.type);
+                        const time = new Date(e.startAt).toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' });
+                        const label = e.match ? `⚽ ${e.match.opponent}` : `${typeLabels[e.type] ?? e.type}${e.team ? ` ${e.team.name}` : ''}`;
+                        return (
+                          <Link
+                            key={e.id}
+                            href={href}
+                            title={`${time} · ${label}`}
+                            className="block truncate rounded px-1 py-0.5 text-[11px]"
+                            style={{ backgroundColor: c.bg, color: c.text }}
+                          >
+                            {time} {label}
+                          </Link>
+                        );
+                      })}
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 

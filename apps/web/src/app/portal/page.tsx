@@ -14,7 +14,22 @@ interface EventItem {
   startAt: string;
   location: string | null;
   team: { name: string; teamCategory?: { code: string } } | null;
-  match: { id: string } | null;
+  match: { id: string; opponent: string; isHome: boolean; opponentLogo: string | null } | null;
+}
+
+// logo nášho klubu (FK Košická Nová Ves) z futbalnetu
+const OUR_LOGO = 'https://api.sportnet.online/data/ppo/fk-kosicka-nova-ves.futbalnet.sk/logo';
+
+function DashLogo({ src }: { src: string }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt=""
+      className="inline-block h-5 w-5 object-contain align-text-bottom"
+      onError={(ev) => (ev.currentTarget.style.visibility = 'hidden')}
+    />
+  );
 }
 interface Payment {
   periodLabel: string;
@@ -111,7 +126,25 @@ function EventList({ title, events }: { title: string; events: EventItem[] }) {
                       {typeLabels[e.type] ?? e.type}
                       {e.team ? ` · ${e.team.name}` : ''}
                     </span>
-                    <span className="font-medium">{e.title}</span>
+                    {e.match ? (
+                      (() => {
+                        const our = { name: e.team?.name ?? 'FK KNV', logo: OUR_LOGO };
+                        const opp = { name: e.match.opponent, logo: e.match.opponentLogo };
+                        const home = e.match.isHome ? our : opp;
+                        const away = e.match.isHome ? opp : our;
+                        return (
+                          <span className="inline-flex flex-wrap items-center gap-1 font-medium">
+                            {home.logo && <DashLogo src={home.logo} />}
+                            <span>{home.name}</span>
+                            <span className="text-gray-400">vs</span>
+                            {away.logo && <DashLogo src={away.logo} />}
+                            <span>{away.name}</span>
+                          </span>
+                        );
+                      })()
+                    ) : (
+                      <span className="font-medium">{e.title}</span>
+                    )}
                     {e.location && <span className="ml-2 text-sm text-gray-500">{e.location}</span>}
                   </div>
                   <time className="whitespace-nowrap text-sm text-gray-600">
