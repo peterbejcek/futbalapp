@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
-import type { Role } from '@fkknv/shared';
+import { ROLES, type Role } from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthUser } from './current-user.decorator';
 
@@ -23,6 +23,8 @@ export interface EnsureAccountInput {
   roles: Role[];
   /** scope pre COACH rolu — družstvá, ktoré tréner trénuje */
   coachTeamIds?: string[];
+  /** roly, ktoré smie aktér spravovať (mimo nich sa nič nemení) */
+  allowedRoles?: Role[];
 }
 
 @Injectable()
@@ -52,7 +54,7 @@ export class AccountsService {
 
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) {
-      await this.syncRoles(existing.id, input.roles, input.coachTeamIds);
+      await this.syncRoles(existing.id, input.roles, input.coachTeamIds, input.allowedRoles);
       return { userId: existing.id, email, tempPassword: null, created: false };
     }
 
@@ -66,7 +68,7 @@ export class AccountsService {
         passwordHash: await bcrypt.hash(tempPassword, 10),
       },
     });
-    await this.syncRoles(user.id, input.roles, input.coachTeamIds);
+    await this.syncRoles(user.id, input.roles, input.coachTeamIds, input.allowedRoles);
     return { userId: user.id, email, tempPassword, created: true };
   }
 
@@ -75,13 +77,39 @@ export class AccountsService {
    * vytvorí rola pre každé trénované družstvo (scope); ak nie je zadané žiadne,
    * COACH bez scope-u (null).
    */
-  async syncRoles(userId: string, roles: Role[], coachTeamIds?: string[]) {
-    for (const role of roles) {
-      const teamIds = role === 'COACH' ? (coachTeamIds?.length ? coachTeamIds : [null]) : [null];
-      for (const teamId of teamIds) {
-        const existing = await this.prisma.userRole.findFirst({ where: { userId, role, teamId } });
-        if (!existing) {
-          await this.prisma.userRole.create({ data: { userId, role, teamId } });
+  async syncRoles(userId: string, roles: Role[], coachTeamIds?: string[], allowedRoles?: Role[]) {
+    // Roly, ktoré smie táto operácia meniť. Mimo nich sa nič neodstraňuje ani
+    // nepridáva (napr. vedúci nezmaže členovi rolu ADMIN, ktorú nevidí).
+    const manage = allowedRoles ?? ([...ROLES] as Role[]);
+    const desired = new Set(roles.filter((r) => manage.includes(r)));
+
+    // Ne-trénerské roly: nastav presne na želaný stav (pridaj/odober).
+    for (const role of manage) {
+      if (role === 'COACH') continue;
+      const existing = await this.prisma.userRole.findFirst({ where: { userId, role, teamId: null } });
+      if (desired.has(role) && !existing) {
+        await this.prisma.userRole.create({ data: { userId, role, teamId: null } });
+      } else if (!desired.has(role) && existing) {
+        await this.prisma.userRole.deleteMany({ where: { userId, role } });
+      }
+    }
+
+    // COACH: scope na družstvá — nastav presne na coachTeamIds (alebo prázdno).
+    if (manage.includes('COACH')) {
+      const wantTeamIds: Array<string | null> = desired.has('COACH')
+        ? coachTeamIds?.length
+          ? coachTeamIds
+          : [null]
+        : [];
+      const existingCoach = await this.prisma.userRole.findMany({ where: { userId, role: 'COACH' } });
+      for (const ec of existingCoach) {
+        if (!wantTeamIds.some((t) => (t ?? null) === (ec.teamId ?? null))) {
+          await this.prisma.userRole.delete({ where: { id: ec.id } });
+        }
+      }
+      for (const teamId of wantTeamIds) {
+        if (!existingCoach.some((ec) => (ec.teamId ?? null) === (teamId ?? null))) {
+          await this.prisma.userRole.create({ data: { userId, role: 'COACH', teamId: teamId ?? null } });
         }
       }
     }

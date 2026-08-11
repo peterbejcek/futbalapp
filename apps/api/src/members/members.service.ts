@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   categoryForBirthDate,
+  ROLES,
   type CategoryCode,
   type CreateMemberInput,
   type MemberStatus,
@@ -165,18 +166,23 @@ export class MembersService {
   private async applyAccount(
     member: { id: string; firstName: string; lastName: string; userId: string | null },
     input: CreateMemberInput,
+    actorRoles: Role[],
   ): Promise<AccountResult | null> {
     const roles = (input.roles ?? []) as Role[];
     // pri trénerovi sú vybrané družstvá jeho scope (nie hráčske zaradenie)
     const coachTeamIds = roles.includes('COACH')
       ? (input.teamIds ?? (input.teamId ? [input.teamId] : []))
       : undefined;
+    // roly, ktoré aktér smie meniť (admin všetky, ostatní bez ADMIN/MANAGER)
+    const allowedRoles: Role[] = actorRoles.includes('ADMIN')
+      ? ([...ROLES] as Role[])
+      : (['PLAYER', 'PARENT', 'COACH'] as Role[]);
     const STAFF_ROLES: Role[] = ['COACH', 'MANAGER', 'ADMIN'];
     // konto sa vytvára len ak je zadaný e-mail
     if (!input.account?.email) {
-      // ak už konto existuje a menia sa roly, dopočítaj ich
-      if (member.userId && roles.length) {
-        await this.accounts.syncRoles(member.userId, roles, coachTeamIds);
+      // konto existuje a roly sa menia (aj odobratie) → nastav ich presne
+      if (member.userId && input.roles !== undefined) {
+        await this.accounts.syncRoles(member.userId, roles, coachTeamIds, allowedRoles);
       } else if (!member.userId && roles.some((r) => STAFF_ROLES.includes(r))) {
         // tréner/vedúci/admin musí mať konto, inak sa jeho funkcia nemá kde uložiť
         throw new BadRequestException('Tréner alebo vedúci klubu potrebuje prihlasovacie konto — zadajte e-mail.');
@@ -190,6 +196,7 @@ export class MembersService {
       lastName: member.lastName,
       roles: roles.length ? roles : ['PLAYER'],
       coachTeamIds,
+      allowedRoles,
     });
     // prepoj člena s kontom (ak ešte nie je a konto nie je použité iným členom)
     if (!member.userId) {
@@ -241,7 +248,7 @@ export class MembersService {
       },
     });
     await this.assignTeamsForRole(member.id, input);
-    const account = await this.applyAccount({ ...member, userId: null }, input);
+    const account = await this.applyAccount({ ...member, userId: null }, input, actorRoles);
     if (input.childMemberIds?.length) await this.linkChildren(member.id, input.childMemberIds);
     return { member: await this.get(member.id), account };
   }
@@ -272,6 +279,7 @@ export class MembersService {
     const account = await this.applyAccount(
       { id, firstName: input.firstName ?? existing.firstName, lastName: input.lastName ?? existing.lastName, userId: existing.userId },
       input as CreateMemberInput,
+      actorRoles,
     );
     if (input.childMemberIds?.length) await this.linkChildren(id, input.childMemberIds);
     return { member: await this.get(id), account };

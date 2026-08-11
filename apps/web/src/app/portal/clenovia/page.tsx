@@ -466,7 +466,7 @@ function MemberModal({
       licenseLevel: licenseLevel || undefined,
       healthNotes: healthNotes || undefined,
       teamIds,
-      roles: roles.length ? roles : undefined,
+      roles,
       account: wantAccount && email ? { email } : undefined,
       childMemberIds: isParent && childMemberIds.length ? childMemberIds : undefined,
     });
