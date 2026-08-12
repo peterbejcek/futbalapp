@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { API_URL, api, getToken } from '@/lib/api';
-import { Button, Card, ErrorText, inputCls, labelCls } from '@/components/ui';
+import { Button, Card, ErrorText, inputCls } from '@/components/ui';
 
 interface TeamRow {
   id: string;
@@ -88,11 +88,9 @@ export default function SettingsPage() {
           {categories.map((c) => (
             <div key={c.code} className="flex flex-wrap items-center gap-2 border-b border-club-50 py-2">
               <span className="w-16 font-semibold text-club-700">{c.code}</span>
-              <span className="flex flex-1 flex-wrap gap-1">
+              <span className="flex flex-1 flex-wrap items-center gap-1">
                 {c.teams.map((t) => (
-                  <span key={t.id} className="rounded bg-club-100 px-2 py-0.5 text-xs text-club-800">
-                    {t.name}
-                  </span>
+                  <TeamChip key={t.id} team={t} onDone={load} onErr={setError} />
                 ))}
               </span>
               <input
@@ -122,11 +120,6 @@ export default function SettingsPage() {
         <p className="text-sm text-gray-500">
           Zaradenie priradí hráčov do predvoleného družstva podľa ročníka; kanály naplnia členov podľa súpisiek.
         </p>
-      </Card>
-
-      <Card className="space-y-3">
-        <h2 className="font-semibold text-club-800">Futbalnet</h2>
-        <FutbalnetConfig categories={categories} onMsg={setMsg} onErr={setError} />
       </Card>
 
       <Card className="space-y-3">
@@ -245,30 +238,45 @@ function SportnetTeamRow({
   );
 }
 
-function FutbalnetConfig({
-  categories,
-  onMsg,
+function TeamChip({
+  team,
+  onDone,
   onErr,
 }: {
-  categories: Category[];
-  onMsg: (s: string) => void;
+  team: TeamRow;
+  onDone: () => void;
   onErr: (s: string) => void;
 }) {
-  const [code, setCode] = useState('');
-  const [url, setUrl] = useState('');
-  const [teamName, setTeamName] = useState('FK Košická Nová Ves');
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(team.name);
   const [busy, setBusy] = useState(false);
 
-  async function save() {
-    if (!code) return;
+  async function rename() {
+    const clean = name.trim();
+    if (!clean || clean === team.name) {
+      setEditing(false);
+      setName(team.name);
+      return;
+    }
     setBusy(true);
     try {
-      await api(`/futbalnet/config/${code}`, {
-        method: 'POST',
-        body: JSON.stringify({ url: url || null, teamName: teamName || null }),
-      });
-      const r = await api<Record<string, unknown>>(`/futbalnet/sync/${code}`, { method: 'POST' });
-      onMsg(`Futbalnet ${code}: ${JSON.stringify(r)}`);
+      await api(`/seasons/teams/${team.id}`, { method: 'PATCH', body: JSON.stringify({ name: clean }) });
+      setEditing(false);
+      onDone();
+    } catch (e) {
+      onErr(e instanceof Error ? e.message : 'Chyba');
+      setName(team.name);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (!confirm(`Odstrániť družstvo „${team.name}"?`)) return;
+    setBusy(true);
+    try {
+      await api(`/seasons/teams/${team.id}`, { method: 'DELETE' });
+      onDone();
     } catch (e) {
       onErr(e instanceof Error ? e.message : 'Chyba');
     } finally {
@@ -276,36 +284,59 @@ function FutbalnetConfig({
     }
   }
 
+  if (editing) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <input
+          autoFocus
+          value={name}
+          disabled={busy}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void rename();
+            if (e.key === 'Escape') {
+              setEditing(false);
+              setName(team.name);
+            }
+          }}
+          className="w-28 rounded border border-club-300 px-2 py-0.5 text-sm"
+        />
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void rename()}
+          className="text-xs font-medium text-club-700 hover:underline"
+        >
+          Uložiť
+        </button>
+      </span>
+    );
+  }
+
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-gray-500">
-        Nastavte URL súťaže z futbalnet.sk a presný názov tímu pre kategóriu; po uložení sa plán zápasov
-        naimportuje.
-      </p>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div>
-          <label className={labelCls}>Kategória</label>
-          <select value={code} onChange={(e) => setCode(e.target.value)} className={inputCls}>
-            <option value="">— vyberte —</option>
-            {categories.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.code}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="sm:col-span-2">
-          <label className={labelCls}>URL súťaže</label>
-          <input value={url} onChange={(e) => setUrl(e.target.value)} className={inputCls} placeholder="https://futbalnet.sk/…" />
-        </div>
-      </div>
-      <div>
-        <label className={labelCls}>Názov nášho tímu na futbalnete</label>
-        <input value={teamName} onChange={(e) => setTeamName(e.target.value)} className={inputCls} />
-      </div>
-      <Button onClick={save} disabled={busy || !code}>
-        {busy ? 'Synchronizujem…' : 'Uložiť a synchronizovať'}
-      </Button>
-    </div>
+    <span className="inline-flex items-center gap-1 rounded-full bg-club-50 px-2 py-0.5 text-sm text-club-700">
+      {team.name}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => {
+          setName(team.name);
+          setEditing(true);
+        }}
+        title="Premenovať"
+        className="text-club-400 hover:text-club-700"
+      >
+        ✎
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void remove()}
+        title="Odstrániť"
+        className="text-red-400 hover:text-red-600"
+      >
+        ✕
+      </button>
+    </span>
   );
 }

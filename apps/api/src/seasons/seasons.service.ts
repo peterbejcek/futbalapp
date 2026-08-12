@@ -44,6 +44,39 @@ export class SeasonsService {
     });
   }
 
+  /** Premenuje družstvo. */
+  async renameTeam(teamId: string, name: string) {
+    const clean = name?.trim();
+    if (!clean) throw new BadRequestException('Zadajte názov družstva');
+    const team = await this.prisma.team.findUnique({ where: { id: teamId } });
+    if (!team) throw new NotFoundException('Družstvo neexistuje');
+    const clash = await this.prisma.team.findFirst({
+      where: { teamCategoryId: team.teamCategoryId, name: clean, id: { not: teamId } },
+    });
+    if (clash) throw new BadRequestException('Družstvo s týmto názvom v kategórii už existuje');
+    return this.prisma.team.update({ where: { id: teamId }, data: { name: clean } });
+  }
+
+  /** Odstráni družstvo — len ak nemá hráčov ani udalosti (inak by sa stratili dáta). */
+  async removeTeam(teamId: string) {
+    const team = await this.prisma.team.findUnique({ where: { id: teamId } });
+    if (!team) throw new NotFoundException('Družstvo neexistuje');
+    const [memberships, events] = await Promise.all([
+      this.prisma.teamMembership.count({ where: { teamId } }),
+      this.prisma.event.count({ where: { teamId } }),
+    ]);
+    if (memberships > 0 || events > 0) {
+      throw new BadRequestException(
+        `Družstvo má priradených hráčov (${memberships}) alebo udalosti (${events}). Najprv ich presuňte alebo odstráňte.`,
+      );
+    }
+    // uvoľni prípadné trénerske scope a kanály družstva
+    await this.prisma.userRole.deleteMany({ where: { teamId } });
+    await this.prisma.channel.deleteMany({ where: { teamId } });
+    await this.prisma.team.delete({ where: { id: teamId } });
+    return { deleted: true };
+  }
+
   /**
    * Navrhne/aktualizuje zaradenie aktívnych členov do predvoleného družstva
    * kategórie podľa ročníka. Manuálne výnimky (isException) sa nemenia a hráča,

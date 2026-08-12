@@ -84,6 +84,8 @@ function MembersTable() {
   const [roleFilter, setRoleFilter] = useState('');
   const [hideInactive, setHideInactive] = useState(false);
   const [sortBy, setSortBy] = useState<'lastName' | 'team' | 'card'>('lastName');
+  const [pageSize, setPageSize] = useState(25);
+  const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<MemberRow | null>(null);
   const [creating, setCreating] = useState(false);
@@ -123,12 +125,23 @@ function MembersTable() {
     return (a.lastName + a.firstName).localeCompare(b.lastName + b.firstName, 'sk');
   });
 
+  // klientská stránkovanie (pageSize === 0 znamená „Všetky")
+  const total = sortedMembers.length;
+  const pageCount = pageSize === 0 ? 1 : Math.max(1, Math.ceil(total / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pagedMembers =
+    pageSize === 0 ? sortedMembers : sortedMembers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   useEffect(() => {
     api<Team[]>('/seasons/teams').then(setTeams).catch(() => {});
   }, []);
   useEffect(() => {
     void load();
   }, [load]);
+  // po zmene filtrov/zoradenia/veľkosti sa vráť na prvú stranu
+  useEffect(() => {
+    setPage(1);
+  }, [teamFilter, roleFilter, hideInactive, sortBy, pageSize, categoryParam]);
 
   async function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -182,6 +195,20 @@ function MembersTable() {
               <option value="lastName">Priezvisko</option>
               <option value="team">Družstvo</option>
               <option value="card">Platnosť preukazu</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Na stránku:</label>
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="rounded-md border border-gray-300 px-2 py-1 text-sm"
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={0}>Všetky</option>
             </select>
           </div>
           <label className="flex items-center gap-2 text-sm text-gray-600">
@@ -247,7 +274,7 @@ function MembersTable() {
             </tr>
           </thead>
           <tbody className="divide-y divide-club-100">
-            {sortedMembers.map((m) => (
+            {pagedMembers.map((m) => (
               <tr key={m.id}>
                 <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-3 py-2 font-medium shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]">
                   {m.lastName} {m.firstName}
@@ -324,6 +351,33 @@ function MembersTable() {
           </tbody>
         </table>
       </div>
+
+      {total > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-600">
+          <span>
+            {pageSize === 0
+              ? `Zobrazených všetkých ${total}`
+              : `Zobrazené ${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, total)} z ${total}`}
+          </span>
+          {pageSize !== 0 && pageCount > 1 && (
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage <= 1}>
+                ‹ Predošlá
+              </Button>
+              <span className="whitespace-nowrap">
+                Strana {currentPage} / {pageCount}
+              </span>
+              <Button
+                variant="ghost"
+                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                disabled={currentPage >= pageCount}
+              >
+                Ďalšia ›
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       {(editing || creating) && (
         <MemberModal

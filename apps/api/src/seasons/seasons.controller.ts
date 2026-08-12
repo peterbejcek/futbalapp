@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { createTeamSchema, type CreateTeamInput } from '@fkknv/shared';
 import { SeasonsService } from './seasons.service';
 import { Roles } from '../auth/roles.decorator';
@@ -32,6 +32,18 @@ export class SeasonsController {
   @Roles('ADMIN', 'MANAGER')
   createTeam(@Body(new ZodValidationPipe(createTeamSchema)) body: CreateTeamInput) {
     return this.seasonsService.createTeam(body.teamCategoryCode, body.name);
+  }
+
+  @Patch('teams/:id')
+  @Roles('ADMIN', 'MANAGER')
+  renameTeam(@Param('id') id: string, @Body() body: { name: string }) {
+    return this.seasonsService.renameTeam(id, body.name);
+  }
+
+  @Delete('teams/:id')
+  @Roles('ADMIN', 'MANAGER')
+  removeTeam(@Param('id') id: string) {
+    return this.seasonsService.removeTeam(id);
   }
 
   @Post(':id/assign-memberships')
