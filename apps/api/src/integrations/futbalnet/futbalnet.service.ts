@@ -118,6 +118,29 @@ export class FutbalnetService {
     });
   }
 
+  /**
+   * Týždenný auto-import rozpisu zo sportnetu pre všetky nakonfigurované družstvá
+   * (pondelok 4:00). Program ukazuje najbližšie kolá; opakovaným importom sa
+   * postupne doplní celá sezóna, ako sa kolá blížia.
+   */
+  @Cron('0 4 * * 1')
+  async importAllTeams() {
+    const teams = await this.prisma.team.findMany({
+      where: { sportnetProgramUrl: { not: null }, sportnetTeamName: { not: null } },
+    });
+    const results: Record<string, unknown> = {};
+    for (const team of teams) {
+      try {
+        results[team.name] = await this.importTeamProgram(team.id);
+      } catch (error) {
+        results[team.name] = { error: error instanceof Error ? error.message : String(error) };
+        this.logger.warn(`Sportnet import ${team.name} zlyhal: ${error}`);
+      }
+    }
+    this.logger.log(`Sportnet auto-import: ${JSON.stringify(results)}`);
+    return results;
+  }
+
   /** Nastaví verejnú sportnet.sme.sk URL súťaže pre kategóriu (embed programu/tabuľky). */
   async setSportnetUrl(categoryCode: string, url: string | null) {
     const category = await this.prisma.teamCategory.findUnique({ where: { code: categoryCode } });

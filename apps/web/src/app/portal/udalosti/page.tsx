@@ -274,18 +274,16 @@ function EventList({ title, events, empty }: { title: string; events: EventItem[
             return (
               <li key={e.id}>
                 <Link href={href} className="block px-4 py-3 hover:bg-club-50">
-                  <div className="flex items-center justify-between gap-2">
-                    <span
-                      className="rounded px-2 py-0.5 text-xs font-medium"
-                      style={{ backgroundColor: c.bg, color: c.text }}
-                    >
-                      {typeLabels[e.type] ?? e.type}
-                      {e.team ? ` · ${e.team.name}` : ''}
-                      {e.recurrenceGroupId ? ' · séria' : ''}
-                    </span>
-                    <time className="whitespace-nowrap text-sm text-gray-600">
-                      {new Date(e.startAt).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })}
-                    </time>
+                  <span
+                    className="inline-block rounded px-2 py-0.5 text-xs font-medium"
+                    style={{ backgroundColor: c.bg, color: c.text }}
+                  >
+                    {typeLabels[e.type] ?? e.type}
+                    {e.team ? ` · ${e.team.name}` : ''}
+                    {e.recurrenceGroupId ? ' · séria' : ''}
+                  </span>
+                  <div className="mt-1 text-sm text-gray-600">
+                    {new Date(e.startAt).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })}
                   </div>
                   {e.match ? <MatchTeams e={e} /> : <div className="mt-1 font-medium">{e.title}</div>}
                   {(e.location || e.surface) && (
