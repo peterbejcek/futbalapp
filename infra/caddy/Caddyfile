@@ -5,12 +5,25 @@
 
 # Web (Next.js)
 fkknv.sk {
-	reverse_proxy web:3000
 	encode gzip
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "SAMEORIGIN"
+	}
+
+	# Trvalý odkaz na stiahnutie mobilnej appky (APK) — súbory z ./downloads
+	# (namapované do /srv/downloads). Pri novom builde stačí prepísať fkknv.apk.
+	handle_path /stiahnut/* {
+		root * /srv/downloads
+		header Content-Type application/vnd.android.package-archive
+		header Content-Disposition "attachment"
+		file_server
+	}
+
+	# Všetko ostatné ide na Next.js
+	handle {
+		reverse_proxy web:3000
 	}
 }
 
