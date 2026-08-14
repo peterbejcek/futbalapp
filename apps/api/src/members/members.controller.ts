@@ -58,6 +58,13 @@ export class MembersController {
     return this.membersService.registrationCards(user);
   }
 
+  /** Zoznam rodičov na priradenie k dieťaťu. */
+  @Get('parents')
+  @Roles('ADMIN', 'MANAGER', 'COACH')
+  parents() {
+    return this.membersService.listParents();
+  }
+
   /** Import hráčov z Excelu (idempotentný upsert podľa reg. čísla / mena+dátumu). */
   @Post('import')
   @Roles('ADMIN', 'MANAGER')
@@ -135,5 +142,34 @@ export class MembersController {
   @Roles('ADMIN', 'MANAGER')
   remove(@Param('id') id: string) {
     return this.membersService.remove(id);
+  }
+
+  /** Priradí rodiča k dieťaťu — vedenie, alebo tréner družstva, v ktorom je dieťa. */
+  @Post(':id/guardians')
+  @Roles('ADMIN', 'MANAGER', 'COACH')
+  async addGuardian(
+    @Param('id') childId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: { parentMemberId: string; relation?: string },
+  ) {
+    if (!isStaff(user) && !(await this.membersService.memberInTeams(childId, coachTeamIds(user)))) {
+      throw new ForbiddenException('Dieťa nie je vo vašom družstve');
+    }
+    if (!body?.parentMemberId) throw new BadRequestException('Chýba rodič');
+    return this.membersService.addGuardian(childId, body.parentMemberId, body.relation ?? 'GUARDIAN');
+  }
+
+  /** Zruší väzbu rodič ↔ dieťa. */
+  @Delete(':id/guardians/:userId')
+  @Roles('ADMIN', 'MANAGER', 'COACH')
+  async removeGuardian(
+    @Param('id') childId: string,
+    @Param('userId') userId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    if (!isStaff(user) && !(await this.membersService.memberInTeams(childId, coachTeamIds(user)))) {
+      throw new ForbiddenException('Dieťa nie je vo vašom družstve');
+    }
+    return this.membersService.removeGuardian(childId, userId);
   }
 }

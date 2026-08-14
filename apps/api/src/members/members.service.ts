@@ -210,6 +210,39 @@ export class MembersService {
     return { email: result.email, tempPassword: result.tempPassword, created: result.created };
   }
 
+  /** Zoznam rodičov (členovia s kontom a rolou PARENT) na priradenie k dieťaťu. */
+  listParents() {
+    return this.prisma.member.findMany({
+      where: { userId: { not: null }, user: { roles: { some: { role: 'PARENT' } } } },
+      select: { id: true, firstName: true, lastName: true, user: { select: { email: true } } },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+    });
+  }
+
+  /** Priradí rodiča k dieťaťu (väzba Guardian). Robí vedenie alebo tréner družstva dieťaťa. */
+  async addGuardian(childId: string, parentMemberId: string, relation: string) {
+    const child = await this.prisma.member.findUnique({ where: { id: childId } });
+    if (!child) throw new NotFoundException('Dieťa neexistuje');
+    const parent = await this.prisma.member.findUnique({ where: { id: parentMemberId } });
+    if (!parent?.userId) throw new BadRequestException('Rodič musí mať prihlasovacie konto');
+    if (parentMemberId === childId) throw new BadRequestException('Neplatné priradenie');
+    const rel = (['MOTHER', 'FATHER', 'GUARDIAN', 'RELATIVE'] as const).includes(relation as never)
+      ? (relation as 'MOTHER' | 'FATHER' | 'GUARDIAN' | 'RELATIVE')
+      : 'GUARDIAN';
+    await this.prisma.guardian.upsert({
+      where: { userId_memberId: { userId: parent.userId, memberId: childId } },
+      create: { userId: parent.userId, memberId: childId, relation: rel },
+      update: { relation: rel },
+    });
+    return { linked: true };
+  }
+
+  /** Zruší väzbu rodič ↔ dieťa. */
+  async removeGuardian(childId: string, userId: string) {
+    await this.prisma.guardian.deleteMany({ where: { memberId: childId, userId } });
+    return { removed: true };
+  }
+
   /** Priradí členovi (rodičovi) existujúce deti — vytvorí väzby Guardian. Vyžaduje konto. */
   private async linkChildren(parentMemberId: string, childMemberIds: string[]) {
     if (childMemberIds.length === 0) return;

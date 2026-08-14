@@ -739,6 +739,11 @@ function MemberModal({
           </div>
         )}
 
+        {/* Rodičia — priradenie k dieťaťu (vedenie alebo tréner družstva dieťaťa) */}
+        {member && !isParent && (member.memberships.length > 0 || roles.includes('PLAYER')) && (
+          <GuardiansEditor childId={member.id} />
+        )}
+
         <div>
           <label className={labelCls}>
             {isCoach ? 'Platnosť licencie do' : 'Platnosť registračného preukazu do'}
@@ -819,6 +824,126 @@ function MemberModal({
         )}
       </div>
     </Modal>
+  );
+}
+
+const RELATION_OPTIONS = [
+  { value: 'MOTHER', label: 'Matka' },
+  { value: 'FATHER', label: 'Otec' },
+  { value: 'GUARDIAN', label: 'Zákonný zástupca' },
+  { value: 'RELATIVE', label: 'Iný príbuzný' },
+];
+const RELATION_LABEL: Record<string, string> = Object.fromEntries(RELATION_OPTIONS.map((o) => [o.value, o.label]));
+
+interface GuardianRow {
+  user: { id: string; firstName: string; lastName: string };
+  relation: string;
+}
+interface ParentOption {
+  id: string;
+  firstName: string;
+  lastName: string;
+  user: { email: string } | null;
+}
+
+/** Zoznam a priradenie rodičov k dieťaťu (vedenie / tréner družstva). */
+function GuardiansEditor({ childId }: { childId: string }) {
+  const [guardians, setGuardians] = useState<GuardianRow[]>([]);
+  const [parents, setParents] = useState<ParentOption[]>([]);
+  const [parentId, setParentId] = useState('');
+  const [relation, setRelation] = useState('GUARDIAN');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const m = await api<{ guardians: GuardianRow[] }>(`/members/${childId}`);
+      setGuardians(m.guardians ?? []);
+    } catch {
+      /* ticho */
+    }
+  }, [childId]);
+
+  useEffect(() => {
+    void load();
+    api<ParentOption[]>('/members/parents').then(setParents).catch(() => {});
+  }, [load]);
+
+  async function add() {
+    if (!parentId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/members/${childId}/guardians`, {
+        method: 'POST',
+        body: JSON.stringify({ parentMemberId: parentId, relation }),
+      });
+      setParentId('');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Priradenie zlyhalo');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(userId: string) {
+    setBusy(true);
+    try {
+      await api(`/members/${childId}/guardians/${userId}`, { method: 'DELETE' });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Zrušenie zlyhalo');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const available = parents.filter(
+    (p) => !guardians.some((g) => `${g.user.firstName} ${g.user.lastName}` === `${p.firstName} ${p.lastName}`),
+  );
+
+  return (
+    <div className="rounded-md border border-club-100 p-3">
+      <label className={labelCls}>Rodičia / zákonní zástupcovia</label>
+      <div className="mt-1 space-y-1">
+        {guardians.length === 0 && <p className="text-sm text-gray-400">Zatiaľ nikto priradený.</p>}
+        {guardians.map((g) => (
+          <div key={g.user.id} className="flex items-center justify-between gap-2 text-sm text-gray-700">
+            <span>
+              {g.user.lastName} {g.user.firstName}
+              <span className="ml-1 text-xs text-gray-400">({RELATION_LABEL[g.relation] ?? g.relation})</span>
+            </span>
+            <button type="button" disabled={busy} onClick={() => remove(g.user.id)} className="text-red-500 hover:text-red-700" title="Odobrať">
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap items-end gap-2">
+        <select value={parentId} onChange={(e) => setParentId(e.target.value)} className={`${inputCls} flex-1`}>
+          <option value="">— vyberte rodiča —</option>
+          {available.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.lastName} {p.firstName}
+              {p.user?.email ? ` · ${p.user.email}` : ''}
+            </option>
+          ))}
+        </select>
+        <select value={relation} onChange={(e) => setRelation(e.target.value)} className={`${inputCls} w-40`}>
+          {RELATION_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <Button variant="ghost" onClick={add} disabled={busy || !parentId}>
+          Priradiť
+        </Button>
+      </div>
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      <p className="mt-1 text-xs text-gray-500">Jedno dieťa môže mať viac rodičov; rodič viac detí. Rodič si dieťa sám priradiť nevie.</p>
+    </div>
   );
 }
 
