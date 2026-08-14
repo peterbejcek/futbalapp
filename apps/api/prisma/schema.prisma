@@ -216,6 +216,25 @@ model RegistrationRequest {
   createdAt     DateTime           @default(now())
 }
 
+/// Žiadosť o presun hráča medzi družstvami. Ak ju podá tréner, ktorý nespravuje
+/// aktuálne družstvo hráča, musí ju schváliť tréner aktuálneho družstva alebo vedenie.
+/// mode: MOVE = vyradiť z aktuálneho a pridať do nového; ADD = len pridať do nového.
+model TeamTransferRequest {
+  id            String    @id @default(cuid())
+  memberId      String
+  fromTeamId    String?
+  toTeamId      String
+  mode          String    @default("MOVE")
+  status        String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  requestedById String
+  resolvedById  String?
+  createdAt     DateTime  @default(now())
+  resolvedAt    DateTime?
+
+  @@index([status])
+  @@index([memberId])
+}
+
 // ---------------------------------------------------------------------------
 // Sezóny a kategórie
 // ---------------------------------------------------------------------------

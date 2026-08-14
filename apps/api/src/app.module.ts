@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
 import { MembersModule } from './members/members.module';
+import { TransfersModule } from './transfers/transfers.module';
 import { SeasonsModule } from './seasons/seasons.module';
 import { RegistrationModule } from './registration/registration.module';
 import { EventsModule } from './events/events.module';
@@ -28,6 +29,7 @@ import { HealthController } from './health.controller';
     NotificationsModule,
     AuthModule,
     MembersModule,
+    TransfersModule,
     SeasonsModule,
     RegistrationModule,
     EventsModule,
