@@ -12,7 +12,7 @@ export default function RootLayout() {
           headerTintColor: colors.white,
         }}
       >
-        <Stack.Screen name="index" options={{ title: 'FK Košická Nová Ves' }} />
+        <Stack.Screen name="index" options={{ title: 'FK KNV' }} />
         <Stack.Screen name="dashboard" options={{ title: 'Prehľad' }} />
         <Stack.Screen name="event/new" options={{ title: 'Nová udalosť' }} />
         <Stack.Screen name="event/[id]/attendance" options={{ title: 'Dochádzka' }} />
