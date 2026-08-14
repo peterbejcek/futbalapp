@@ -66,14 +66,15 @@ export class EventsController {
   update(
     @Param('id') eventId: string,
     @Body(new ZodValidationPipe(createEventSchema.partial())) body: Partial<CreateEventInput>,
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.eventsService.update(eventId, body);
+    return this.eventsService.update(eventId, body, user);
   }
 
   @Delete(':id')
   @Roles('ADMIN', 'MANAGER', 'COACH')
-  remove(@Param('id') eventId: string, @Query('scope') scope?: string) {
-    return this.eventsService.remove(eventId, scope === 'future' ? 'future' : 'one');
+  remove(@Param('id') eventId: string, @CurrentUser() user: AuthUser, @Query('scope') scope?: string) {
+    return this.eventsService.remove(eventId, scope === 'future' ? 'future' : 'one', user);
   }
 
   @Get('attendance-stats')

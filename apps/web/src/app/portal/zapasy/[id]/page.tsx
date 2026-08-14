@@ -4,7 +4,7 @@ import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { MATCH_EVENT_LABELS_SK, SURFACE_LABELS_SK, type MatchEventType, type SurfaceCode } from '@fkknv/shared';
 import { api } from '@/lib/api';
-import { canManage, isStaff, useMe } from '@/lib/auth';
+import { canManage, coachTeams, isStaff, useMe } from '@/lib/auth';
 import { Button, Card } from '@/components/ui';
 import { EventAdminActions } from '@/components/event-admin-actions';
 
@@ -226,7 +226,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
             )}
           </div>
         )}
-        {isStaff(me) && (
+        {(isStaff(me) || (match.event.team && coachTeams(me).some((t) => t.id === match.event.team!.id))) && (
           <div className="mt-2 flex flex-wrap justify-center gap-2">
             <EventAdminActions
               eventId={match.event.id}

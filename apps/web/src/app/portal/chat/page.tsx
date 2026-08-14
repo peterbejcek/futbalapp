@@ -19,7 +19,7 @@ const KIND_LABELS: Record<string, string> = {
   TEAM_TRAINING: '🏃 Tréningy',
   TEAM_GENERAL: '💬 Všeobecné',
   CLUB_ANNOUNCEMENT: '📣 Oznamy klubu',
-  COACHES: '👔 Tréneri',
+  COACHES: '👔 Tréneri a vedenie',
   BOARD: '🗂 Vedenie',
 };
 

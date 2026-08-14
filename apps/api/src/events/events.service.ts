@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
   generateOccurrences,
@@ -8,6 +8,8 @@ import {
 } from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClubsService } from '../clubs/clubs.service';
+import { canManageTeam } from '../auth/scope';
+import type { AuthUser } from '../auth/current-user.decorator';
 
 @Injectable()
 export class EventsService {
@@ -145,9 +147,10 @@ export class EventsService {
     return { recurrenceGroupId, created: occurrences.length };
   }
 
-  async update(eventId: string, input: Partial<CreateEventInput>) {
+  async update(eventId: string, input: Partial<CreateEventInput>, user: AuthUser) {
     const event = await this.prisma.event.findUnique({ where: { id: eventId } });
     if (!event) throw new NotFoundException('Udalosť neexistuje');
+    if (!canManageTeam(user, event.teamId)) throw new ForbiddenException('Túto udalosť nemôžete upravovať');
     return this.prisma.event.update({
       where: { id: eventId },
       data: {
@@ -161,9 +164,10 @@ export class EventsService {
   }
 
   /** Zmaže udalosť; pre opakovaný tréning voliteľne celú budúcu sériu. */
-  async remove(eventId: string, scope: 'one' | 'future') {
+  async remove(eventId: string, scope: 'one' | 'future', user: AuthUser) {
     const event = await this.prisma.event.findUnique({ where: { id: eventId } });
     if (!event) throw new NotFoundException('Udalosť neexistuje');
+    if (!canManageTeam(user, event.teamId)) throw new ForbiddenException('Túto udalosť nemôžete odstrániť');
     if (scope === 'future' && event.recurrenceGroupId) {
       const res = await this.prisma.event.deleteMany({
         where: { recurrenceGroupId: event.recurrenceGroupId, startAt: { gte: event.startAt } },

@@ -94,6 +94,12 @@ async function main() {
     await prisma.channel.create({ data: { kind: 'CLUB_ANNOUNCEMENT', name: 'Oznamy klubu' } });
   }
 
+  // Interný kanál pre trénerov a vedenie
+  const coachesCh = await prisma.channel.findFirst({ where: { kind: 'COACHES' } });
+  if (!coachesCh) {
+    await prisma.channel.create({ data: { kind: 'COACHES', name: 'Tréneri a vedenie' } });
+  }
+
   // Register klubov (súperi) — MFZ Košice, logá z futbalnetu (idempotentne)
   const logo = (domain: string) => `https://api.sportnet.online/data/ppo/${domain}/logo`;
   const CLUBS: Array<{ name: string; domain: string }> = [

@@ -21,6 +21,7 @@ export class ChatService {
   /** Kanály, do ktorých má používateľ prístup, zoskupené podľa družstva. */
   async myChannels(user: AuthUser) {
     const staff = isStaff(user);
+    const coach = user.roles.some((r) => r.role === 'COACH');
     const channels = await this.prisma.channel.findMany({
       where: staff
         ? {}
@@ -28,6 +29,8 @@ export class ChatService {
             OR: [
               { kind: 'CLUB_ANNOUNCEMENT' }, // celoklubové oznamy číta každý prihlásený
               { members: { some: { userId: user.id } } },
+              // tréner vidí komunikáciu v každom družstve + interný kanál trénerov/vedenia
+              ...(coach ? [{ teamId: { not: null } }, { kind: 'COACHES' as const }] : []),
             ],
           },
       include: {
@@ -63,7 +66,13 @@ export class ChatService {
 
     const membership = channel.members[0];
     const staff = isStaff(user);
+    const coach = user.roles.some((r) => r.role === 'COACH');
 
+    if (channel.kind === 'COACHES') {
+      // interný kanál trénerov a vedenia
+      if (!staff && !coach && !membership) throw new ForbiddenException('Nemáte prístup k tomuto kanálu');
+      return channel;
+    }
     if (STAFF_ONLY.has(channel.kind)) {
       if (!staff && !membership) throw new ForbiddenException('Nemáte prístup k tomuto kanálu');
       return channel;
@@ -74,10 +83,10 @@ export class ChatService {
       return channel; // čítať môže každý prihlásený
     }
 
-    // tímové kanály: musí byť členom (alebo vedenie)
-    if (!staff && !membership) throw new ForbiddenException('Nie ste členom tohto kanála');
+    // tímové kanály: musí byť členom (alebo vedenie/tréner — ten vidí každé družstvo)
+    if (!staff && !coach && !membership) throw new ForbiddenException('Nie ste členom tohto kanála');
 
-    if (forPosting && READ_ONLY_FOR_MEMBERS.has(channel.kind) && !staff && !membership?.isModerator) {
+    if (forPosting && READ_ONLY_FOR_MEMBERS.has(channel.kind) && !staff && !coach && !membership?.isModerator) {
       throw new ForbiddenException('Do oznamov družstva môže písať len tréner alebo vedenie');
     }
     return channel;
@@ -158,6 +167,25 @@ export class ChatService {
         synced++;
       }
     }
+
+    // Interný kanál pre trénerov a vedenie (všetci tréneri + vedúci + admini)
+    let coachesChannel = await this.prisma.channel.findFirst({ where: { kind: 'COACHES' } });
+    if (!coachesChannel) {
+      coachesChannel = await this.prisma.channel.create({ data: { kind: 'COACHES', name: 'Tréneri a vedenie' } });
+    }
+    const staffRoles = await this.prisma.userRole.findMany({
+      where: { role: { in: ['COACH', 'MANAGER', 'ADMIN'] } },
+      select: { userId: true },
+    });
+    for (const userId of new Set(staffRoles.map((r) => r.userId))) {
+      await this.prisma.channelMember.upsert({
+        where: { channelId_userId: { channelId: coachesChannel.id, userId } },
+        create: { channelId: coachesChannel.id, userId, isModerator: true },
+        update: { isModerator: true },
+      });
+      synced++;
+    }
+
     return { channels: channels.length, synced };
   }
 }

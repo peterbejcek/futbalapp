@@ -4,7 +4,7 @@ import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { SURFACE_LABELS_SK, type SurfaceCode } from '@fkknv/shared';
 import { api } from '@/lib/api';
-import { isStaff, useMe } from '@/lib/auth';
+import { coachTeams, isStaff, useMe } from '@/lib/auth';
 import { Card } from '@/components/ui';
 import { EventAdminActions } from '@/components/event-admin-actions';
 
@@ -21,7 +21,7 @@ interface EventDetail {
   location: string | null;
   surface: SurfaceCode | null;
   recurrenceGroupId: string | null;
-  team: { name: string } | null;
+  team: { id: string; name: string } | null;
   attendances: AttendanceRow[];
 }
 
@@ -72,6 +72,9 @@ export default function AttendancePage({ params }: { params: Promise<{ id: strin
   }
 
   const present = event?.attendances.filter((a) => a.status === 'PRESENT').length ?? 0;
+  // vedenie spravuje všetko; tréner len udalosti svojich družstiev
+  const canEdit =
+    isStaff(me) || (!!event?.team && coachTeams(me).some((t) => t.id === event.team!.id));
 
   return (
     <div className="space-y-5">
@@ -89,7 +92,7 @@ export default function AttendancePage({ params }: { params: Promise<{ id: strin
               {event.surface ? ` · ${SURFACE_LABELS_SK[event.surface]}` : ''} · Prítomní: {present}/
               {event.attendances.length}
             </p>
-            {isStaff(me) && (
+            {canEdit && (
               <div className="mt-3 flex gap-2">
                 <EventAdminActions
                   eventId={event.id}
