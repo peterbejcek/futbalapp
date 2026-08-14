@@ -8,57 +8,72 @@ export const loginSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
+const regAddressSchema = z.object({
+  street: z.string().min(2).max(120),
+  houseNumber: z.string().min(1).max(20),
+  zip: z.string().min(4).max(10),
+  city: z.string().min(2).max(120),
+});
+
+/** Údaje o dieťati / hráčovi (spoločné pre dieťa aj dospelého). */
+const regPlayerSchema = z.object({
+  firstName: z.string().min(2).max(60),
+  lastName: z.string().min(2).max(60),
+  // rodné číslo je povinné; dátum narodenia a pohlavie sa z neho odvodia (server je autorita)
+  birthNumber: z
+    .string()
+    .min(9)
+    .max(11)
+    .refine((v) => parseRodneCislo(v) !== null, { message: 'Neplatné rodné číslo' }),
+  // registračné číslo (hráč ho ešte nemusí mať pridelené)
+  registrationNumber: z.string().max(40).optional(),
+  // fotka hráča ako data URL (voliteľná)
+  photoBase64: z.string().max(6_000_000).optional(),
+  healthNotes: z.string().max(2000).optional(),
+  // vlastné prihlásenie hráča (povinné pre dospelého, voliteľné pre dieťa)
+  email: z.string().email().optional(),
+  originCountry: z.string().max(60).optional(),
+  address: regAddressSchema,
+});
+
+const regParentSchema = z.object({
+  firstName: z.string().min(2).max(60),
+  lastName: z.string().min(2).max(60),
+  email: z.string().email(),
+  phone: z.string().min(9).max(20),
+  relation: z.enum(['MOTHER', 'FATHER', 'GUARDIAN', 'RELATIVE']),
+});
+
 export const registrationRequestSchema = z
   .object({
-    // CHILD = dieťa (vypĺňa rodič), ADULT = dospelý/starší hráč sám za seba
-    applicantType: z.enum(['CHILD', 'ADULT']),
-    player: z.object({
-      firstName: z.string().min(2).max(60),
-      lastName: z.string().min(2).max(60),
-      // rodné číslo je povinné; dátum narodenia sa z neho odvodí
-      birthNumber: z
-        .string()
-        .min(9)
-        .max(11)
-        .refine((v) => parseRodneCislo(v) !== null, { message: 'Neplatné rodné číslo' }),
-      birthDate: z.coerce.date().optional(), // odvodené z rodného čísla (server je autorita)
-      // registračné číslo (hráč ho ešte nemusí mať pridelené)
-      registrationNumber: z.string().max(40).optional(),
-      // fotka hráča ako data URL (voliteľná)
-      photoBase64: z.string().max(6_000_000).optional(),
-      healthNotes: z.string().max(2000).optional(),
-      // vlastné prihlásenie hráča (povinné pre dospelého, voliteľné pre staršie dieťa)
-      email: z.string().email().optional(),
-    }),
-    originCountry: z.string().max(60).optional(),
-    address: z.object({
-      street: z.string().min(2).max(120),
-      houseNumber: z.string().min(1).max(20),
-      zip: z.string().min(4).max(10),
-      city: z.string().min(2).max(120),
-    }),
-    parent: z
-      .object({
-        firstName: z.string().min(2).max(60),
-        lastName: z.string().min(2).max(60),
-        email: z.string().email(),
-        phone: z.string().min(9).max(20),
-        relation: z.enum(['MOTHER', 'FATHER', 'GUARDIAN']),
-      })
-      .optional(),
+    // CHILD = rodič registruje dieťa(deti), ADULT = dospelý hráč sám za seba,
+    // PARENT = rodič si vytvára len konto (deti sú už členmi klubu)
+    applicantType: z.enum(['CHILD', 'ADULT', 'PARENT']),
+    // rodič — pri CHILD a PARENT
+    parent: regParentSchema.optional(),
+    // deti na registráciu — pri CHILD (aspoň jedno)
+    children: z.array(regPlayerSchema).min(1).max(10).optional(),
+    // dospelý hráč — pri ADULT
+    player: regPlayerSchema.extend({ email: z.string().email() }).optional(),
+    // rodič s existujúcimi deťmi (mená detí) — pri PARENT, priradenie urobí vedenie/tréner
+    existingChildrenNote: z.string().max(2000).optional(),
     consents: z.object({
       gdpr: z.literal(true, { errorMap: () => ({ message: 'Súhlas so spracovaním údajov je povinný' }) }),
       photos: z.boolean(),
     }),
     note: z.string().max(2000).optional(),
   })
-  .refine((d) => d.applicantType !== 'CHILD' || !!d.parent, {
-    message: 'Pri registrácii dieťaťa sú údaje rodiča povinné',
-    path: ['parent'],
+  .refine((d) => d.applicantType !== 'CHILD' || (!!d.parent && (d.children?.length ?? 0) > 0), {
+    message: 'Pri registrácii dieťaťa treba údaje rodiča a aspoň jedno dieťa',
+    path: ['children'],
   })
-  .refine((d) => d.applicantType !== 'ADULT' || !!d.player.email, {
-    message: 'Dospelý hráč potrebuje e-mail pre vlastné prihlásenie',
-    path: ['player', 'email'],
+  .refine((d) => d.applicantType !== 'ADULT' || !!d.player, {
+    message: 'Údaje dospelého hráča sú povinné',
+    path: ['player'],
+  })
+  .refine((d) => d.applicantType !== 'PARENT' || !!d.parent, {
+    message: 'Údaje rodiča sú povinné',
+    path: ['parent'],
   });
 export type RegistrationRequestInput = z.infer<typeof registrationRequestSchema>;
 

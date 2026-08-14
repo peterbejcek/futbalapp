@@ -79,6 +79,7 @@ enum GuardianRelation {
   MOTHER
   FATHER
   GUARDIAN
+  RELATIVE
 }
 
 model Member {
@@ -175,11 +176,13 @@ enum RegistrationStatus {
 
 model RegistrationRequest {
   id             String  @id @default(cuid())
-  /// CHILD = dieťa s rodičom, ADULT = dospelý/starší hráč sám za seba
+  /// CHILD = dieťa s rodičom, ADULT = dospelý/starší hráč sám za seba,
+  /// PARENT = rodič len s kontom (deti sú už členmi klubu)
   applicantType  String  @default("CHILD")
-  childFirstName String
-  childLastName  String
-  childBirthDate DateTime
+  /// meno hráča — prázdne pri type PARENT (len konto rodiča)
+  childFirstName String?
+  childLastName  String?
+  childBirthDate DateTime?
   /// Rodné číslo hráča (povinné v novom formulári)
   birthNumber    String?
   sex            String?
@@ -201,6 +204,8 @@ model RegistrationRequest {
   parentEmail     String?
   parentPhone     String?
   parentRelation  GuardianRelation?
+  /// mená existujúcich detí (type PARENT) — vedenie/tréner ich priradí ku kontu
+  parentChildrenNote String?
   consentGdpr   Boolean
   consentPhotos Boolean
   note          String?
