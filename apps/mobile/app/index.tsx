@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { api, getToken, setToken } from '@/api';
 import { colors } from '@/theme';
@@ -69,6 +69,12 @@ export default function LoginScreen() {
       <Pressable style={styles.button} onPress={onLogin} disabled={loading}>
         <Text style={styles.buttonText}>{loading ? 'Prihlasujem…' : 'Prihlásiť sa'}</Text>
       </Pressable>
+      <Pressable
+        style={styles.registerBtn}
+        onPress={() => Linking.openURL('https://fkknv.sk/registracia')}
+      >
+        <Text style={styles.registerText}>Registrácia do klubu</Text>
+      </Pressable>
     </View>
   );
 }
@@ -90,4 +96,6 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, marginBottom: 12, textAlign: 'center' },
   button: { backgroundColor: colors.club600, borderRadius: 8, padding: 16, alignItems: 'center' },
   buttonText: { color: colors.white, fontWeight: '700', fontSize: 16 },
+  registerBtn: { marginTop: 14, padding: 12, alignItems: 'center' },
+  registerText: { color: colors.club700, fontWeight: '600', fontSize: 15, textDecorationLine: 'underline' },
 });

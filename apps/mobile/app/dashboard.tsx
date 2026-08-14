@@ -95,15 +95,13 @@ export default function DashboardScreen() {
         <Pressable style={[styles.topBtn, { backgroundColor: colors.club800 }]} onPress={() => router.push('/chat')}>
           <Text style={styles.topBtnText}>💬 Kanály</Text>
         </Pressable>
+        <Pressable style={[styles.topBtn, { backgroundColor: colors.club800 }]} onPress={() => router.push('/statistics')}>
+          <Text style={styles.topBtnText}>📊 Štatistiky</Text>
+        </Pressable>
         {canManage(me) && (
-          <>
-            <Pressable style={[styles.topBtn, { backgroundColor: colors.club600 }]} onPress={() => router.push('/event/new')}>
-              <Text style={styles.topBtnText}>＋ Udalosť</Text>
-            </Pressable>
-            <Pressable style={[styles.topBtn, { backgroundColor: colors.club600 }]} onPress={() => router.push('/members')}>
-              <Text style={styles.topBtnText}>👥 Členovia</Text>
-            </Pressable>
-          </>
+          <Pressable style={[styles.topBtn, { backgroundColor: colors.club600 }]} onPress={() => router.push('/event/new')}>
+            <Text style={styles.topBtnText}>＋ Udalosť</Text>
+          </Pressable>
         )}
       </View>
 
