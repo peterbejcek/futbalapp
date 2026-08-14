@@ -12,7 +12,8 @@ import { CaptchaModule } from '../captcha/captcha.module';
     JwtModule.register({
       global: true,
       secret: process.env.JWT_SECRET ?? 'dev-secret',
-      signOptions: { expiresIn: (process.env.JWT_EXPIRES_IN ?? '15m') as `${number}${'s' | 'm' | 'h' | 'd'}` },
+      // dlhá platnosť prihlásenia — bez častého odhlasovania (predĺžiteľné cez JWT_EXPIRES_IN)
+      signOptions: { expiresIn: (process.env.JWT_EXPIRES_IN ?? '30d') as `${number}${'s' | 'm' | 'h' | 'd'}` },
     }),
   ],
   providers: [AuthService, AccountsService],
