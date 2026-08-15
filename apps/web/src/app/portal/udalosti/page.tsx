@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { WEEKDAY_SHORT_SK, eventTypeColor, SURFACE_CODES, SURFACE_LABELS_SK, type SurfaceCode } from '@fkknv/shared';
+import {
+  WEEKDAY_SHORT_SK,
+  eventTypeColor,
+  SURFACE_CODES,
+  SURFACE_LABELS_SK,
+  formatEventDateTimeSk,
+  formatEventTimeSk,
+  type SurfaceCode,
+} from '@fkknv/shared';
 import { api } from '@/lib/api';
 import { canManage, coachTeams, isStaff, useMe } from '@/lib/auth';
 import { Button, Card, ErrorText, Modal, inputCls, labelCls } from '@/components/ui';
@@ -283,7 +291,7 @@ function EventList({ title, events, empty }: { title: string; events: EventItem[
                     {e.recurrenceGroupId ? ' · séria' : ''}
                   </span>
                   <div className="mt-1 text-sm text-gray-600">
-                    {new Date(e.startAt).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })}
+                    {formatEventDateTimeSk(e.startAt)}
                   </div>
                   {e.match ? <MatchTeams e={e} /> : <div className="mt-1 font-medium">{e.title}</div>}
                   {(e.location || e.surface) && (
@@ -311,11 +319,12 @@ function MonthView({ month, events }: { month: Date; events: EventItem[] }) {
 
   const byDay = new Map<number, EventItem[]>();
   for (const e of events) {
+    // čas udalosti je vedený ako UTC „nástenný" čas → deň čítame z UTC komponentov
     const d = new Date(e.startAt);
-    if (d.getFullYear() === year && d.getMonth() === m) {
-      const arr = byDay.get(d.getDate()) ?? [];
+    if (d.getUTCFullYear() === year && d.getUTCMonth() === m) {
+      const arr = byDay.get(d.getUTCDate()) ?? [];
       arr.push(e);
-      byDay.set(d.getDate(), arr);
+      byDay.set(d.getUTCDate(), arr);
     }
   }
 
@@ -353,7 +362,7 @@ function MonthView({ month, events }: { month: Date; events: EventItem[] }) {
                       .map((e) => {
                         const href = e.match ? `/portal/zapasy/${e.match.id}` : `/portal/dochadzka/${e.id}`;
                         const c = eventTypeColor(e.type);
-                        const time = new Date(e.startAt).toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' });
+                        const time = formatEventTimeSk(e.startAt);
                         const label = e.match ? `⚽ ${e.match.opponent}` : `${typeLabels[e.type] ?? e.type}${e.team ? ` ${e.team.name}` : ''}`;
                         return (
                           <Link
@@ -423,7 +432,7 @@ function TrainingModal({
       } else {
         await api('/events', {
           method: 'POST',
-          body: JSON.stringify({ type: 'TRAINING', title, teamId, startAt: `${date}T${startTime}`, location: location || undefined, surface: surface || undefined }),
+          body: JSON.stringify({ type: 'TRAINING', title, teamId, startAt: `${date}T${startTime}:00.000Z`, location: location || undefined, surface: surface || undefined }),
         });
       }
       onDone();
@@ -573,7 +582,7 @@ function MatchModal({
           type,
           title: isHome ? `${team?.name} vs ${opponent}` : `${opponent} vs ${team?.name}`,
           teamId,
-          startAt: `${date}T${time}`,
+          startAt: `${date}T${time}:00.000Z`,
           location: location || undefined,
           surface: surface || undefined,
           opponent,

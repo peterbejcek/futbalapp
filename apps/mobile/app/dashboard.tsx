@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FlatList, Image, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { formatEventDateTimeSk } from '@fkknv/shared';
 import { api, setToken } from '@/api';
 import { flush } from '@/offline';
 import { registerForPushNotifications } from '@/notifications';
@@ -158,7 +159,7 @@ export default function DashboardScreen() {
                 {item.team ? ` · ${item.team.name}` : ''}
               </Text>
               <Text style={styles.cardMeta}>
-                {new Date(item.startAt).toLocaleString('sk-SK')}
+                {formatEventDateTimeSk(item.startAt)}
                 {item.location ? ` · ${item.location}` : ''}
               </Text>
               {item.match ? <MatchTeams item={item} /> : <Text style={styles.cardTitle}>{item.title}</Text>}

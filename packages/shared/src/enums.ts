@@ -4,7 +4,7 @@ export type Role = (typeof ROLES)[number];
 export const MEMBER_STATUSES = ['ACTIVE', 'INACTIVE', 'GUEST'] as const;
 export type MemberStatus = (typeof MEMBER_STATUSES)[number];
 
-export const ATTENDANCE_STATUSES = ['PRESENT', 'ABSENT', 'EXCUSED', 'INJURED', 'UNKNOWN'] as const;
+export const ATTENDANCE_STATUSES = ['PRESENT', 'ABSENT', 'EXCUSED', 'INJURED', 'SICK', 'UNKNOWN'] as const;
 export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
 
 export const EVENT_TYPES = ['TRAINING', 'MATCH', 'TOURNAMENT', 'CLUB_EVENT'] as const;

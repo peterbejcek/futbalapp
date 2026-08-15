@@ -484,6 +484,7 @@ enum AttendanceStatus {
   ABSENT
   EXCUSED
   INJURED
+  SICK
   UNKNOWN
 }
 

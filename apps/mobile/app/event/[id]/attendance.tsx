@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
+import { formatEventDateSk } from '@fkknv/shared';
 import { api } from '@/api';
 import { enqueue, flush } from '@/offline';
 import { colors } from '@/theme';
@@ -19,13 +20,14 @@ interface EventDetail {
 }
 
 /** Poradie cyklovania stavov jedným ťuknutím (posledný = zrušenie voľby). */
-const CYCLE = ['PRESENT', 'ABSENT', 'EXCUSED', 'INJURED', 'UNKNOWN'] as const;
+const CYCLE = ['PRESENT', 'ABSENT', 'EXCUSED', 'INJURED', 'SICK', 'UNKNOWN'] as const;
 
 const statusLabels: Record<string, string> = {
   PRESENT: 'Prítomný',
   ABSENT: 'Neprítomný',
   EXCUSED: 'Ospravedlnený',
   INJURED: 'Zranený',
+  SICK: 'Chorý',
   UNKNOWN: '—',
 };
 
@@ -34,6 +36,7 @@ const statusColors: Record<string, string> = {
   ABSENT: colors.danger,
   EXCUSED: '#b45309',
   INJURED: '#7c3aed',
+  SICK: '#0d9488',
   UNKNOWN: colors.gray,
 };
 
@@ -81,7 +84,7 @@ export default function AttendanceScreen() {
     <View style={styles.container}>
       {event && (
         <Text style={styles.heading}>
-          {event.title} · {new Date(event.startAt).toLocaleDateString('sk-SK')}
+          {event.title} · {formatEventDateSk(event.startAt)}
         </Text>
       )}
       {pending > 0 && (

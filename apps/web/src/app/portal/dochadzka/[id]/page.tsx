@@ -2,7 +2,7 @@
 
 import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { SURFACE_LABELS_SK, type SurfaceCode } from '@fkknv/shared';
+import { SURFACE_LABELS_SK, formatEventDateTimeSk, type SurfaceCode } from '@fkknv/shared';
 import { api } from '@/lib/api';
 import { coachTeams, isStaff, useMe } from '@/lib/auth';
 import { Card } from '@/components/ui';
@@ -25,12 +25,13 @@ interface EventDetail {
   attendances: AttendanceRow[];
 }
 
-const STATUSES = ['PRESENT', 'ABSENT', 'EXCUSED', 'INJURED'] as const;
+const STATUSES = ['PRESENT', 'ABSENT', 'EXCUSED', 'INJURED', 'SICK'] as const;
 const labels: Record<string, string> = {
   PRESENT: 'Prítomný',
   ABSENT: 'Neprítomný',
   EXCUSED: 'Ospravedlnený',
   INJURED: 'Zranený',
+  SICK: 'Chorý',
   UNKNOWN: '—',
 };
 const colors: Record<string, string> = {
@@ -38,6 +39,7 @@ const colors: Record<string, string> = {
   ABSENT: 'bg-red-600 text-white',
   EXCUSED: 'bg-amber-500 text-white',
   INJURED: 'bg-purple-600 text-white',
+  SICK: 'bg-teal-600 text-white',
   UNKNOWN: 'bg-gray-100 text-gray-600',
 };
 
@@ -87,7 +89,7 @@ export default function AttendancePage({ params }: { params: Promise<{ id: strin
           <div>
             <h1 className="text-2xl font-bold text-club-900">{event.title}</h1>
             <p className="text-sm text-gray-500">
-              {event.team?.name} · {new Date(event.startAt).toLocaleString('sk-SK')}
+              {event.team?.name} · {formatEventDateTimeSk(event.startAt)}
               {event.location ? ` · ${event.location}` : ''}
               {event.surface ? ` · ${SURFACE_LABELS_SK[event.surface]}` : ''} · Prítomní: {present}/
               {event.attendances.length}

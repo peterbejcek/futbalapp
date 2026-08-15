@@ -2,7 +2,13 @@
 
 import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { MATCH_EVENT_LABELS_SK, SURFACE_LABELS_SK, type MatchEventType, type SurfaceCode } from '@fkknv/shared';
+import {
+  MATCH_EVENT_LABELS_SK,
+  SURFACE_LABELS_SK,
+  formatEventDateTimeSk,
+  type MatchEventType,
+  type SurfaceCode,
+} from '@fkknv/shared';
 import { api } from '@/lib/api';
 import { canManage, coachTeams, isStaff, useMe } from '@/lib/auth';
 import { Button, Card } from '@/components/ui';
@@ -177,7 +183,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
         <p className="text-sm font-semibold text-club-600">
           {match.state === 'LIVE' ? '● NAŽIVO' : match.state === 'FINISHED' ? 'Ukončený' : match.state === 'CANCELLED' ? 'Zrušený' : 'Plánovaný'}
           {' · '}
-          {new Date(match.event.startAt).toLocaleString('sk-SK')}
+          {formatEventDateTimeSk(match.event.startAt)}
           {match.event.location ? ` · ${match.event.location}` : ''}
           {match.event.surface ? ` · ${SURFACE_LABELS_SK[match.event.surface]}` : ''}
         </p>

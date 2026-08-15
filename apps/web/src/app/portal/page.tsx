@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import { categoryColor } from '@fkknv/shared';
+import { categoryColor, formatEventDateTimeSk } from '@fkknv/shared';
 import { coachTeams, isParent, isPlayer, isStaff, useMe } from '@/lib/auth';
 import { Card } from '@/components/ui';
 
@@ -143,7 +143,7 @@ function EventList({ title, events }: { title: string; events: EventItem[] }) {
                     {e.team ? ` · ${e.team.name}` : ''}
                   </span>
                   <div className="mt-1 text-sm text-gray-600">
-                    {new Date(e.startAt).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })}
+                    {formatEventDateTimeSk(e.startAt)}
                   </div>
                   {e.match ? <DashMatchTeams e={e} /> : <div className="mt-1 font-medium">{e.title}</div>}
                   {e.location && <div className="mt-1 text-xs text-gray-500">{e.location}</div>}
@@ -293,7 +293,7 @@ function MatchConfirmations() {
                 </span>
                 <span className="ml-2 text-sm text-gray-600">
                   {n.isHome ? 'doma' : 'vonku'} vs {n.opponent} ·{' '}
-                  {new Date(n.startAt).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })}
+                  {formatEventDateTimeSk(n.startAt)}
                   {n.location ? ` · ${n.location}` : ''}
                 </span>
               </div>

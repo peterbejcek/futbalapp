@@ -63,7 +63,7 @@ export default function NewEventScreen() {
       } else if (mode === 'training') {
         await api('/events', {
           method: 'POST',
-          body: JSON.stringify({ type: 'TRAINING', title, teamId, startAt: `${date}T${startTime}`, location: location || undefined }),
+          body: JSON.stringify({ type: 'TRAINING', title, teamId, startAt: `${date}T${startTime}:00.000Z`, location: location || undefined }),
         });
       } else {
         const team = teams.find((t) => t.id === teamId);
@@ -73,7 +73,7 @@ export default function NewEventScreen() {
             type: 'MATCH',
             title: isHome ? `${team?.name} vs ${opponent}` : `${opponent} vs ${team?.name}`,
             teamId,
-            startAt: `${date}T${startTime}`,
+            startAt: `${date}T${startTime}:00.000Z`,
             location: location || undefined,
             opponent,
             isHome,
