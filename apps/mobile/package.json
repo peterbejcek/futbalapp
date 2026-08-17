@@ -10,8 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build:preview": "eas build --profile preview --platform android",
     "build:production": "eas build --profile production --platform all",
-    "update:preview": "eas update --branch preview",
-    "update:production": "eas update --branch production"
+    "update:preview": "eas update --branch preview --message",
+    "update:production": "eas update --branch production --message"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
