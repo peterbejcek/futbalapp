@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
-import { FlatList, Image, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { formatEventDateTimeSk } from '@fkknv/shared';
+import { eventTypeColor, formatEventDateTimeSk, formatEventTimeSk } from '@fkknv/shared';
 import { api, setToken } from '@/api';
 import { flush } from '@/offline';
 import { registerForPushNotifications } from '@/notifications';
@@ -22,6 +22,7 @@ interface EventItem {
 const OUR_LOGO = 'https://api.sportnet.online/data/ppo/fk-kosicka-nova-ves.futbalnet.sk/logo';
 
 type Row = { kind: 'header'; label: string; key: string } | { kind: 'event'; e: EventItem; key: string };
+type ViewMode = 'upcoming' | 'month';
 
 interface RegCard {
   id: string;
@@ -40,32 +41,62 @@ const typeLabels: Record<string, string> = {
   CLUB_EVENT: 'Podujatie',
 };
 
+const MONTHS_SK = [
+  'Január', 'Február', 'Marec', 'Apríl', 'Máj', 'Jún',
+  'Júl', 'August', 'September', 'Október', 'November', 'December',
+];
+const WEEKDAYS_SK = ['Po', 'Ut', 'St', 'Št', 'Pi', 'So', 'Ne'];
+
+function pad(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
 export default function DashboardScreen() {
   const router = useRouter();
   const [events, setEvents] = useState<EventItem[]>([]);
   const [cards, setCards] = useState<RegCard[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
+  const [view, setView] = useState<ViewMode>('upcoming');
+  const [month, setMonth] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
 
   const load = useCallback(async () => {
     await flush(); // dopošli offline zápisy z ihriska
     try {
-      const from = new Date().toISOString();
-      const list = await api<EventItem[]>(`/events?from=${from}`);
-      setEvents(list.slice(0, 20));
+      let url: string;
+      if (view === 'month') {
+        const y = month.getFullYear();
+        const m = month.getMonth();
+        const lastDay = new Date(y, m + 1, 0).getDate();
+        const from = `${y}-${pad(m + 1)}-01T00:00:00.000Z`;
+        const to = `${y}-${pad(m + 1)}-${pad(lastDay)}T23:59:59.999Z`;
+        url = `/events?from=${from}&to=${to}`;
+      } else {
+        // od začiatku dnešného dňa — aby sa zobrazili aj udalosti, ktoré dnes už prebehli
+        const now = new Date();
+        const from = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T00:00:00.000Z`;
+        url = `/events?from=${from}`;
+      }
+      const list = await api<EventItem[]>(url);
+      setEvents(view === 'month' ? list : list.slice(0, 20));
       api<RegCard[]>('/members/registration-cards').then(setCards).catch(() => {});
     } catch {
       // token expiroval → späť na login
       await setToken(null);
       router.replace('/');
     }
-  }, [router]);
+  }, [router, view, month]);
 
   useEffect(() => {
     void load();
+  }, [load]);
+  useEffect(() => {
     void registerForPushNotifications();
     fetchMe().then(setMe).catch(() => {});
-  }, [load]);
+  }, []);
 
   function openEvent(item: EventItem) {
     if (item.match) router.push(`/match/${item.match.id}`);
@@ -90,6 +121,31 @@ export default function DashboardScreen() {
     others.forEach((e) => rows.push({ kind: 'event', e, key: e.id }));
   }
 
+  async function onRefresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }
+
+  function renderEventCard(item: EventItem) {
+    return (
+      <Pressable style={styles.card} onPress={() => openEvent(item)}>
+        <Text style={styles.badge}>
+          {typeLabels[item.type] ?? item.type}
+          {item.team ? ` · ${item.team.name}` : ''}
+        </Text>
+        <Text style={styles.cardMeta}>
+          {formatEventDateTimeSk(item.startAt)}
+          {item.location ? ` · ${item.location}` : ''}
+        </Text>
+        {item.match ? <MatchTeams item={item} /> : <Text style={styles.cardTitle}>{item.title}</Text>}
+        <Text style={styles.cardAction}>
+          {item.match ? 'Otvoriť zápas →' : item.type === 'TRAINING' ? 'Dochádzka →' : ''}
+        </Text>
+      </Pressable>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.topRow}>
@@ -106,22 +162,29 @@ export default function DashboardScreen() {
         )}
       </View>
 
-      <FlatList
-        data={rows}
-        keyExtractor={(r) => r.key}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={async () => {
-              setRefreshing(true);
-              await load();
-              setRefreshing(false);
-            }}
-          />
-        }
-        ListHeaderComponent={
-          <>
-            {cards.length > 0 && (
+      {/* prepínač zobrazenia */}
+      <View style={styles.viewToggle}>
+        <Pressable
+          style={[styles.toggleBtn, view === 'upcoming' && styles.toggleBtnActive]}
+          onPress={() => setView('upcoming')}
+        >
+          <Text style={[styles.toggleText, view === 'upcoming' && styles.toggleTextActive]}>Najbližšie</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.toggleBtn, view === 'month' && styles.toggleBtnActive]}
+          onPress={() => setView('month')}
+        >
+          <Text style={[styles.toggleText, view === 'month' && styles.toggleTextActive]}>Mesiac</Text>
+        </Pressable>
+      </View>
+
+      {view === 'upcoming' ? (
+        <FlatList
+          data={rows}
+          keyExtractor={(r) => r.key}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          ListHeaderComponent={
+            cards.length > 0 ? (
               <View style={styles.cardsBlock}>
                 <Text style={styles.heading}>
                   {canManage(me) ? 'Platnosť registračných preukazov' : 'Registračný preukaz'}
@@ -145,31 +208,26 @@ export default function DashboardScreen() {
                   </View>
                 ))}
               </View>
-            )}
-          </>
-        }
-        ListEmptyComponent={<Text style={styles.empty}>Žiadne naplánované udalosti.</Text>}
-        renderItem={({ item: row }) => {
-          if (row.kind === 'header') return <Text style={styles.heading}>{row.label}</Text>;
-          const item = row.e;
-          return (
-            <Pressable style={styles.card} onPress={() => openEvent(item)}>
-              <Text style={styles.badge}>
-                {typeLabels[item.type] ?? item.type}
-                {item.team ? ` · ${item.team.name}` : ''}
-              </Text>
-              <Text style={styles.cardMeta}>
-                {formatEventDateTimeSk(item.startAt)}
-                {item.location ? ` · ${item.location}` : ''}
-              </Text>
-              {item.match ? <MatchTeams item={item} /> : <Text style={styles.cardTitle}>{item.title}</Text>}
-              <Text style={styles.cardAction}>
-                {item.match ? 'Otvoriť zápas →' : item.type === 'TRAINING' ? 'Dochádzka →' : ''}
-              </Text>
-            </Pressable>
-          );
-        }}
-      />
+            ) : null
+          }
+          ListEmptyComponent={<Text style={styles.empty}>Žiadne udalosti pre dnešok a ďalej.</Text>}
+          renderItem={({ item: row }) => {
+            if (row.kind === 'header') return <Text style={styles.heading}>{row.label}</Text>;
+            return renderEventCard(row.e);
+          }}
+        />
+      ) : (
+        <MonthPane
+          month={month}
+          events={events}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          onPrev={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
+          onNext={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
+          renderEventCard={renderEventCard}
+        />
+      )}
+
       <Pressable
         style={styles.logout}
         onPress={async () => {
@@ -180,6 +238,139 @@ export default function DashboardScreen() {
         <Text style={styles.logoutText}>Odhlásiť sa</Text>
       </Pressable>
     </View>
+  );
+}
+
+/** Mesačný prehľad: mriežka dní (bodka = sú udalosti), po ťuknutí na deň sa zobrazia jeho udalosti. */
+function MonthPane({
+  month,
+  events,
+  refreshing,
+  onRefresh,
+  onPrev,
+  onNext,
+  renderEventCard,
+}: {
+  month: Date;
+  events: EventItem[];
+  refreshing: boolean;
+  onRefresh: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+  renderEventCard: (e: EventItem) => ReactNode;
+}) {
+  const y = month.getFullYear();
+  const m = month.getMonth();
+  const [selected, setSelected] = useState<number | null>(null);
+
+  // po zmene mesiaca zruš výber (a predvyber dnešok, ak je v tomto mesiaci)
+  useEffect(() => {
+    const now = new Date();
+    setSelected(now.getFullYear() === y && now.getMonth() === m ? now.getDate() : null);
+  }, [y, m]);
+
+  // udalosti podľa dňa (deň čítame z UTC komponentov — konvencia času udalostí)
+  const byDay = new Map<number, EventItem[]>();
+  for (const e of events) {
+    const d = new Date(e.startAt);
+    if (d.getUTCFullYear() === y && d.getUTCMonth() === m) {
+      const arr = byDay.get(d.getUTCDate()) ?? [];
+      arr.push(e);
+      byDay.set(d.getUTCDate(), arr);
+    }
+  }
+
+  const startWeekday = (new Date(y, m, 1).getDay() + 6) % 7; // Po = 0
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const cells: Array<number | null> = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+  const weeks: Array<Array<number | null>> = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+
+  const now = new Date();
+  const isToday = (d: number) => now.getFullYear() === y && now.getMonth() === m && now.getDate() === d;
+
+  const selectedEvents = selected
+    ? (byDay.get(selected) ?? []).slice().sort((a, b) => a.startAt.localeCompare(b.startAt))
+    : [];
+
+  return (
+    <ScrollView
+      style={styles.monthScroll}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+    >
+      <View style={styles.monthNav}>
+        <Pressable style={styles.monthNavBtn} onPress={onPrev} hitSlop={8}>
+          <Text style={styles.monthNavText}>‹</Text>
+        </Pressable>
+        <Text style={styles.monthLabel}>
+          {MONTHS_SK[m]} {y}
+        </Text>
+        <Pressable style={styles.monthNavBtn} onPress={onNext} hitSlop={8}>
+          <Text style={styles.monthNavText}>›</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.weekHeaderRow}>
+        {WEEKDAYS_SK.map((w) => (
+          <Text key={w} style={styles.weekHeaderCell}>
+            {w}
+          </Text>
+        ))}
+      </View>
+
+      {weeks.map((week, wi) => (
+        <View key={wi} style={styles.weekRow}>
+          {week.map((d, di) => {
+            const dayEvents = d ? byDay.get(d) ?? [] : [];
+            return (
+              <Pressable
+                key={di}
+                disabled={!d}
+                onPress={() => d && setSelected(d)}
+                style={[
+                  styles.dayCell,
+                  d != null && isToday(d) && styles.dayCellToday,
+                  d != null && selected === d && styles.dayCellSelected,
+                ]}
+              >
+                {d ? (
+                  <>
+                    <Text style={[styles.dayNum, selected === d && styles.dayNumSelected]}>{d}</Text>
+                    <View style={styles.dotRow}>
+                      {dayEvents.slice(0, 3).map((e) => (
+                        <View key={e.id} style={[styles.dot, { backgroundColor: eventTypeColor(e.type).text }]} />
+                      ))}
+                    </View>
+                  </>
+                ) : null}
+              </Pressable>
+            );
+          })}
+        </View>
+      ))}
+
+      <View style={styles.selectedBlock}>
+        {selected ? (
+          selectedEvents.length ? (
+            <>
+              <Text style={styles.selectedHeading}>
+                {selected}. {MONTHS_SK[m]}
+              </Text>
+              {selectedEvents.map((e) => (
+                <View key={e.id}>{renderEventCard(e)}</View>
+              ))}
+            </>
+          ) : (
+            <Text style={styles.empty}>V tento deň nie sú žiadne udalosti.</Text>
+          )
+        ) : (
+          <Text style={styles.empty}>Ťuknite na deň pre zobrazenie udalostí.</Text>
+        )}
+      </View>
+    </ScrollView>
   );
 }
 
@@ -210,11 +401,24 @@ const styles = StyleSheet.create({
   teamRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   teamLogo: { width: 26, height: 26, resizeMode: 'contain' },
   teamName: { fontSize: 15, fontWeight: '600', color: colors.club900, flexShrink: 1 },
-  topRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  topRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   topBtn: { flex: 1, borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
   topBtnText: { color: colors.white, fontWeight: '700', fontSize: 13 },
+  viewToggle: {
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.club100,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  toggleBtn: { paddingVertical: 8, paddingHorizontal: 18, backgroundColor: colors.white },
+  toggleBtnActive: { backgroundColor: colors.club600 },
+  toggleText: { color: colors.club700, fontWeight: '600', fontSize: 14 },
+  toggleTextActive: { color: colors.white },
   heading: { fontSize: 18, fontWeight: '700', color: colors.club900, marginBottom: 12 },
-  empty: { color: colors.gray, textAlign: 'center', marginTop: 32 },
+  empty: { color: colors.gray, textAlign: 'center', marginTop: 24 },
   card: {
     backgroundColor: colors.white,
     borderRadius: 8,
@@ -248,4 +452,42 @@ const styles = StyleSheet.create({
   regOk: { backgroundColor: '#f3f4f6', color: '#4b5563' },
   logout: { padding: 14, alignItems: 'center' },
   logoutText: { color: colors.club600, fontWeight: '600' },
+  // mesačný prehľad
+  monthScroll: { flex: 1 },
+  monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  monthNavBtn: {
+    width: 40,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.club100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  monthNavText: { fontSize: 22, color: colors.club700, fontWeight: '700', lineHeight: 24 },
+  monthLabel: { fontSize: 17, fontWeight: '700', color: colors.club900 },
+  weekHeaderRow: { flexDirection: 'row', marginBottom: 4 },
+  weekHeaderCell: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '600', color: colors.gray },
+  weekRow: { flexDirection: 'row' },
+  dayCell: {
+    flex: 1,
+    aspectRatio: 1,
+    margin: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.club100,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 4,
+  },
+  dayCellToday: { borderColor: colors.club600 },
+  dayCellSelected: { backgroundColor: colors.club600, borderColor: colors.club600 },
+  dayNum: { fontSize: 14, fontWeight: '600', color: colors.club900 },
+  dayNumSelected: { color: colors.white },
+  dotRow: { flexDirection: 'row', gap: 2, marginTop: 3, height: 6 },
+  dot: { width: 5, height: 5, borderRadius: 3 },
+  selectedBlock: { marginTop: 16 },
+  selectedHeading: { fontSize: 16, fontWeight: '700', color: colors.club900, marginBottom: 10 },
 });
