@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { io, type Socket } from 'socket.io-client';
 import { API_URL, api, getToken } from '@/api';
 import { colors } from '@/theme';
@@ -28,6 +29,7 @@ function apiOrigin(): string {
 
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +110,7 @@ export default function ChatScreen() {
           </View>
         )}
       />
-      <View style={styles.inputRow}>
+      <View style={[styles.inputRow, { paddingBottom: insets.bottom + 12 }]}>
         <TextInput
           style={styles.input}
           placeholder="Napíšte správu…"

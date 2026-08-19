@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { eventTypeColor, formatEventDateTimeSk, formatEventTimeSk } from '@fkknv/shared';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { eventTypeColor, formatEventDateTimeSk } from '@fkknv/shared';
 import { api, setToken } from '@/api';
 import { flush } from '@/offline';
 import { registerForPushNotifications } from '@/notifications';
@@ -53,6 +54,7 @@ function pad(n: number): string {
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [events, setEvents] = useState<EventItem[]>([]);
   const [cards, setCards] = useState<RegCard[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -147,7 +149,7 @@ export default function DashboardScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: insets.bottom + 8 }]}>
       <View style={styles.topRow}>
         <Pressable style={[styles.topBtn, { backgroundColor: colors.club800 }]} onPress={() => router.push('/chat')}>
           <Text style={styles.topBtnText}>💬 Kanály</Text>

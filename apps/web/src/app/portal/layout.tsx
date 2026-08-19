@@ -3,8 +3,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import { getToken, setToken } from '@/lib/api';
+import { useEffect, useState } from 'react';
+import { api, getToken, setToken } from '@/lib/api';
 import { canManage, isStaff, useMe } from '@/lib/auth';
 
 interface NavItem {
@@ -29,12 +29,22 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const router = useRouter();
   const pathname = usePathname();
   const { me } = useMe();
+  const [pendingRegs, setPendingRegs] = useState(0);
 
   useEffect(() => {
     if (!getToken()) router.replace('/prihlasenie');
   }, [router]);
 
-  const ctx = { staff: isStaff(me), manage: canManage(me) };
+  const staff = isStaff(me);
+  // počet nevybavených registrácií — na zvýraznenie položky menu
+  useEffect(() => {
+    if (!staff) return;
+    api<Array<{ id: string }>>('/registration/pending')
+      .then((r) => setPendingRegs(r.length))
+      .catch(() => {});
+  }, [staff, pathname]);
+
+  const ctx = { staff, manage: canManage(me) };
   const items = navigation.filter((item) => item.show(ctx));
 
   return (
@@ -47,17 +57,34 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               FKKNV portál
             </Link>
             <nav className="flex flex-wrap gap-4 text-sm">
-              {items.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={
-                    pathname === item.href ? 'font-semibold text-white' : 'text-club-200 hover:text-white'
-                  }
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {items.map((item) => {
+                const highlightRegs = item.href === '/portal/registracie' && pendingRegs > 0;
+                if (highlightRegs) {
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="inline-flex items-center gap-1 rounded-full bg-brandred-500 px-3 py-0.5 font-semibold text-white shadow-sm hover:bg-brandred-600"
+                    >
+                      {item.label}
+                      <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-white px-1 text-xs font-bold text-brandred-600">
+                        {pendingRegs}
+                      </span>
+                    </Link>
+                  );
+                }
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={
+                      pathname === item.href ? 'font-semibold text-white' : 'text-club-200 hover:text-white'
+                    }
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
             </nav>
           </div>
           <div className="flex items-center gap-4 text-sm">
