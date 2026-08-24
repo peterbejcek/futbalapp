@@ -1,5 +1,6 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../notifications/email.service';
 import { isStaff } from '../auth/scope';
 import type { AuthUser } from '../auth/current-user.decorator';
 
@@ -12,10 +13,15 @@ interface TaskInput {
 }
 
 const ASSIGN_ROLES = ['ADMIN', 'MANAGER', 'COACH'] as const;
+const ROLE_LABELS: Record<string, string> = { ADMIN: 'Admin', MANAGER: 'Vedúci klubu', COACH: 'Tréneri' };
 
 @Injectable()
 export class TasksService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(TasksService.name);
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly email: EmailService,
+  ) {}
 
   /** Členovia s funkciou (Admin/Vedúci/Tréner) na priradenie úlohy. */
   async assignees() {
@@ -74,7 +80,7 @@ export class TasksService {
     if (!title) throw new BadRequestException('Zadajte názov úlohy');
     const assigneeRole =
       input.assigneeRole && ASSIGN_ROLES.includes(input.assigneeRole as never) ? input.assigneeRole : null;
-    await this.prisma.task.create({
+    const task = await this.prisma.task.create({
       data: {
         title,
         description: input.description?.trim() || null,
@@ -84,7 +90,57 @@ export class TasksService {
         createdById: user.id,
       },
     });
+    // notifikácia e-mailom tomu, kto má úlohu splniť (nezablokuje vytvorenie pri chybe)
+    this.notifyAssignees(task, user.id).catch((e) =>
+      this.logger.warn(`Notifikácia úlohy zlyhala: ${e instanceof Error ? e.message : e}`),
+    );
     return { created: true };
+  }
+
+  /** Odošle e-mail o novej úlohe priradenému členovi, alebo všetkým s danou funkciou. */
+  private async notifyAssignees(
+    task: { id: string; title: string; description: string | null; dueDate: Date | null; assigneeUserId: string | null; assigneeRole: string | null },
+    createdById: string,
+  ) {
+    let recipients: string[] = [];
+    let target = '';
+    if (task.assigneeUserId) {
+      const u = await this.prisma.user.findUnique({
+        where: { id: task.assigneeUserId },
+        select: { email: true, firstName: true, lastName: true },
+      });
+      if (u?.email) recipients = [u.email];
+      target = u ? `${u.firstName} ${u.lastName}`.trim() : '';
+    } else if (task.assigneeRole) {
+      const roles = await this.prisma.userRole.findMany({
+        where: { role: task.assigneeRole as never },
+        select: { user: { select: { email: true } } },
+      });
+      recipients = [...new Set(roles.map((r) => r.user.email).filter((e): e is string => !!e))];
+      target = ROLE_LABELS[task.assigneeRole] ?? task.assigneeRole;
+    }
+    if (recipients.length === 0) return;
+
+    const creator = await this.prisma.user.findUnique({
+      where: { id: createdById },
+      select: { firstName: true, lastName: true },
+    });
+    const creatorName = creator ? `${creator.firstName} ${creator.lastName}`.trim() : 'vedenie';
+    const due = task.dueDate
+      ? task.dueDate.toLocaleDateString('sk-SK', { timeZone: 'UTC' })
+      : null;
+
+    const esc = (s: string) => s.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const html = `
+      <div style="font-family:Arial,Helvetica,sans-serif;color:#16223c">
+        <h2 style="color:#1a2848">Nová úloha${target ? ` pre: ${esc(target)}` : ''}</h2>
+        <p style="font-size:16px;font-weight:bold">${esc(task.title)}</p>
+        ${task.description ? `<p style="white-space:pre-wrap">${esc(task.description)}</p>` : ''}
+        ${due ? `<p><strong>Termín:</strong> ${due}</p>` : ''}
+        <p style="color:#6b7280">Zadal: ${esc(creatorName)}</p>
+        <p><a href="https://fkknv.sk/portal/ulohy" style="color:#2b4278">Otvoriť úlohy v portáli →</a></p>
+      </div>`;
+    await this.email.send(recipients, `Nová úloha: ${task.title}`, html);
   }
 
   async setDone(id: string, done: boolean, user: AuthUser) {
