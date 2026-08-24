@@ -235,6 +235,24 @@ model TeamTransferRequest {
   @@index([memberId])
 }
 
+/// Úloha pre vedenie/trénerov. Priradená buď konkrétnemu členovi (assigneeUserId),
+/// alebo celej funkcii (assigneeRole = ADMIN | MANAGER | COACH).
+model Task {
+  id             String    @id @default(cuid())
+  title          String
+  description    String?
+  dueDate        DateTime?
+  done           Boolean   @default(false)
+  doneAt         DateTime?
+  doneById       String?
+  createdById    String
+  assigneeUserId String?
+  assigneeRole   String?
+  createdAt      DateTime  @default(now())
+
+  @@index([done])
+}
+
 // ---------------------------------------------------------------------------
 // Sezóny a kategórie
 // ---------------------------------------------------------------------------

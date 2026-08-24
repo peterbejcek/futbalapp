@@ -246,4 +246,58 @@ export class EventsService {
       }))
       .sort((a, b) => b.pct - a.pct);
   }
+
+  /**
+   * Dochádzkový list družstva za zvolený mesiac: stĺpce = tréningy (dátumy),
+   * riadky = hráči, bunka = stav na tréningu; posledný stĺpec = súhrn počtov.
+   * `month` je vo formáte "YYYY-MM"; čas tréningov je vedený ako UTC wall-clock.
+   */
+  async attendanceSheet(teamId: string, month: string) {
+    const match = /^(\d{4})-(\d{2})$/.exec(month);
+    if (!match) throw new BadRequestException('Neplatný mesiac (očakáva YYYY-MM)');
+    const year = Number(match[1]);
+    const mon = Number(match[2]); // 1-12
+    const from = new Date(Date.UTC(year, mon - 1, 1, 0, 0, 0));
+    const to = new Date(Date.UTC(year, mon, 1, 0, 0, 0)); // začiatok ďalšieho mesiaca
+
+    const trainings = await this.prisma.event.findMany({
+      where: { teamId, type: 'TRAINING', startAt: { gte: from, lt: to } },
+      select: { id: true, startAt: true },
+      orderBy: { startAt: 'asc' },
+    });
+
+    const eventIds = trainings.map((t) => t.id);
+    const attendances = eventIds.length
+      ? await this.prisma.attendance.findMany({
+          where: { eventId: { in: eventIds } },
+          include: { member: { select: { id: true, firstName: true, lastName: true } } },
+        })
+      : [];
+
+    const STATUSES = ['PRESENT', 'ABSENT', 'EXCUSED', 'INJURED', 'SICK'] as const;
+    const members = new Map<
+      string,
+      { id: string; firstName: string; lastName: string; cells: Record<string, string>; summary: Record<string, number> }
+    >();
+    for (const a of attendances) {
+      let m = members.get(a.memberId);
+      if (!m) {
+        m = {
+          id: a.member.id,
+          firstName: a.member.firstName,
+          lastName: a.member.lastName,
+          cells: {},
+          summary: Object.fromEntries(STATUSES.map((s) => [s, 0])),
+        };
+        members.set(a.memberId, m);
+      }
+      m.cells[a.eventId] = a.status;
+      if (a.status !== 'UNKNOWN' && a.status in m.summary) m.summary[a.status]!++;
+    }
+
+    const rows = [...members.values()].sort((x, y) =>
+      `${x.lastName} ${x.firstName}`.localeCompare(`${y.lastName} ${y.firstName}`, 'sk'),
+    );
+    return { trainings, rows };
+  }
 }

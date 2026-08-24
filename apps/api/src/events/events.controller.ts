@@ -83,6 +83,15 @@ export class EventsController {
     return this.eventsService.teamAttendanceStats(teamId);
   }
 
+  /** Dochádzkový list družstva za mesiac (YYYY-MM) — vedenie a tréner daného družstva. */
+  @Get('attendance-sheet')
+  @Roles('ADMIN', 'MANAGER', 'COACH')
+  attendanceSheet(@Query('team') teamId: string, @Query('month') month: string, @CurrentUser() user: AuthUser) {
+    if (!teamId) throw new ForbiddenException('Vyberte družstvo');
+    if (!canManageTeam(user, teamId)) throw new ForbiddenException('Toto družstvo nemôžete zobraziť');
+    return this.eventsService.attendanceSheet(teamId, month);
+  }
+
   @Get(':id/attendance')
   attendance(@Param('id') eventId: string) {
     return this.eventsService.attendance(eventId);
