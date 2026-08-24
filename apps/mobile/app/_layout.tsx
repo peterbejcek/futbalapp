@@ -1,8 +1,22 @@
-import { Stack } from 'expo-router';
+import { useEffect } from 'react';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as Notifications from 'expo-notifications';
 import { colors } from '@/theme';
 
 export default function RootLayout() {
+  const router = useRouter();
+
+  // otvorenie príslušnej obrazovky po klepnutí na notifikáciu
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as { type?: string; channelId?: string };
+      if (data?.type === 'task') router.push('/tasks');
+      else if (data?.type === 'chat' && data.channelId) router.push(`/chat/${data.channelId}`);
+    });
+    return () => sub.remove();
+  }, [router]);
+
   return (
     <>
       <StatusBar style="light" />

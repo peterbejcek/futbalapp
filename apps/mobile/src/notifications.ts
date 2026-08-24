@@ -4,6 +4,16 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { api } from './api';
 
+// Zobraz notifikáciu (banner + zvuk) aj keď je appka otvorená v popredí.
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
 /**
  * Registrácia zariadenia na push notifikácie (nové správy, nominácie,
  * upomienky). Volá sa po prihlásení; na simulátore/webe ticho preskočí.

@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../notifications/email.service';
+import { PushService } from '../notifications/push.service';
 import { isStaff } from '../auth/scope';
 import type { AuthUser } from '../auth/current-user.decorator';
 
@@ -21,6 +22,7 @@ export class TasksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly email: EmailService,
+    private readonly push: PushService,
   ) {}
 
   /** Členovia s funkciou (Admin/Vedúci/Tréner) na priradenie úlohy. */
@@ -102,23 +104,38 @@ export class TasksService {
     task: { id: string; title: string; description: string | null; dueDate: Date | null; assigneeUserId: string | null; assigneeRole: string | null },
     createdById: string,
   ) {
-    let recipients: string[] = [];
+    let userIds: string[] = [];
     let target = '';
     if (task.assigneeUserId) {
+      userIds = [task.assigneeUserId];
       const u = await this.prisma.user.findUnique({
         where: { id: task.assigneeUserId },
-        select: { email: true, firstName: true, lastName: true },
+        select: { firstName: true, lastName: true },
       });
-      if (u?.email) recipients = [u.email];
       target = u ? `${u.firstName} ${u.lastName}`.trim() : '';
     } else if (task.assigneeRole) {
       const roles = await this.prisma.userRole.findMany({
         where: { role: task.assigneeRole as never },
-        select: { user: { select: { email: true } } },
+        select: { userId: true },
       });
-      recipients = [...new Set(roles.map((r) => r.user.email).filter((e): e is string => !!e))];
+      userIds = [...new Set(roles.map((r) => r.userId))];
       target = ROLE_LABELS[task.assigneeRole] ?? task.assigneeRole;
     }
+    if (userIds.length === 0) return;
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { email: true },
+    });
+    const recipients = [...new Set(users.map((u) => u.email).filter((e): e is string => !!e))];
+
+    // push notifikácia do aplikácie
+    void this.push.notifyUsers(userIds, {
+      title: 'Nová úloha',
+      body: target ? `${task.title} — ${target}` : task.title,
+      data: { type: 'task' },
+    });
+
     if (recipients.length === 0) return;
 
     const creator = await this.prisma.user.findUnique({
