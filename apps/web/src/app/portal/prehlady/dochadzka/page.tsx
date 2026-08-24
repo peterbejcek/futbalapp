@@ -88,7 +88,7 @@ export default function AttendanceReportPage() {
   return (
     <div className="space-y-5">
       <Link href="/portal/prehlady" className="text-sm text-club-600 hover:underline">
-        ← Prehľady
+        ← Štatistiky
       </Link>
       <h1 className="text-2xl font-bold text-club-900">Dochádzkový list</h1>
 

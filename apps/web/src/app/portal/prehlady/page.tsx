@@ -18,7 +18,7 @@ const TILES: TileDef[] = [
 export default function ReportsPage() {
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-club-900">Prehľady</h1>
+      <h1 className="text-2xl font-bold text-club-900">Štatistiky</h1>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {TILES.map((t) => {
           const inner = (

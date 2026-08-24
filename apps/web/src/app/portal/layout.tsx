@@ -7,24 +7,33 @@ import { useEffect, useState } from 'react';
 import { api, getToken, setToken } from '@/lib/api';
 import { canManage, isStaff, useMe } from '@/lib/auth';
 
-interface NavItem {
+type Ctx = { staff: boolean; manage: boolean };
+interface Leaf {
   href: string;
   label: string;
-  show: (ctx: { staff: boolean; manage: boolean }) => boolean;
+  show: (ctx: Ctx) => boolean;
 }
+type Entry = ({ kind: 'leaf' } & Leaf) | { kind: 'group'; label: string; children: Leaf[] };
 
-const navigation: NavItem[] = [
-  { href: '/portal', label: 'Prehľad', show: () => true },
-  { href: '/portal/clenovia', label: 'Členovia', show: ({ manage }) => manage },
-  { href: '/portal/udalosti', label: 'Kalendár', show: () => true },
-  { href: '/portal/tabulka', label: 'Tabuľka', show: () => true },
-  { href: '/portal/prehlady', label: 'Prehľady', show: ({ manage }) => manage },
-  { href: '/portal/ulohy', label: 'Úlohy', show: ({ manage }) => manage },
-  { href: '/portal/platby', label: 'Platby', show: ({ staff }) => staff },
-  { href: '/portal/registracie', label: 'Registrácie', show: ({ staff }) => staff },
-  { href: '/portal/chat', label: 'Komunikácia', show: () => true },
-  { href: '/portal/prispevok', label: 'Príspevok', show: () => true },
-  { href: '/portal/nastavenia', label: 'Nastavenia', show: ({ staff }) => staff },
+// Poradie a zoskupenie hlavného menu.
+const navigation: Entry[] = [
+  { kind: 'leaf', href: '/portal', label: 'Prehľad', show: () => true },
+  {
+    kind: 'group',
+    label: 'Klub',
+    children: [
+      { href: '/portal/clenovia', label: 'Členovia', show: ({ manage }) => manage },
+      { href: '/portal/registracie', label: 'Registrácie', show: ({ staff }) => staff },
+      { href: '/portal/platby', label: 'Platby', show: ({ staff }) => staff },
+      { href: '/portal/prispevok', label: 'Príspevok', show: () => true },
+      { href: '/portal/nastavenia', label: 'Nastavenia', show: ({ staff }) => staff },
+    ],
+  },
+  { kind: 'leaf', href: '/portal/udalosti', label: 'Kalendár', show: () => true },
+  { kind: 'leaf', href: '/portal/tabulka', label: 'Tabuľka', show: () => true },
+  { kind: 'leaf', href: '/portal/prehlady', label: 'Štatistiky', show: ({ manage }) => manage },
+  { kind: 'leaf', href: '/portal/ulohy', label: 'Úlohy', show: ({ manage }) => manage },
+  { kind: 'leaf', href: '/portal/chat', label: 'Komunikácia', show: () => true },
 ];
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
@@ -32,13 +41,14 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const pathname = usePathname();
   const { me } = useMe();
   const [pendingRegs, setPendingRegs] = useState(0);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
 
   useEffect(() => {
     if (!getToken()) router.replace('/prihlasenie');
   }, [router]);
 
   const staff = isStaff(me);
-  // počet nevybavených registrácií — na zvýraznenie položky menu
+  // počet nevybavených registrácií — na zvýraznenie
   useEffect(() => {
     if (!staff) return;
     api<Array<{ id: string }>>('/registration/pending')
@@ -46,45 +56,84 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       .catch(() => {});
   }, [staff, pathname]);
 
-  const ctx = { staff, manage: canManage(me) };
-  const items = navigation.filter((item) => item.show(ctx));
+  // zavri rozbalené menu pri prechode na inú stránku
+  useEffect(() => {
+    setOpenGroup(null);
+  }, [pathname]);
+
+  const ctx: Ctx = { staff, manage: canManage(me) };
+  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+
+  const flatCls = (active: boolean) =>
+    active ? 'font-semibold text-white' : 'text-club-200 hover:text-white';
 
   return (
     <div className="min-h-screen bg-club-50">
-      <header className="bg-club-900 text-white">
+      <header className="relative bg-club-900 text-white">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-6 py-3">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             <Link href="/portal" className="flex items-center gap-2 font-semibold">
               <Image src="/logo.png" alt="FKKNV" width={24} height={38} className="h-8 w-auto" />
               FKKNV portál
             </Link>
-            <nav className="flex flex-wrap gap-4 text-sm">
-              {items.map((item) => {
-                const highlightRegs = item.href === '/portal/registracie' && pendingRegs > 0;
-                if (highlightRegs) {
+            <nav className="flex flex-wrap items-center gap-4 text-sm">
+              {navigation.map((entry) => {
+                if (entry.kind === 'leaf') {
+                  if (!entry.show(ctx)) return null;
                   return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className="inline-flex items-center gap-1 rounded-full bg-brandred-500 px-3 py-0.5 font-semibold text-white shadow-sm hover:bg-brandred-600"
-                    >
-                      {item.label}
-                      <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-white px-1 text-xs font-bold text-brandred-600">
-                        {pendingRegs}
-                      </span>
+                    <Link key={entry.href} href={entry.href} className={flatCls(isActive(entry.href))}>
+                      {entry.label}
                     </Link>
                   );
                 }
+
+                // group (dropdown)
+                const children = entry.children.filter((c) => c.show(ctx));
+                if (children.length === 0) return null;
+                const groupActive = children.some((c) => isActive(c.href));
+                const groupBadge = children.some((c) => c.href === '/portal/registracie') && pendingRegs > 0 ? pendingRegs : 0;
+                const open = openGroup === entry.label;
                 return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={
-                      pathname === item.href ? 'font-semibold text-white' : 'text-club-200 hover:text-white'
-                    }
-                  >
-                    {item.label}
-                  </Link>
+                  <div key={entry.label} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setOpenGroup(open ? null : entry.label)}
+                      className={`inline-flex items-center gap-1 ${
+                        groupActive || open ? 'font-semibold text-white' : 'text-club-200 hover:text-white'
+                      }`}
+                    >
+                      {entry.label}
+                      {groupBadge > 0 && (
+                        <span className="inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-brandred-500 px-1 text-xs font-bold text-white">
+                          {groupBadge}
+                        </span>
+                      )}
+                      <span className="text-[0.6rem]">▾</span>
+                    </button>
+                    {open && (
+                      <div className="absolute left-0 top-full z-40 mt-2 min-w-[12rem] overflow-hidden rounded-md border border-club-100 bg-white py-1 text-club-800 shadow-lg">
+                        {children.map((c) => {
+                          const showBadge = c.href === '/portal/registracie' && pendingRegs > 0;
+                          return (
+                            <Link
+                              key={c.href}
+                              href={c.href}
+                              className={`flex items-center justify-between gap-3 px-4 py-2 text-sm hover:bg-club-50 ${
+                                isActive(c.href) ? 'bg-club-50 font-semibold text-club-900' : ''
+                              }`}
+                            >
+                              {c.label}
+                              {showBadge && (
+                                <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-brandred-500 px-1 text-xs font-bold text-white">
+                                  {pendingRegs}
+                                </span>
+                              )}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </nav>
@@ -106,6 +155,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             </button>
           </div>
         </div>
+        {/* podklad na zatvorenie rozbaleného menu klikom mimo */}
+        {openGroup && <button type="button" aria-hidden className="fixed inset-0 z-30 cursor-default" onClick={() => setOpenGroup(null)} />}
       </header>
       <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
     </div>
