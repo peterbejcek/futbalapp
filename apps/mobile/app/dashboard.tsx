@@ -158,9 +158,14 @@ export default function DashboardScreen() {
           <Text style={styles.topBtnText}>📊 Štatistiky</Text>
         </Pressable>
         {canManage(me) && (
-          <Pressable style={[styles.topBtn, { backgroundColor: colors.club600 }]} onPress={() => router.push('/event/new')}>
-            <Text style={styles.topBtnText}>＋ Udalosť</Text>
-          </Pressable>
+          <>
+            <Pressable style={[styles.topBtn, { backgroundColor: colors.club600 }]} onPress={() => router.push('/event/new')}>
+              <Text style={styles.topBtnText}>＋ Udalosť</Text>
+            </Pressable>
+            <Pressable style={[styles.topBtn, { backgroundColor: colors.club800 }]} onPress={() => router.push('/tasks')}>
+              <Text style={styles.topBtnText}>✅ Úlohy</Text>
+            </Pressable>
+          </>
         )}
       </View>
 
@@ -403,8 +408,8 @@ const styles = StyleSheet.create({
   teamRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   teamLogo: { width: 26, height: 26, resizeMode: 'contain' },
   teamName: { fontSize: 15, fontWeight: '600', color: colors.club900, flexShrink: 1 },
-  topRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  topBtn: { flex: 1, borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
+  topRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  topBtn: { flexGrow: 1, flexBasis: '30%', borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
   topBtnText: { color: colors.white, fontWeight: '700', fontSize: 13 },
   viewToggle: {
     flexDirection: 'row',

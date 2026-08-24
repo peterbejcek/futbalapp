@@ -17,6 +17,7 @@ export default function RootLayout() {
         <Stack.Screen name="event/new" options={{ title: 'Nová udalosť' }} />
         <Stack.Screen name="event/[id]/attendance" options={{ title: 'Dochádzka' }} />
         <Stack.Screen name="statistics" options={{ title: 'Štatistiky' }} />
+        <Stack.Screen name="tasks/index" options={{ title: 'Úlohy' }} />
         <Stack.Screen name="match/[id]/index" options={{ title: 'Zápas' }} />
         <Stack.Screen name="match/[id]/nomination" options={{ title: 'Nominácia' }} />
         <Stack.Screen name="chat/index" options={{ title: 'Kanály' }} />
