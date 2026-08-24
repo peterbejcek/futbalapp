@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { categoryColor, formatEventDateTimeSk } from '@fkknv/shared';
-import { coachTeams, isParent, isPlayer, isStaff, useMe } from '@/lib/auth';
+import { canManage, coachTeams, isParent, isPlayer, isStaff, useMe } from '@/lib/auth';
 import { Card } from '@/components/ui';
 
 interface EventItem {
@@ -104,6 +104,31 @@ export default function DashboardPage() {
                 : 'Váš prehľad.'}
         </p>
       </div>
+
+      {canManage(me) && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Link
+            href="/portal/prehlady/dochadzka"
+            className="flex items-center gap-3 rounded-lg border border-club-100 bg-white p-4 shadow-sm hover:border-club-300"
+          >
+            <span className="text-2xl">📋</span>
+            <span>
+              <span className="block font-semibold text-club-800">Dochádzka</span>
+              <span className="block text-xs text-gray-500">Dochádzkový list družstva za mesiac</span>
+            </span>
+          </Link>
+          <Link
+            href="/portal/ulohy"
+            className="flex items-center gap-3 rounded-lg border border-club-100 bg-white p-4 shadow-sm hover:border-club-300"
+          >
+            <span className="text-2xl">✅</span>
+            <span>
+              <span className="block font-semibold text-club-800">Úlohy</span>
+              <span className="block text-xs text-gray-500">Zadania a ich plnenie</span>
+            </span>
+          </Link>
+        </div>
+      )}
 
       {staff && <StaffTiles />}
       <MatchConfirmations />
