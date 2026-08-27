@@ -250,7 +250,22 @@ model Task {
   assigneeRole   String?
   createdAt      DateTime  @default(now())
 
+  comments TaskComment[]
+
   @@index([done])
+}
+
+/// Komentár k úlohe (tréner/vedúci/admin).
+model TaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  userId    String
+  body      String
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
 }
 
 // ---------------------------------------------------------------------------

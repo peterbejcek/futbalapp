@@ -15,6 +15,7 @@ interface TaskInput {
 
 const ASSIGN_ROLES = ['ADMIN', 'MANAGER', 'COACH'] as const;
 const ROLE_LABELS: Record<string, string> = { ADMIN: 'Admin', MANAGER: 'Vedúci klubu', COACH: 'Tréneri' };
+const isAdmin = (user: AuthUser) => user.roles.some((r) => r.role === 'ADMIN');
 
 @Injectable()
 export class TasksService {
@@ -44,8 +45,11 @@ export class TasksService {
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'sk'));
   }
 
-  async list() {
-    const tasks = await this.prisma.task.findMany({ orderBy: [{ done: 'asc' }, { createdAt: 'desc' }] });
+  async list(user: AuthUser) {
+    const tasks = await this.prisma.task.findMany({
+      orderBy: [{ done: 'asc' }, { createdAt: 'desc' }],
+      include: { _count: { select: { comments: true } } },
+    });
     const userIds = [
       ...new Set(tasks.flatMap((t) => [t.createdById, t.assigneeUserId, t.doneById].filter((x): x is string => !!x))),
     ];
@@ -54,6 +58,7 @@ export class TasksService {
       select: { id: true, firstName: true, lastName: true },
     });
     const nameOf = new Map(users.map((u) => [u.id, `${u.lastName} ${u.firstName}`.trim()]));
+    const admin = isAdmin(user);
 
     const withDue = tasks.filter((t) => t.dueDate);
     const noDue = tasks.filter((t) => !t.dueDate);
@@ -74,7 +79,38 @@ export class TasksService {
       assigneeName: t.assigneeUserId ? nameOf.get(t.assigneeUserId) ?? null : null,
       assigneeRole: t.assigneeRole,
       createdAt: t.createdAt,
+      commentCount: t._count.comments,
+      // splniť môže len zadávateľ; odstrániť admin alebo zadávateľ
+      canComplete: t.createdById === user.id,
+      canDelete: admin || t.createdById === user.id,
     }));
+  }
+
+  async listComments(taskId: string) {
+    const comments = await this.prisma.taskComment.findMany({
+      where: { taskId },
+      orderBy: { createdAt: 'asc' },
+    });
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: [...new Set(comments.map((c) => c.userId))] } },
+      select: { id: true, firstName: true, lastName: true },
+    });
+    const nameOf = new Map(users.map((u) => [u.id, `${u.lastName} ${u.firstName}`.trim()]));
+    return comments.map((c) => ({
+      id: c.id,
+      body: c.body,
+      authorName: nameOf.get(c.userId) ?? '—',
+      createdAt: c.createdAt,
+    }));
+  }
+
+  async addComment(taskId: string, body: string, user: AuthUser) {
+    const text = body?.trim();
+    if (!text) throw new BadRequestException('Zadajte text komentára');
+    const task = await this.prisma.task.findUnique({ where: { id: taskId } });
+    if (!task) throw new NotFoundException('Úloha neexistuje');
+    await this.prisma.taskComment.create({ data: { taskId, userId: user.id, body: text.slice(0, 4000) } });
+    return { created: true };
   }
 
   async create(input: TaskInput, user: AuthUser) {
@@ -163,6 +199,9 @@ export class TasksService {
   async setDone(id: string, done: boolean, user: AuthUser) {
     const task = await this.prisma.task.findUnique({ where: { id } });
     if (!task) throw new NotFoundException('Úloha neexistuje');
+    if (task.createdById !== user.id) {
+      throw new ForbiddenException('Úlohu môže označiť za splnenú len jej zadávateľ');
+    }
     return this.prisma.task.update({
       where: { id },
       data: { done, doneAt: done ? new Date() : null, doneById: done ? user.id : null },
@@ -193,8 +232,8 @@ export class TasksService {
   async remove(id: string, user: AuthUser) {
     const task = await this.prisma.task.findUnique({ where: { id } });
     if (!task) throw new NotFoundException('Úloha neexistuje');
-    if (!isStaff(user) && task.createdById !== user.id) {
-      throw new ForbiddenException('Úlohu môže odstrániť len jej autor alebo vedenie');
+    if (!isAdmin(user) && task.createdById !== user.id) {
+      throw new ForbiddenException('Úlohu môže odstrániť len admin alebo jej zadávateľ');
     }
     await this.prisma.task.delete({ where: { id } });
     return { deleted: true };

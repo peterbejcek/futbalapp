@@ -17,13 +17,23 @@ export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
   @Get()
-  list() {
-    return this.tasksService.list();
+  list(@CurrentUser() user: AuthUser) {
+    return this.tasksService.list(user);
   }
 
   @Get('assignees')
   assignees() {
     return this.tasksService.assignees();
+  }
+
+  @Get(':id/comments')
+  comments(@Param('id') id: string) {
+    return this.tasksService.listComments(id);
+  }
+
+  @Post(':id/comments')
+  addComment(@Param('id') id: string, @Body() body: { body: string }, @CurrentUser() user: AuthUser) {
+    return this.tasksService.addComment(id, body?.body ?? '', user);
   }
 
   @Post()

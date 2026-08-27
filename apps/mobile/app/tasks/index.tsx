@@ -25,6 +25,9 @@ interface Task {
   assigneeName: string | null;
   assigneeRole: string | null;
   createdAt: string;
+  commentCount: number;
+  canComplete: boolean;
+  canDelete: boolean;
 }
 interface Assignee {
   userId: string;
@@ -61,6 +64,10 @@ export default function TasksScreen() {
   }, [load]);
 
   async function toggle(t: Task) {
+    if (!t.canComplete) {
+      Alert.alert('Nemožné', 'Označiť úlohu za splnenú môže len jej zadávateľ.');
+      return;
+    }
     setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, done: !x.done } : x)));
     try {
       await api(`/tasks/${t.id}/done`, { method: 'POST', body: JSON.stringify({ done: !t.done }) });
@@ -71,7 +78,7 @@ export default function TasksScreen() {
   }
 
   function remove(t: Task) {
-    Alert.alert('Odstrániť úlohu', `Odstrániť „${t.title}"?`, [
+    Alert.alert('Odstrániť úlohu', t.done ? `Odstrániť „${t.title}"?` : 'Úloha ešte nie je dokončená, naozaj odstrániť?', [
       { text: 'Zrušiť', style: 'cancel' },
       {
         text: 'Odstrániť',
@@ -103,7 +110,7 @@ export default function TasksScreen() {
           const overdue = !t.done && t.dueDate && new Date(t.dueDate) < new Date(new Date().toDateString());
           return (
             <View style={[styles.card, t.done && styles.cardDone]}>
-              <Pressable style={styles.checkbox} onPress={() => toggle(t)}>
+              <Pressable style={[styles.checkbox, !t.canComplete && styles.checkboxDisabled]} onPress={() => toggle(t)}>
                 <Text style={styles.checkboxMark}>{t.done ? '✓' : ''}</Text>
               </Pressable>
               <View style={styles.cardBody}>
@@ -117,12 +124,15 @@ export default function TasksScreen() {
                       {overdue ? ' · po termíne' : ''}
                     </Text>
                   ) : null}
+                  {t.commentCount > 0 ? <Text style={styles.meta}>💬 {t.commentCount}</Text> : null}
                 </View>
                 {t.createdByName ? <Text style={styles.metaSmall}>zadal: {t.createdByName}</Text> : null}
               </View>
-              <Pressable onPress={() => remove(t)} hitSlop={8}>
-                <Text style={styles.remove}>✕</Text>
-              </Pressable>
+              {t.canDelete ? (
+                <Pressable onPress={() => remove(t)} hitSlop={8}>
+                  <Text style={styles.remove}>✕</Text>
+                </Pressable>
+              ) : null}
             </View>
           );
         }}
@@ -275,6 +285,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 2,
   },
+  checkboxDisabled: { borderColor: colors.club100, opacity: 0.6 },
   checkboxMark: { color: colors.club600, fontWeight: '900', fontSize: 15 },
   cardBody: { flex: 1 },
   title: { fontSize: 16, fontWeight: '700', color: colors.club900 },

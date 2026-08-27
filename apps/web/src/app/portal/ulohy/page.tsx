@@ -16,6 +16,15 @@ interface Task {
   assigneeName: string | null;
   assigneeRole: string | null;
   createdAt: string;
+  commentCount: number;
+  canComplete: boolean;
+  canDelete: boolean;
+}
+interface Comment {
+  id: string;
+  body: string;
+  authorName: string;
+  createdAt: string;
 }
 interface Assignee {
   userId: string;
@@ -56,6 +65,7 @@ export default function TasksPage() {
   }, [load]);
 
   async function toggle(t: Task) {
+    if (!t.canComplete) return;
     setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, done: !x.done } : x)));
     try {
       await api(`/tasks/${t.id}/done`, { method: 'POST', body: JSON.stringify({ done: !t.done }) });
@@ -67,7 +77,8 @@ export default function TasksPage() {
   }
 
   async function remove(t: Task) {
-    if (!confirm(`Odstrániť úlohu „${t.title}"?`)) return;
+    const msg = t.done ? `Odstrániť úlohu „${t.title}"?` : 'Úloha ešte nie je dokončená, naozaj odstrániť?';
+    if (!confirm(msg)) return;
     try {
       await api(`/tasks/${t.id}`, { method: 'DELETE' });
       await load();
@@ -120,10 +131,18 @@ export default function TasksPage() {
 
 function TaskRow({ task, onToggle, onRemove }: { task: Task; onToggle: () => void; onRemove: () => void }) {
   const overdue = !task.done && task.dueDate && new Date(task.dueDate) < new Date(new Date().toDateString());
+  const [showComments, setShowComments] = useState(false);
   return (
     <Card className={task.done ? 'opacity-60' : ''}>
       <div className="flex items-start gap-3">
-        <input type="checkbox" checked={task.done} onChange={onToggle} className="mt-1 h-5 w-5 shrink-0" />
+        <input
+          type="checkbox"
+          checked={task.done}
+          onChange={onToggle}
+          disabled={!task.canComplete}
+          title={task.canComplete ? 'Označiť splnené' : 'Označiť splnené môže len zadávateľ úlohy'}
+          className="mt-1 h-5 w-5 shrink-0 disabled:cursor-not-allowed"
+        />
         <div className="min-w-0 flex-1">
           <p className={`font-semibold text-club-900 ${task.done ? 'line-through' : ''}`}>{task.title}</p>
           {task.description && <p className="mt-0.5 whitespace-pre-wrap text-sm text-gray-600">{task.description}</p>}
@@ -138,12 +157,77 @@ function TaskRow({ task, onToggle, onRemove }: { task: Task; onToggle: () => voi
             {task.createdByName && <span>zadal: {task.createdByName}</span>}
             {task.done && task.doneByName && <span>splnil: {task.doneByName}</span>}
           </div>
+          <button
+            onClick={() => setShowComments((s) => !s)}
+            className="mt-2 text-xs font-medium text-club-600 hover:underline"
+          >
+            💬 Komentáre{task.commentCount > 0 ? ` (${task.commentCount})` : ''} {showComments ? '▴' : '▾'}
+          </button>
+          {showComments && <Comments taskId={task.id} />}
         </div>
-        <button onClick={onRemove} title="Odstrániť" className="shrink-0 text-gray-400 hover:text-red-600">
-          ✕
-        </button>
+        {task.canDelete && (
+          <button onClick={onRemove} title="Odstrániť" className="shrink-0 text-gray-400 hover:text-red-600">
+            ✕
+          </button>
+        )}
       </div>
     </Card>
+  );
+}
+
+function Comments({ taskId }: { taskId: string }) {
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    api<Comment[]>(`/tasks/${taskId}/comments`).then(setComments).catch(() => {});
+  }, [taskId]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function add() {
+    const body = text.trim();
+    if (!body) return;
+    setBusy(true);
+    try {
+      await api(`/tasks/${taskId}/comments`, { method: 'POST', body: JSON.stringify({ body }) });
+      setText('');
+      load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 space-y-2 rounded-md border border-club-100 bg-club-50/40 p-3">
+      {comments.length === 0 ? (
+        <p className="text-xs text-gray-400">Zatiaľ žiadne komentáre.</p>
+      ) : (
+        comments.map((c) => (
+          <div key={c.id} className="text-sm">
+            <span className="font-semibold text-club-800">{c.authorName}</span>{' '}
+            <span className="text-xs text-gray-400">
+              {new Date(c.createdAt).toLocaleString('sk-SK', { dateStyle: 'short', timeStyle: 'short' })}
+            </span>
+            <p className="whitespace-pre-wrap text-gray-700">{c.body}</p>
+          </div>
+        ))
+      )}
+      <div className="flex items-end gap-2">
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={2}
+          placeholder="Napíšte komentár…"
+          className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-club-500 focus:outline-none"
+        />
+        <Button variant="ghost" onClick={add} disabled={busy || !text.trim()}>
+          Pridať
+        </Button>
+      </div>
+    </div>
   );
 }
 
