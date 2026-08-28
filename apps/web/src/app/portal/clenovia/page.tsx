@@ -337,7 +337,7 @@ function MembersTable() {
                       {m.status === 'ACTIVE' ? 'Aktívny' : m.status === 'GUEST' ? 'Hosť' : 'Neaktívny'}
                     </span>
                     <button onClick={() => setEditing(m)} className="whitespace-nowrap text-club-600 hover:underline">
-                      Upraviť
+                      {staff ? 'Upraviť' : 'Detail'}
                     </button>
                   </div>
                 </td>
@@ -436,7 +436,16 @@ function MemberModal({
   const [socialCase, setSocialCase] = useState(member?.socialCase ?? false);
   const [licenseLevel, setLicenseLevel] = useState(member?.licenseLevel ?? '');
   const [healthNotes, setHealthNotes] = useState(member?.healthNotes ?? '');
-  const [teamIds, setTeamIds] = useState<string[]>(member?.memberships.map((m) => m.team.id) ?? []);
+  const [teamIds, setTeamIds] = useState<string[]>(() => {
+    const fromMemberships = member?.memberships.map((m) => m.team.id) ?? [];
+    // tréner: jeho družstvá sú scope na konte (COACH rola s teamId), nie hráčske zaradenie
+    const fromCoach =
+      member?.user?.roles.filter((r) => r.role === 'COACH' && r.teamId).map((r) => r.teamId as string) ?? [];
+    return [...new Set([...fromMemberships, ...fromCoach])];
+  });
+  const [homeClub, setHomeClub] = useState(member?.homeClub ?? '');
+  const [guestClub, setGuestClub] = useState(member?.guestClub ?? '');
+  const [clubAffiliation, setClubAffiliation] = useState(member?.clubAffiliation ?? '');
   const [roles, setRoles] = useState<string[]>(() => {
     const r = member?.user?.roles.map((x) => x.role) ?? [];
     // hráč bez explicitných rolí (má zaradenie do skupiny) → zvýrazni Hráč
@@ -507,6 +516,23 @@ function MemberModal({
     }
   }
 
+  // Admin: vygeneruj nové jednorazové heslo pre konto člena
+  async function regeneratePassword() {
+    if (!member) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api<{ email: string | null; tempPassword: string }>(`/members/${member.id}/reset-password`, {
+        method: 'POST',
+      });
+      setTempPassword(res.tempPassword);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Vygenerovanie hesla zlyhalo');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submit() {
     setBusy(true);
     setError(null);
@@ -521,6 +547,9 @@ function MemberModal({
       socialCase,
       licenseLevel: licenseLevel || undefined,
       healthNotes: healthNotes || undefined,
+      homeClub: homeClub || undefined,
+      guestClub: guestClub || undefined,
+      clubAffiliation: clubAffiliation || undefined,
       teamIds,
       roles,
       account: wantAccount && email ? { email } : undefined,
@@ -545,11 +574,11 @@ function MemberModal({
   // po vytvorení konta zobrazíme dočasné heslo (na odovzdanie), potom zavrieme
   if (tempPassword) {
     return (
-      <Modal open onClose={onDone} title="Konto vytvorené">
+      <Modal open onClose={onDone} title="Dočasné heslo">
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            Konto pre <strong>{email}</strong> bolo vytvorené. Odovzdajte používateľovi toto dočasné heslo — po
-            prihlásení si ho môže zmeniť:
+            Dočasné heslo pre <strong>{email}</strong>. Odovzdajte ho používateľovi — po prihlásení si ho môže
+            zmeniť:
           </p>
           <div className="rounded-md border border-club-200 bg-club-50 p-4 text-center">
             <code className="text-lg font-bold tracking-wider text-club-800">{tempPassword}</code>
@@ -557,6 +586,58 @@ function MemberModal({
           <p className="text-xs text-gray-500">Heslo sa zobrazí len teraz — poznačte si ho.</p>
           <div className="flex justify-end">
             <Button onClick={onDone}>Hotovo</Button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
+  // Tréner: hráča needituje — len náhľad + priradenie rodiča a žiadosť o presun
+  if (member && !staff) {
+    const clubs = [member.homeClub, member.guestClub, member.clubAffiliation].filter(Boolean);
+    return (
+      <Modal open onClose={onClose} title={`${member.lastName} ${member.firstName}`}>
+        <div className="space-y-3 text-sm">
+          <div className="space-y-1 rounded-md bg-club-50 p-3 text-gray-700">
+            <p>
+              <span className="text-gray-500">Družstvo: </span>
+              {member.memberships.map((m) => m.team.name).join(', ') || '—'}
+            </p>
+            <p>
+              <span className="text-gray-500">Funkcia: </span>
+              {memberFunctions(member).join(', ')}
+            </p>
+            {member.registrationNumber && (
+              <p>
+                <span className="text-gray-500">Reg. číslo: </span>
+                {member.registrationNumber}
+              </p>
+            )}
+            {clubs.length > 0 && (
+              <p>
+                <span className="text-gray-500">Kluby: </span>
+                {clubs.join(' · ')}
+              </p>
+            )}
+          </div>
+
+          {member.memberships.length > 0 && <GuardiansEditor childId={member.id} />}
+          {member.memberships.length > 0 && (
+            <TransferPlayer
+              memberId={member.id}
+              teams={teams}
+              currentTeamIds={member.memberships.map((m) => m.team.id)}
+              onDone={onDone}
+            />
+          )}
+
+          <p className="text-xs text-gray-500">
+            Ako tréner môžete priradiť rodiča a požiadať o presun hráča. Údaje hráča upravuje vedenie klubu.
+          </p>
+          <div className="flex justify-end">
+            <Button variant="ghost" onClick={onClose}>
+              Zavrieť
+            </Button>
           </div>
         </div>
       </Modal>
@@ -610,6 +691,21 @@ function MemberModal({
             className={inputCls}
             placeholder="registračné číslo hráča"
           />
+        </div>
+        {/* Klubová príslušnosť (materský / hosťujúci klub) */}
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div>
+            <label className={labelCls}>Materský klub</label>
+            <input value={homeClub} onChange={(e) => setHomeClub(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Hosťujúci klub</label>
+            <input value={guestClub} onChange={(e) => setGuestClub(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Klubová príslušnosť</label>
+            <input value={clubAffiliation} onChange={(e) => setClubAffiliation(e.target.value)} className={inputCls} />
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -674,7 +770,14 @@ function MemberModal({
             <>
               <label className={labelCls}>Prihlasovací e-mail</label>
               <input value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
-              <p className="mt-1 text-xs text-gray-500">Konto už existuje. Zmena rolí sa uloží.</p>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-gray-500">Konto už existuje. Zmena rolí sa uloží.</p>
+                {canGrantAdmin && member && (
+                  <Button variant="ghost" onClick={regeneratePassword} disabled={busy}>
+                    🔑 Vygenerovať heslo
+                  </Button>
+                )}
+              </div>
             </>
           ) : needsAccount ? (
             <>

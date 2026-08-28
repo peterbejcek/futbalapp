@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { api, getToken, setToken } from '@/api';
 import { colors } from '@/theme';
@@ -38,6 +38,21 @@ export default function LoginScreen() {
     }
   }
 
+  async function onForgot() {
+    if (!email) {
+      setError('Zadajte e-mail a znova klepnite na „Zabudli ste heslo?".');
+      return;
+    }
+    setError(null);
+    try {
+      await api('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
+      setError(null);
+      Alert.alert('Obnovenie hesla', `Ak je e-mail ${email} v systéme, poslali sme naň odkaz na nové heslo. Skontrolujte aj spam.`);
+    } catch {
+      Alert.alert('Obnovenie hesla', 'Ak je e-mail v systéme, poslali sme naň odkaz.');
+    }
+  }
+
   if (checking) {
     return (
       <View style={styles.center}>
@@ -69,6 +84,9 @@ export default function LoginScreen() {
       <Pressable style={styles.button} onPress={onLogin} disabled={loading}>
         <Text style={styles.buttonText}>{loading ? 'Prihlasujem…' : 'Prihlásiť sa'}</Text>
       </Pressable>
+      <Pressable style={styles.forgotBtn} onPress={onForgot}>
+        <Text style={styles.forgotText}>Zabudli ste heslo?</Text>
+      </Pressable>
       <Pressable
         style={styles.registerBtn}
         onPress={() => Linking.openURL('https://fkknv.sk/registracia')}
@@ -96,6 +114,8 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, marginBottom: 12, textAlign: 'center' },
   button: { backgroundColor: colors.club600, borderRadius: 8, padding: 16, alignItems: 'center' },
   buttonText: { color: colors.white, fontWeight: '700', fontSize: 16 },
-  registerBtn: { marginTop: 14, padding: 12, alignItems: 'center' },
+  forgotBtn: { marginTop: 12, alignItems: 'center' },
+  forgotText: { color: colors.club600, fontSize: 14 },
+  registerBtn: { marginTop: 10, padding: 12, alignItems: 'center' },
   registerText: { color: colors.club700, fontWeight: '600', fontSize: 15, textDecorationLine: 'underline' },
 });
