@@ -256,8 +256,6 @@ function MembersTable() {
 
       <ErrorText>{error}</ErrorText>
 
-      <PendingTransfers />
-
       <div className="overflow-x-auto rounded-lg border border-club-100 bg-white">
         <table className="w-full text-sm">
           <thead className="bg-club-50 text-left text-club-800">
@@ -622,17 +620,10 @@ function MemberModal({
           </div>
 
           {member.memberships.length > 0 && <GuardiansEditor childId={member.id} />}
-          {member.memberships.length > 0 && (
-            <TransferPlayer
-              memberId={member.id}
-              teams={teams}
-              currentTeamIds={member.memberships.map((m) => m.team.id)}
-              onDone={onDone}
-            />
-          )}
 
           <p className="text-xs text-gray-500">
-            Ako tréner môžete priradiť rodiča a požiadať o presun hráča. Údaje hráča upravuje vedenie klubu.
+            Ako tréner môžete priradiť rodiča; o presun hráča požiadate v menu <strong>Presuny</strong>. Údaje hráča
+            upravuje vedenie klubu.
           </p>
           <div className="flex justify-end">
             <Button variant="ghost" onClick={onClose}>
@@ -849,16 +840,6 @@ function MemberModal({
           <GuardiansEditor childId={member.id} />
         )}
 
-        {/* Presun do iného družstva (so schválením trénera aktuálneho družstva) */}
-        {member && member.memberships.length > 0 && (
-          <TransferPlayer
-            memberId={member.id}
-            teams={teams}
-            currentTeamIds={member.memberships.map((m) => m.team.id)}
-            onDone={onDone}
-          />
-        )}
-
         <div>
           <label className={labelCls}>
             {isCoach ? 'Platnosť licencie do' : 'Platnosť registračného preukazu do'}
@@ -1059,148 +1040,6 @@ function GuardiansEditor({ childId }: { childId: string }) {
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
       <p className="mt-1 text-xs text-gray-500">Jedno dieťa môže mať viac rodičov; rodič viac detí. Rodič si dieťa sám priradiť nevie.</p>
     </div>
-  );
-}
-
-/** Presun hráča do iného družstva; ak žiadateľ nespravuje aktuálne družstvo, vznikne žiadosť. */
-function TransferPlayer({
-  memberId,
-  teams,
-  currentTeamIds,
-  onDone,
-}: {
-  memberId: string;
-  teams: Team[];
-  currentTeamIds: string[];
-  onDone: () => void;
-}) {
-  const [toTeamId, setToTeamId] = useState('');
-  const [mode, setMode] = useState<'MOVE' | 'ADD'>('MOVE');
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const targets = teams.filter((t) => !currentTeamIds.includes(t.id));
-
-  async function submit() {
-    if (!toTeamId) return;
-    setBusy(true);
-    setMsg(null);
-    setError(null);
-    try {
-      const res = await api<{ applied: boolean; pending: boolean }>('/transfers', {
-        method: 'POST',
-        body: JSON.stringify({ memberId, toTeamId, mode }),
-      });
-      if (res.applied) {
-        onDone();
-      } else {
-        setMsg('Žiadosť o presun bola odoslaná — čaká na schválenie trénera aktuálneho družstva alebo vedenia.');
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Presun zlyhal');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (targets.length === 0) return null;
-
-  return (
-    <div className="rounded-md border border-club-100 p-3">
-      <label className={labelCls}>Presun do iného družstva</label>
-      <div className="mt-1 flex flex-wrap items-end gap-2">
-        <select value={toTeamId} onChange={(e) => setToTeamId(e.target.value)} className={`${inputCls} flex-1`}>
-          <option value="">— cieľové družstvo —</option>
-          {targets.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </select>
-        <Button variant="ghost" onClick={submit} disabled={busy || !toTeamId}>
-          Presunúť
-        </Button>
-      </div>
-      <div className="mt-2 flex gap-4 text-sm text-gray-700">
-        <label className="flex items-center gap-1">
-          <input type="radio" checked={mode === 'MOVE'} onChange={() => setMode('MOVE')} />
-          Vyradiť z aktuálneho
-        </label>
-        <label className="flex items-center gap-1">
-          <input type="radio" checked={mode === 'ADD'} onChange={() => setMode('ADD')} />
-          Len pridať do nového
-        </label>
-      </div>
-      {msg && <p className="mt-1 text-xs text-club-700">{msg}</p>}
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-    </div>
-  );
-}
-
-interface PendingTransfer {
-  id: string;
-  memberName: string;
-  fromTeamName: string | null;
-  toTeamName: string;
-  mode: string;
-  requestedBy: string;
-  createdAt: string;
-  canApprove: boolean;
-}
-
-/** Karta žiadostí o presun hráčov na schválenie (tréner aktuálneho družstva / vedenie). */
-function PendingTransfers() {
-  const [items, setItems] = useState<PendingTransfer[]>([]);
-  const [busyId, setBusyId] = useState<string | null>(null);
-
-  const load = useCallback(() => {
-    api<PendingTransfer[]>('/transfers/pending').then(setItems).catch(() => setItems([]));
-  }, []);
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  async function decide(id: string, action: 'approve' | 'reject') {
-    setBusyId(id);
-    try {
-      await api(`/transfers/${id}/${action}`, { method: 'POST' });
-      load();
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  if (items.length === 0) return null;
-
-  return (
-    <Card className="border-amber-300 bg-amber-50">
-      <h2 className="mb-2 font-semibold text-amber-900">Presuny hráčov na schválenie</h2>
-      <ul className="space-y-2">
-        {items.map((t) => (
-          <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-            <span className="text-gray-700">
-              <strong>{t.memberName}</strong>: {t.fromTeamName ?? '—'} → {t.toTeamName}{' '}
-              <span className="text-xs text-gray-500">
-                ({t.mode === 'MOVE' ? 'presun' : 'pridať'} · žiada {t.requestedBy})
-              </span>
-            </span>
-            {t.canApprove ? (
-              <span className="flex gap-2">
-                <Button variant="danger" disabled={busyId === t.id} onClick={() => decide(t.id, 'reject')}>
-                  Zamietnuť
-                </Button>
-                <Button disabled={busyId === t.id} onClick={() => decide(t.id, 'approve')}>
-                  Schváliť
-                </Button>
-              </span>
-            ) : (
-              <span className="text-xs text-gray-500">čaká na schválenie</span>
-            )}
-          </li>
-        ))}
-      </ul>
-    </Card>
   );
 }
 

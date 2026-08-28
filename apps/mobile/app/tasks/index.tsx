@@ -34,6 +34,12 @@ interface Assignee {
   name: string;
   roles: string[];
 }
+interface Comment {
+  id: string;
+  body: string;
+  authorName: string;
+  createdAt: string;
+}
 
 const ROLE_LABELS: Record<string, string> = { ADMIN: 'Admin', MANAGER: 'Vedúci klubu', COACH: 'Tréneri' };
 const ROLE_OPTIONS = ['ADMIN', 'MANAGER', 'COACH'] as const;
@@ -51,6 +57,7 @@ export default function TasksScreen() {
   const insets = useSafeAreaInsets();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [creating, setCreating] = useState(false);
+  const [commentsFor, setCommentsFor] = useState<Task | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -124,7 +131,9 @@ export default function TasksScreen() {
                       {overdue ? ' · po termíne' : ''}
                     </Text>
                   ) : null}
-                  {t.commentCount > 0 ? <Text style={styles.meta}>💬 {t.commentCount}</Text> : null}
+                  <Text style={styles.metaLink} onPress={() => setCommentsFor(t)}>
+                    💬 Komentáre{t.commentCount > 0 ? ` (${t.commentCount})` : ''}
+                  </Text>
                 </View>
                 {t.createdByName ? <Text style={styles.metaSmall}>zadal: {t.createdByName}</Text> : null}
               </View>
@@ -140,6 +149,12 @@ export default function TasksScreen() {
 
       <Modal visible={creating} animationType="slide" onRequestClose={() => setCreating(false)}>
         <TaskForm onClose={() => setCreating(false)} onDone={() => { setCreating(false); void load(); }} />
+      </Modal>
+
+      <Modal visible={!!commentsFor} animationType="slide" onRequestClose={() => setCommentsFor(null)}>
+        {commentsFor && (
+          <CommentsPane task={commentsFor} onClose={() => { setCommentsFor(null); void load(); }} />
+        )}
       </Modal>
     </View>
   );
@@ -258,6 +273,75 @@ function TaskForm({ onClose, onDone }: { onClose: () => void; onDone: () => void
   );
 }
 
+function CommentsPane({ task, onClose }: { task: Task; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    api<Comment[]>(`/tasks/${task.id}/comments`).then(setComments).catch(() => {});
+  }, [task.id]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function add() {
+    const body = text.trim();
+    if (!body) return;
+    setBusy(true);
+    try {
+      await api(`/tasks/${task.id}/comments`, { method: 'POST', body: JSON.stringify({ body }) });
+      setText('');
+      load();
+    } catch (e) {
+      Alert.alert('Chyba', e instanceof Error ? e.message : 'Nepodarilo sa pridať komentár');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <View style={[styles.container, { paddingBottom: insets.bottom + 8 }]}>
+      <View style={styles.commentsHeader}>
+        <Text style={styles.commentsTitle} numberOfLines={1}>
+          {task.title}
+        </Text>
+        <Pressable onPress={onClose} hitSlop={8}>
+          <Text style={styles.commentsClose}>Zavrieť</Text>
+        </Pressable>
+      </View>
+      <FlatList
+        data={comments}
+        keyExtractor={(c) => c.id}
+        contentContainerStyle={{ paddingBottom: 12 }}
+        ListEmptyComponent={<Text style={styles.empty}>Zatiaľ žiadne komentáre.</Text>}
+        renderItem={({ item: c }) => (
+          <View style={styles.commentItem}>
+            <Text style={styles.commentAuthor}>
+              {c.authorName}{' '}
+              <Text style={styles.commentTime}>{new Date(c.createdAt).toLocaleString('sk-SK')}</Text>
+            </Text>
+            <Text style={styles.commentBody}>{c.body}</Text>
+          </View>
+        )}
+      />
+      <View style={styles.commentInputRow}>
+        <TextInput
+          style={styles.commentInput}
+          value={text}
+          onChangeText={setText}
+          placeholder="Napíšte komentár…"
+          multiline
+        />
+        <Pressable style={styles.commentSend} onPress={add} disabled={busy || !text.trim()}>
+          <Text style={styles.commentSendText}>Pridať</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.club50, padding: 16 },
   newBtn: { backgroundColor: colors.club600, borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginBottom: 12 },
@@ -294,7 +378,42 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 6, alignItems: 'center' },
   metaChip: { backgroundColor: colors.club50, color: colors.club700, fontSize: 12, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, overflow: 'hidden' },
   meta: { color: colors.gray, fontSize: 12 },
+  metaLink: { color: colors.club600, fontSize: 12, fontWeight: '600' },
   metaOverdue: { color: colors.danger, fontWeight: '700' },
+  commentsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 12,
+  },
+  commentsTitle: { fontSize: 18, fontWeight: '700', color: colors.club900, flex: 1 },
+  commentsClose: { color: colors.club600, fontWeight: '600' },
+  commentItem: {
+    backgroundColor: colors.white,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.club100,
+    padding: 10,
+    marginBottom: 8,
+  },
+  commentAuthor: { fontWeight: '700', color: colors.club800, fontSize: 13 },
+  commentTime: { fontWeight: '400', color: colors.gray, fontSize: 11 },
+  commentBody: { color: colors.club900, marginTop: 2, fontSize: 15 },
+  commentInputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  commentInput: {
+    flex: 1,
+    backgroundColor: colors.white,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.club100,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    maxHeight: 120,
+  },
+  commentSend: { backgroundColor: colors.club600, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 12 },
+  commentSendText: { color: colors.white, fontWeight: '700' },
   metaSmall: { color: colors.gray, fontSize: 11, marginTop: 4 },
   remove: { color: colors.gray, fontSize: 16, paddingHorizontal: 4 },
   // form

@@ -23,6 +23,7 @@ const navigation: Entry[] = [
     label: 'Klub',
     children: [
       { href: '/portal/clenovia', label: 'Členovia', show: ({ manage }) => manage },
+      { href: '/portal/presuny', label: 'Presuny', show: ({ manage }) => manage },
       { href: '/portal/registracie', label: 'Registrácie', show: ({ staff }) => staff },
       { href: '/portal/platby', label: 'Platby', show: ({ staff }) => staff },
       { href: '/portal/prispevok', label: 'Príspevok', show: () => true },
