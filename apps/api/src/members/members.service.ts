@@ -60,18 +60,21 @@ export class MembersService {
 
     // scope na družstvo/kategóriu: hráči v družstve ALEBO rodičia dieťaťa v družstve
     const hasScope = params.categoryCode || params.teamId || params.teamIds;
+    const teamConstraint = {
+      id: params.teamId ? params.teamId : params.teamIds ? { in: params.teamIds } : undefined,
+      teamCategory: params.categoryCode ? { code: params.categoryCode } : undefined,
+    };
     const teamFilter = {
       leftAt: null,
       season: params.seasonId ? { id: params.seasonId } : { isActive: true },
-      team: {
-        id: params.teamId ? params.teamId : params.teamIds ? { in: params.teamIds } : undefined,
-        teamCategory: params.categoryCode ? { code: params.categoryCode } : undefined,
-      },
+      team: teamConstraint,
     } as const;
     if (hasScope) {
       and.push({
         OR: [
           { memberships: { some: teamFilter } }, // hráč v družstve
+          // tréner družstva (scope na konte)
+          { user: { roles: { some: { role: 'COACH' as never, team: teamConstraint } } } },
           // rodič dieťaťa, ktoré je v družstve
           { user: { guardianOf: { some: { member: { memberships: { some: teamFilter } } } } } },
         ],

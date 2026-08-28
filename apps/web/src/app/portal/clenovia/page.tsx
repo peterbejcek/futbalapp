@@ -131,6 +131,7 @@ function MembersTable() {
   const currentPage = Math.min(page, pageCount);
   const pagedMembers =
     pageSize === 0 ? sortedMembers : sortedMembers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const teamNameById = new Map(teams.map((t) => [t.id, t.name]));
 
   useEffect(() => {
     api<Team[]>('/seasons/teams').then(setTeams).catch(() => {});
@@ -302,7 +303,18 @@ function MembersTable() {
                 <td className="px-3 py-2">{m.birthDate ? new Date(m.birthDate).getFullYear() : '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2 font-medium text-club-800">{m.registrationNumber ?? '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2">
-                  {m.memberships.length ? m.memberships.map((ms) => ms.team.name).join(', ') : '—'}
+                  {(() => {
+                    const names = [
+                      ...new Set([
+                        ...m.memberships.map((ms) => ms.team.name),
+                        ...((m.user?.roles ?? [])
+                          .filter((r) => r.role === 'COACH' && r.teamId)
+                          .map((r) => teamNameById.get(r.teamId as string))
+                          .filter(Boolean) as string[]),
+                      ]),
+                    ];
+                    return names.length ? names.join(', ') : '—';
+                  })()}
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 text-gray-600">{m.homeClub ?? '—'}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-gray-600">{m.guestClub ?? '—'}</td>
