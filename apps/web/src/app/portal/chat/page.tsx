@@ -2,8 +2,43 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
-import { api } from '@/lib/api';
+import { api, API_URL, getToken } from '@/lib/api';
 import { connectChatSocket } from '@/lib/chat-socket';
+
+interface Attachment {
+  id: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+}
+
+function fmtSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} kB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function MessageAttachment({ att }: { att: Attachment }) {
+  const url = `${API_URL}/chat/attachments/${att.id}`;
+  if (att.mimeType.startsWith('image/')) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="mt-2 block">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={url} alt={att.filename} className="max-h-64 rounded-md border border-club-100" />
+      </a>
+    );
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mt-2 inline-flex items-center gap-2 rounded-md border border-club-100 bg-white px-3 py-2 text-sm text-club-700 hover:bg-club-50"
+    >
+      📎 {att.filename} <span className="text-xs text-gray-400">{fmtSize(att.size)}</span>
+    </a>
+  );
+}
 
 interface Channel {
   id: string;
@@ -41,6 +76,7 @@ interface Message {
   body: string;
   createdAt: string;
   sender: { id: string; firstName: string; lastName: string };
+  attachment?: Attachment | null;
 }
 
 export default function ChatPage() {
@@ -50,6 +86,7 @@ export default function ChatPage() {
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const socketRef = useRef<Socket | null>(null);
   // aktuálny kanál dostupný aj v async callbackoch (send/fetch môžu
   // dobehnúť až po prepnutí kanála — vtedy ich výsledok nesmieme zobraziť)
@@ -136,6 +173,34 @@ export default function ChatPage() {
     }
   }
 
+  async function onAttach(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !activeId) return;
+    if (file.size > 15 * 1024 * 1024) {
+      setError('Súbor je príliš veľký (max 15 MB).');
+      return;
+    }
+    const channelId = activeId;
+    const caption = text.trim();
+    setText('');
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      if (caption) form.append('body', caption);
+      const token = getToken();
+      const res = await fetch(`${API_URL}/chat/channels/${channelId}/attachment`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? 'Nahranie zlyhalo');
+      appendMessage(await res.json(), channelId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nahranie zlyhalo');
+    }
+  }
+
   const active = channels.find((c) => c.id === activeId);
 
   return (
@@ -193,7 +258,8 @@ export default function ChatPage() {
                     })}
                   </span>
                 </p>
-                <p className="mt-1 text-sm text-gray-800">{message.body}</p>
+                {message.body && <p className="mt-1 text-sm text-gray-800">{message.body}</p>}
+                {message.attachment && <MessageAttachment att={message.attachment} />}
               </div>
             ))}
             {messages.length === 0 && (
@@ -201,7 +267,17 @@ export default function ChatPage() {
             )}
             <div ref={bottomRef} />
           </div>
-          <form onSubmit={send} className="flex gap-2 border-t border-club-100 p-3">
+          <form onSubmit={send} className="flex items-center gap-2 border-t border-club-100 p-3">
+            <input ref={fileRef} type="file" onChange={onAttach} className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={!activeId}
+              title="Priložiť obrázok alebo dokument"
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+            >
+              📎
+            </button>
             <input
               value={text}
               onChange={(e) => setText(e.target.value)}

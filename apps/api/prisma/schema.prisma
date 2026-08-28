@@ -724,10 +724,24 @@ model Message {
   createdAt DateTime @default(now())
   editedAt  DateTime?
 
-  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  sender  User    @relation(fields: [senderId], references: [id])
+  channel    Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  sender     User            @relation(fields: [senderId], references: [id])
+  attachment ChatAttachment?
 
   @@index([channelId, createdAt])
+}
+
+/// Príloha správy (obrázok alebo dokument), uložená priamo v DB.
+model ChatAttachment {
+  id        String   @id @default(cuid())
+  messageId String   @unique
+  filename  String
+  mimeType  String
+  size      Int
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 }
 
 // ---------------------------------------------------------------------------

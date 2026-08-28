@@ -7,6 +7,11 @@ import { isStaff } from '../auth/scope';
 
 /** Do týchto kanálov píše iba vedenie / tréner (moderátor); ostatní len čítajú. */
 const READ_ONLY_FOR_MEMBERS = new Set(['TEAM_ANNOUNCEMENTS', 'CLUB_ANNOUNCEMENT']);
+
+const MESSAGE_INCLUDE = {
+  sender: { select: { id: true, firstName: true, lastName: true } },
+  attachment: { select: { id: true, filename: true, mimeType: true, size: true } },
+} as const;
 /** Interné kanály len pre daný okruh. */
 const STAFF_ONLY = new Set(['COACHES', 'BOARD']);
 
@@ -96,7 +101,7 @@ export class ChatService {
     await this.assertAccess(channelId, user, false);
     const messages = await this.prisma.message.findMany({
       where: { channelId, createdAt: before ? { lt: new Date(before) } : undefined },
-      include: { sender: { select: { id: true, firstName: true, lastName: true } } },
+      include: MESSAGE_INCLUDE,
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
@@ -107,25 +112,55 @@ export class ChatService {
     const channel = await this.assertAccess(channelId, user, true);
     const message = await this.prisma.message.create({
       data: { channelId, senderId: user.id, body },
-      include: { sender: { select: { id: true, firstName: true, lastName: true } } },
+      include: MESSAGE_INCLUDE,
     });
 
     this.chatGateway.broadcastMessage(channelId, message);
+    await this.notifyMembers(channel, user.id, `${message.sender.firstName} ${message.sender.lastName}: ${body.slice(0, 120)}`);
+    return message;
+  }
 
+  private async notifyMembers(channel: { id: string; name: string }, senderId: string, body: string) {
     const members = await this.prisma.channelMember.findMany({
-      where: { channelId, userId: { not: user.id }, muted: false },
+      where: { channelId: channel.id, userId: { not: senderId }, muted: false },
       select: { userId: true },
     });
     await this.pushService.notifyUsers(
       members.map((m) => m.userId),
-      {
-        title: channel.name,
-        body: `${message.sender.firstName} ${message.sender.lastName}: ${body.slice(0, 120)}`,
-        data: { type: 'chat', channelId },
-      },
+      { title: channel.name, body, data: { type: 'chat', channelId: channel.id } },
     );
+  }
 
-    return message;
+  /** Odošle správu s prílohou (obrázok/dokument). Voliteľný text ako popis. */
+  async postAttachment(
+    channelId: string,
+    user: AuthUser,
+    body: string,
+    file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+  ) {
+    const channel = await this.assertAccess(channelId, user, true);
+    const message = await this.prisma.message.create({
+      data: { channelId, senderId: user.id, body: body?.trim() ?? '' },
+    });
+    await this.prisma.chatAttachment.create({
+      data: {
+        messageId: message.id,
+        filename: file.originalname || 'príloha',
+        mimeType: file.mimetype || 'application/octet-stream',
+        size: file.size,
+        data: file.buffer,
+      },
+    });
+    const full = await this.prisma.message.findUniqueOrThrow({ where: { id: message.id }, include: MESSAGE_INCLUDE });
+
+    this.chatGateway.broadcastMessage(channelId, full);
+    await this.notifyMembers(channel, user.id, `${full.sender.firstName} ${full.sender.lastName}: 📎 ${full.attachment?.filename ?? 'príloha'}`);
+    return full;
+  }
+
+  /** Bajty prílohy na servírovanie (obrázok inline / dokument na stiahnutie). */
+  getAttachment(id: string) {
+    return this.prisma.chatAttachment.findUnique({ where: { id } });
   }
 
   /**

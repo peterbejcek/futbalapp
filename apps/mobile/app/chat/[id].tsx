@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   FlatList,
+  Image,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -11,16 +14,31 @@ import {
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { io, type Socket } from 'socket.io-client';
 import { API_URL, api, getToken } from '@/api';
 import { colors } from '@/theme';
 
+interface Attachment {
+  id: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+}
 interface Message {
   id: string;
   channelId?: string;
   body: string;
   createdAt: string;
   sender: { id: string; firstName: string; lastName: string };
+  attachment?: Attachment | null;
+}
+
+interface PickedFile {
+  uri: string;
+  name: string;
+  type: string;
 }
 
 function apiOrigin(): string {
@@ -84,6 +102,63 @@ export default function ChatScreen() {
     }
   }
 
+  async function uploadFile(file: PickedFile) {
+    try {
+      const form = new FormData();
+      // React Native FormData súbor
+      form.append('file', { uri: file.uri, name: file.name, type: file.type } as unknown as Blob);
+      const caption = text.trim();
+      if (caption) form.append('body', caption);
+      setText('');
+      const token = await getToken();
+      const res = await fetch(`${API_URL}/chat/channels/${id}/attachment`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      if (!res.ok) {
+        const b = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(b.message ?? 'Nahranie zlyhalo');
+      }
+      const message = (await res.json()) as Message;
+      setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
+      listRef.current?.scrollToEnd({ animated: true });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Nahranie zlyhalo');
+    }
+  }
+
+  function chooseAttachment() {
+    Alert.alert('Priložiť', 'Vyberte typ prílohy', [
+      { text: 'Fotka', onPress: pickImage },
+      { text: 'Dokument', onPress: pickDocument },
+      { text: 'Zrušiť', style: 'cancel' },
+    ]);
+  }
+
+  async function pickImage() {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Prístup zamietnutý', 'Povoľte prístup k fotkám v nastaveniach.');
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+    if (res.canceled || !res.assets?.[0]) return;
+    const a = res.assets[0];
+    await uploadFile({
+      uri: a.uri,
+      name: a.fileName ?? `fotka-${Date.now()}.jpg`,
+      type: a.mimeType ?? 'image/jpeg',
+    });
+  }
+
+  async function pickDocument() {
+    const res = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
+    if (res.canceled || !res.assets?.[0]) return;
+    const a = res.assets[0];
+    await uploadFile({ uri: a.uri, name: a.name ?? 'dokument', type: a.mimeType ?? 'application/octet-stream' });
+  }
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -106,11 +181,15 @@ export default function ChatScreen() {
                 {new Date(item.createdAt).toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' })}
               </Text>
             </Text>
-            <Text style={styles.body}>{item.body}</Text>
+            {item.body ? <Text style={styles.body}>{item.body}</Text> : null}
+            {item.attachment ? <MessageAttachment att={item.attachment} /> : null}
           </View>
         )}
       />
       <View style={[styles.inputRow, { paddingBottom: insets.bottom + 12 }]}>
+        <Pressable style={styles.attachBtn} onPress={chooseAttachment}>
+          <Text style={styles.attachText}>📎</Text>
+        </Pressable>
         <TextInput
           style={styles.input}
           placeholder="Napíšte správu…"
@@ -123,6 +202,22 @@ export default function ChatScreen() {
         </Pressable>
       </View>
     </KeyboardAvoidingView>
+  );
+}
+
+function MessageAttachment({ att }: { att: Attachment }) {
+  const url = `${API_URL}/chat/attachments/${att.id}`;
+  if (att.mimeType.startsWith('image/')) {
+    return (
+      <Pressable onPress={() => Linking.openURL(url)}>
+        <Image source={{ uri: url }} style={styles.attachImage} resizeMode="cover" />
+      </Pressable>
+    );
+  }
+  return (
+    <Pressable style={styles.docChip} onPress={() => Linking.openURL(url)}>
+      <Text style={styles.docText}>📎 {att.filename}</Text>
+    </Pressable>
   );
 }
 
@@ -168,4 +263,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sendText: { color: colors.white, fontSize: 18 },
+  attachBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.club100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
+  },
+  attachText: { fontSize: 20 },
+  attachImage: { width: 200, height: 200, borderRadius: 8, marginTop: 6, backgroundColor: colors.club50 },
+  docChip: {
+    marginTop: 6,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: colors.club100,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: colors.club50,
+  },
+  docText: { color: colors.club700, fontSize: 14 },
 });
