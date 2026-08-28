@@ -89,18 +89,14 @@ export class MembersController {
     res.end(Buffer.from(match[2]!, 'base64'));
   }
 
-  /** Nahranie/výmena fotky hráča. */
+  /** Nahranie/výmena fotky hráča — len vedenie (tréner hráča needituje). */
   @Post(':id/photo')
-  @Roles('ADMIN', 'MANAGER', 'COACH')
+  @Roles('ADMIN', 'MANAGER')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 4 * 1024 * 1024 } }))
   async uploadPhoto(
     @Param('id') id: string,
-    @CurrentUser() user: AuthUser,
     @UploadedFile() file?: { buffer: Buffer; mimetype: string },
   ) {
-    if (!isStaff(user) && !(await this.membersService.memberInTeams(id, coachTeamIds(user)))) {
-      throw new ForbiddenException('Hráča z iného družstva nemôžete upravovať');
-    }
     if (!file?.buffer) throw new BadRequestException('Chýba súbor (pole "file")');
     if (!file.mimetype?.startsWith('image/')) throw new BadRequestException('Nahrajte obrázok');
     const dataUrl = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
@@ -125,16 +121,14 @@ export class MembersController {
     return this.membersService.create(body, user.roles.map((r) => r.role));
   }
 
+  /** Úprava člena — len vedenie. Tréner hráča needituje (okrem presunu cez /transfers). */
   @Patch(':id')
-  @Roles('ADMIN', 'MANAGER', 'COACH')
+  @Roles('ADMIN', 'MANAGER')
   async update(
     @Param('id') id: string,
     @CurrentUser() user: AuthUser,
     @Body(new ZodValidationPipe(createMemberSchema.partial())) body: Partial<CreateMemberInput>,
   ) {
-    if (!isStaff(user) && !(await this.membersService.memberInTeams(id, coachTeamIds(user)))) {
-      throw new ForbiddenException('Hráča z iného družstva nemôžete upravovať');
-    }
     return this.membersService.update(id, body, user.roles.map((r) => r.role));
   }
 
@@ -142,6 +136,13 @@ export class MembersController {
   @Roles('ADMIN', 'MANAGER')
   remove(@Param('id') id: string) {
     return this.membersService.remove(id);
+  }
+
+  /** Admin: vygeneruje nové jednorazové heslo pre konto člena. */
+  @Post(':id/reset-password')
+  @Roles('ADMIN')
+  resetPassword(@Param('id') id: string) {
+    return this.membersService.resetAccountPassword(id);
   }
 
   /** Priradí rodiča k dieťaťu — vedenie, alebo tréner družstva, v ktorom je dieťa. */

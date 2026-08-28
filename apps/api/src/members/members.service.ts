@@ -210,6 +210,16 @@ export class MembersService {
     return { email: result.email, tempPassword: result.tempPassword, created: result.created };
   }
 
+  /** Admin: vygeneruje nové jednorazové heslo pre konto člena. */
+  async resetAccountPassword(memberId: string) {
+    const member = await this.prisma.member.findUnique({ where: { id: memberId } });
+    if (!member) throw new NotFoundException('Člen neexistuje');
+    if (!member.userId) throw new BadRequestException('Člen nemá prihlasovacie konto');
+    const account = await this.prisma.user.findUnique({ where: { id: member.userId }, select: { email: true } });
+    const { tempPassword } = await this.accounts.resetPassword(member.userId);
+    return { email: account?.email ?? null, tempPassword };
+  }
+
   /** Zoznam rodičov (členovia s kontom a rolou PARENT) na priradenie k dieťaťu. */
   listParents() {
     return this.prisma.member.findMany({

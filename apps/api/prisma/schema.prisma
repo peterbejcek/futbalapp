@@ -255,6 +255,17 @@ model Task {
   @@index([done])
 }
 
+/// Jednorazový token na obnovenie zabudnutého hesla (platnosť ~1 hodina).
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
 /// Komentár k úlohe (tréner/vedúci/admin).
 model TaskComment {
   id        String   @id @default(cuid())

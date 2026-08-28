@@ -1,7 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+import { createHash, randomBytes } from 'node:crypto';
 import { ROLES, type Role } from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../notifications/email.service';
 import type { AuthUser } from './current-user.decorator';
 
 /** Roly, ktoré smie prideľovať len ADMIN (nie MANAGER). */
@@ -29,7 +31,10 @@ export interface EnsureAccountInput {
 
 @Injectable()
 export class AccountsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly email: EmailService,
+  ) {}
 
   /** Overí, či prihlásený používateľ smie prideliť dané roly. */
   assertCanGrant(actor: AuthUser, roles: Role[]) {
@@ -126,5 +131,62 @@ export class AccountsService {
       data: { passwordHash: await bcrypt.hash(newPassword, 10) },
     });
     return { changed: true };
+  }
+
+  /** Admin: vygeneruje nové jednorazové heslo pre používateľa (na odovzdanie). */
+  async resetPassword(userId: string): Promise<{ tempPassword: string }> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Konto neexistuje');
+    const tempPassword = generateTempPassword();
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: await bcrypt.hash(tempPassword, 10) },
+    });
+    return { tempPassword };
+  }
+
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  /**
+   * Požiadavka o obnovenie hesla: ak e-mail existuje, pošle odkaz s tokenom.
+   * Vždy vráti rovnakú odpoveď (neprezradzuje, či e-mail v systéme je).
+   */
+  async requestPasswordReset(email: string): Promise<{ ok: true }> {
+    const user = await this.prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+    if (user?.passwordHash) {
+      const token = randomBytes(32).toString('hex');
+      const tokenHash = this.hashToken(token);
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hodina
+      await this.prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
+      await this.prisma.passwordResetToken.create({ data: { userId: user.id, tokenHash, expiresAt } });
+
+      const link = `https://fkknv.sk/reset-hesla?token=${token}`;
+      const html = `
+        <div style="font-family:Arial,Helvetica,sans-serif;color:#16223c">
+          <h2 style="color:#1a2848">Obnovenie hesla</h2>
+          <p>Dostali sme žiadosť o obnovenie hesla k vášmu kontu v portáli FK Košická Nová Ves.</p>
+          <p><a href="${link}" style="display:inline-block;background:#2b4278;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Nastaviť nové heslo</a></p>
+          <p style="color:#6b7280;font-size:13px">Odkaz je platný 1 hodinu. Ak ste o obnovenie nežiadali, tento e-mail ignorujte.</p>
+        </div>`;
+      await this.email.send([user.email], 'Obnovenie hesla — FK Košická Nová Ves', html);
+    }
+    return { ok: true };
+  }
+
+  /** Nastaví nové heslo podľa platného tokenu z e-mailu. */
+  async resetPasswordWithToken(token: string, newPassword: string): Promise<{ ok: true }> {
+    if (newPassword.length < 8) throw new BadRequestException('Heslo musí mať aspoň 8 znakov');
+    const record = await this.prisma.passwordResetToken.findUnique({ where: { tokenHash: this.hashToken(token) } });
+    if (!record || record.expiresAt < new Date()) {
+      throw new BadRequestException('Odkaz je neplatný alebo mu vypršala platnosť. Požiadajte o nový.');
+    }
+    await this.prisma.user.update({
+      where: { id: record.userId },
+      data: { passwordHash: await bcrypt.hash(newPassword, 10) },
+    });
+    await this.prisma.passwordResetToken.deleteMany({ where: { userId: record.userId } });
+    return { ok: true };
   }
 }
