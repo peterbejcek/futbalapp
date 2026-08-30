@@ -19,19 +19,20 @@ export class EventsController {
 
   @Get()
   list(
+    @CurrentUser() user: AuthUser,
     @Query('category') categoryCode?: string,
     @Query('team') teamId?: string,
     @Query('type') type?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('mine') mine?: string,
   ) {
-    return this.eventsService.list({
-      categoryCode,
-      teamId,
-      type,
-      from: from ? new Date(from) : undefined,
-      to: to ? new Date(to) : undefined,
-    });
+    const range = { from: from ? new Date(from) : undefined, to: to ? new Date(to) : undefined };
+    // mine=true → len družstvá relevantné pre používateľa (hráč/rodič/tréner); vedenie vidí všetko
+    if (mine === 'true') {
+      return this.eventsService.listForUser({ ...range, type }, user);
+    }
+    return this.eventsService.list({ categoryCode, teamId, type, ...range });
   }
 
   @Get('locations')

@@ -82,7 +82,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const from = new Date().toISOString();
-    api<EventItem[]>(`/events?from=${from}`).then((l) => setEvents(l.slice(0, 50))).catch(() => {});
+    api<EventItem[]>(`/events?mine=true&from=${from}`).then((l) => setEvents(l.slice(0, 50))).catch(() => {});
   }, []);
 
   const staff = isStaff(me);

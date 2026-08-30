@@ -64,6 +64,8 @@ export class TransfersService {
               { user: { roles: { some: { role: 'PLAYER' as never } } } },
             ],
           },
+          // nie vedenie/tréner/rodič
+          { NOT: { user: { roles: { some: { role: { in: ['ADMIN', 'MANAGER', 'COACH', 'PARENT'] as never } } } } } },
           nameFilter,
         ],
       },

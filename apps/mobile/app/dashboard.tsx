@@ -75,12 +75,12 @@ export default function DashboardScreen() {
         const lastDay = new Date(y, m + 1, 0).getDate();
         const from = `${y}-${pad(m + 1)}-01T00:00:00.000Z`;
         const to = `${y}-${pad(m + 1)}-${pad(lastDay)}T23:59:59.999Z`;
-        url = `/events?from=${from}&to=${to}`;
+        url = `/events?mine=true&from=${from}&to=${to}`;
       } else {
         // od začiatku dnešného dňa — aby sa zobrazili aj udalosti, ktoré dnes už prebehli
         const now = new Date();
         const from = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T00:00:00.000Z`;
-        url = `/events?from=${from}`;
+        url = `/events?mine=true&from=${from}`;
       }
       const list = await api<EventItem[]>(url);
       setEvents(view === 'month' ? list : list.slice(0, 20));

@@ -93,6 +93,14 @@ export class SeasonsService {
     });
     if (!season) throw new NotFoundException('Sezóna neexistuje');
 
+    // vyčisti chybné hráčske zaradenia vedenia/trénerov/rodičov (mohli vzniknúť skôr)
+    await this.prisma.teamMembership.deleteMany({
+      where: {
+        seasonId,
+        member: { user: { roles: { some: { role: { in: ['ADMIN', 'MANAGER', 'COACH', 'PARENT'] as never } } } } },
+      },
+    });
+
     const rules: Array<SharedRule & { teamCategoryId: string; defaultTeamId: string | null }> =
       season.categoryRules.map((r) => ({
         categoryCode: r.teamCategory.code as CategoryCode,
@@ -103,8 +111,12 @@ export class SeasonsService {
       }));
 
     const members = await this.prisma.member.findMany({
-      // len hráči (majú dátum narodenia); rodičia/tréneri bez dátumu sa nezaraďujú
-      where: { status: 'ACTIVE', birthDate: { not: null } },
+      // len hráči (majú dátum narodenia); vedenie/tréner/rodič sa do družstiev nezaraďujú
+      where: {
+        status: 'ACTIVE',
+        birthDate: { not: null },
+        NOT: { user: { roles: { some: { role: { in: ['ADMIN', 'MANAGER', 'COACH', 'PARENT'] as never } } } } },
+      },
       include: { memberships: { where: { seasonId }, include: { team: true } } },
     });
 

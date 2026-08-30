@@ -8,7 +8,7 @@ import {
 } from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClubsService } from '../clubs/clubs.service';
-import { canManageTeam } from '../auth/scope';
+import { canManageTeam, coachTeamIds, isStaff } from '../auth/scope';
 import type { AuthUser } from '../auth/current-user.decorator';
 
 @Injectable()
@@ -25,6 +25,41 @@ export class EventsService {
           id: params.teamId ? params.teamId : undefined,
           teamCategory: params.categoryCode ? { code: params.categoryCode } : undefined,
         },
+        type: params.type ? (params.type as never) : undefined,
+        startAt: { gte: params.from, lte: params.to },
+      },
+      include: { team: { include: { teamCategory: true } }, match: true },
+      orderBy: { startAt: 'asc' },
+    });
+  }
+
+  /** Družstvá relevantné pre používateľa: trénerske + jeho vlastné (hráč) + jeho detí (rodič). */
+  private async relevantTeamIds(user: AuthUser): Promise<string[]> {
+    const season = await this.prisma.season.findFirst({ where: { isActive: true } });
+    const ids = new Set<string>(coachTeamIds(user));
+    if (season) {
+      const memberships = await this.prisma.teamMembership.findMany({
+        where: {
+          seasonId: season.id,
+          leftAt: null,
+          member: {
+            OR: [{ userId: user.id }, { guardians: { some: { userId: user.id } } }],
+          },
+        },
+        select: { teamId: true },
+      });
+      for (const m of memberships) ids.add(m.teamId);
+    }
+    return [...ids];
+  }
+
+  /** Udalosti relevantné pre používateľa: vedenie vidí všetko; ostatní svoje družstvá + celoklubové. */
+  async listForUser(params: { from?: Date; to?: Date; type?: string }, user: AuthUser) {
+    if (isStaff(user)) return this.list(params);
+    const teamIds = await this.relevantTeamIds(user);
+    return this.prisma.event.findMany({
+      where: {
+        OR: [{ teamId: { in: teamIds } }, { teamId: null }],
         type: params.type ? (params.type as never) : undefined,
         startAt: { gte: params.from, lte: params.to },
       },
@@ -51,10 +86,15 @@ export class EventsService {
     return team;
   }
 
-  /** Predpripraví dochádzku pre všetkých hráčov družstva. */
+  /** Predpripraví dochádzku pre všetkých hráčov družstva (vedenie/tréner/rodič sa nezahŕňa). */
   private async prepareAttendance(eventId: string, teamId: string, seasonId: string) {
     const memberships = await this.prisma.teamMembership.findMany({
-      where: { seasonId, teamId, leftAt: null },
+      where: {
+        seasonId,
+        teamId,
+        leftAt: null,
+        member: { NOT: { user: { roles: { some: { role: { in: ['ADMIN', 'MANAGER', 'COACH', 'PARENT'] as never } } } } } },
+      },
     });
     if (memberships.length > 0) {
       await this.prisma.attendance.createMany({

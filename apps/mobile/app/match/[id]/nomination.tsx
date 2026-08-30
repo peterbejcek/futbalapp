@@ -26,7 +26,7 @@ export default function NominationScreen() {
     setNominated(new Set(match.nominations.map((n) => n.member.id)));
     const teamId = match.event.team?.id;
     if (teamId) {
-      setMembers(await api<MemberRow[]>(`/members?team=${teamId}`));
+      setMembers(await api<MemberRow[]>(`/members?team=${teamId}&role=PLAYER`));
     }
   }, [id]);
 

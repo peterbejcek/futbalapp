@@ -83,7 +83,9 @@ export class MembersService {
 
     // filter podľa roly/funkcie
     if (params.role === 'PLAYER') {
+      // hráč = má zaradenie do družstva a jeho konto (ak existuje) nie je vedenie/tréner/rodič
       and.push({ memberships: { some: { leftAt: null, season: { isActive: true } } } });
+      and.push({ NOT: { user: { roles: { some: { role: { in: ['ADMIN', 'MANAGER', 'COACH', 'PARENT'] as never } } } } } });
     } else if (params.role) {
       and.push({ user: { roles: { some: { role: params.role as never } } } });
     }

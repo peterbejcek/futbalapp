@@ -79,7 +79,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
     try {
       const m = await api<MatchDetail>(`/matches/${id}`);
       setMatch(m);
-      if (m.event.team) setRoster(await api<Member[]>(`/members?team=${m.event.team.id}`));
+      if (m.event.team) setRoster(await api<Member[]>(`/members?team=${m.event.team.id}&role=PLAYER`));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Načítanie zlyhalo');
     }
