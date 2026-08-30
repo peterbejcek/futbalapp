@@ -2,6 +2,8 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import type { MatchEventInput } from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../notifications/push.service';
+import { coachBlockedFromTeam } from '../auth/scope';
+import type { AuthUser } from '../auth/current-user.decorator';
 
 /** Kategórie, kde hráč potvrdzuje účasť na zápase. */
 const CONFIRM_CATEGORIES = ['U17', 'U19', 'MUZI'];
@@ -12,6 +14,18 @@ export class MatchesService {
     private readonly prisma: PrismaService,
     private readonly pushService: PushService,
   ) {}
+
+  /** Tréner smie spravovať zápas len svojho družstva. */
+  private async assertMatchTeam(matchId: string, user: AuthUser) {
+    const match = await this.prisma.match.findUnique({
+      where: { id: matchId },
+      select: { event: { select: { teamId: true } } },
+    });
+    if (!match) throw new NotFoundException('Zápas neexistuje');
+    if (coachBlockedFromTeam(user, match.event.teamId)) {
+      throw new ForbiddenException('Zápas a nomináciu môžete spravovať len pre svoje družstvo');
+    }
+  }
 
   async get(id: string) {
     const match = await this.prisma.match.findUnique({
@@ -46,7 +60,8 @@ export class MatchesService {
   }
 
   /** Pridanie hráča do nominácie (aj tesne pred zápasom). Notifikuje hráča a rodičov. */
-  async nominate(matchId: string, memberId: string) {
+  async nominate(matchId: string, memberId: string, user: AuthUser) {
+    await this.assertMatchTeam(matchId, user);
     const nomination = await this.prisma.matchNomination.upsert({
       where: { matchId_memberId: { matchId, memberId } },
       create: { matchId, memberId },
@@ -143,14 +158,16 @@ export class MatchesService {
   }
 
   /** Odobratie hráča z nominácie — záznam ostáva pre históriu so statusom REMOVED. */
-  removeNomination(matchId: string, memberId: string) {
+  async removeNomination(matchId: string, memberId: string, user: AuthUser) {
+    await this.assertMatchTeam(matchId, user);
     return this.prisma.matchNomination.update({
       where: { matchId_memberId: { matchId, memberId } },
       data: { status: 'REMOVED' },
     });
   }
 
-  async setState(matchId: string, state: 'PLANNED' | 'LIVE' | 'FINISHED' | 'CANCELLED') {
+  async setState(matchId: string, state: 'PLANNED' | 'LIVE' | 'FINISHED' | 'CANCELLED', user: AuthUser) {
+    await this.assertMatchTeam(matchId, user);
     // Skóre sa neprepočítava pri ukončení — môže byť zadané ručne (setScore)
     // aj bez zápisu jednotlivých gólov. Pri živom zápise sa skóre dopĺňa
     // priebežne pri každom góle (addMatchEvent → recomputeScore).
@@ -158,7 +175,8 @@ export class MatchesService {
   }
 
   /** Ručné nastavenie výsledku (napr. bez zápisu jednotlivých gólov). */
-  async setScore(matchId: string, scoreUs: number, scoreThem: number) {
+  async setScore(matchId: string, scoreUs: number, scoreThem: number, user: AuthUser) {
+    await this.assertMatchTeam(matchId, user);
     const clamp = (n: number) => Math.max(0, Math.min(Math.trunc(Number(n) || 0), 99));
     return this.prisma.match.update({
       where: { id: matchId },
@@ -171,7 +189,9 @@ export class MatchesService {
    * clientId zaručuje idempotenciu pri offline synchronizácii —
    * opakované odoslanie tej istej udalosti nevytvorí duplikát.
    */
-  async addMatchEvent(matchId: string, input: MatchEventInput, createdById: string) {
+  async addMatchEvent(matchId: string, input: MatchEventInput, user: AuthUser) {
+    await this.assertMatchTeam(matchId, user);
+    const createdById = user.id;
     const match = await this.prisma.match.findUnique({ where: { id: matchId } });
     if (!match) throw new NotFoundException('Zápas neexistuje');
     if (match.state === 'CANCELLED') throw new BadRequestException('Zápas je zrušený');
@@ -199,7 +219,8 @@ export class MatchesService {
     return event;
   }
 
-  async deleteMatchEvent(matchId: string, matchEventId: string) {
+  async deleteMatchEvent(matchId: string, matchEventId: string, user: AuthUser) {
+    await this.assertMatchTeam(matchId, user);
     const event = await this.prisma.matchEvent.findUnique({ where: { id: matchEventId } });
     if (!event || event.matchId !== matchId) throw new NotFoundException('Udalosť neexistuje');
     await this.prisma.matchEvent.delete({ where: { id: matchEventId } });

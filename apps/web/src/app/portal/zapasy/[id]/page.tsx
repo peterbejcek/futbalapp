@@ -10,7 +10,7 @@ import {
   type SurfaceCode,
 } from '@fkknv/shared';
 import { api } from '@/lib/api';
-import { canManage, coachTeams, isStaff, useMe } from '@/lib/auth';
+import { coachTeams, isStaff, useMe } from '@/lib/auth';
 import { Button, Card } from '@/components/ui';
 import { EventAdminActions } from '@/components/event-admin-actions';
 
@@ -65,7 +65,6 @@ function fmtMinute(minute: number, stoppage: number | null) {
 export default function MatchPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { me } = useMe();
-  const manage = canManage(me);
   const [match, setMatch] = useState<MatchDetail | null>(null);
   const [roster, setRoster] = useState<Member[]>([]);
   const [selected, setSelected] = useState<Nomination | null>(null);
@@ -74,6 +73,9 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   const [scoreUs, setScoreUs] = useState('0');
   const [scoreThem, setScoreThem] = useState('0');
   const [error, setError] = useState<string | null>(null);
+
+  // spravovať zápas/nomináciu môže vedenie, alebo tréner tohto družstva
+  const manage = isStaff(me) || (!!match?.event.team && coachTeams(me).some((t) => t.id === match.event.team!.id));
 
   const load = useCallback(async () => {
     try {

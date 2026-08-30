@@ -8,7 +8,7 @@ import {
 } from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClubsService } from '../clubs/clubs.service';
-import { canManageTeam, coachTeamIds, isStaff } from '../auth/scope';
+import { canManageTeam, coachBlockedFromTeam, coachTeamIds, isStaff } from '../auth/scope';
 import type { AuthUser } from '../auth/current-user.decorator';
 
 @Injectable()
@@ -218,7 +218,7 @@ export class EventsService {
     return { deleted: 1 };
   }
 
-  async attendance(eventId: string) {
+  async attendance(eventId: string, user: AuthUser) {
     // Aktuálny zoznam hráčov: doplní do dochádzky členov, ktorí pribudli do
     // družstva po vytvorení udalosti (chýbajúce riadky sa pridajú, existujúce
     // ostanú aj s už zaznamenaným stavom). Nikoho neodstraňuje.
@@ -227,6 +227,7 @@ export class EventsService {
       select: { id: true, teamId: true, seasonId: true },
     });
     if (!base) throw new NotFoundException('Udalosť neexistuje');
+    if (coachBlockedFromTeam(user, base.teamId)) throw new ForbiddenException('Dochádzka je len pre vaše družstvo');
     if (base.teamId) await this.prepareAttendance(base.id, base.teamId, base.seasonId);
 
     const event = await this.prisma.event.findUnique({
@@ -243,11 +244,14 @@ export class EventsService {
     return event;
   }
 
-  markAttendance(eventId: string, input: MarkAttendanceInput, markedById: string) {
+  async markAttendance(eventId: string, input: MarkAttendanceInput, user: AuthUser) {
+    const event = await this.prisma.event.findUnique({ where: { id: eventId }, select: { teamId: true } });
+    if (!event) throw new NotFoundException('Udalosť neexistuje');
+    if (coachBlockedFromTeam(user, event.teamId)) throw new ForbiddenException('Dochádzku môžete zapisovať len svojmu družstvu');
     return this.prisma.attendance.upsert({
       where: { eventId_memberId: { eventId, memberId: input.memberId } },
-      create: { eventId, memberId: input.memberId, status: input.status, markedById, markedAt: new Date() },
-      update: { status: input.status, markedById, markedAt: new Date() },
+      create: { eventId, memberId: input.memberId, status: input.status, markedById: user.id, markedAt: new Date() },
+      update: { status: input.status, markedById: user.id, markedAt: new Date() },
     });
   }
 

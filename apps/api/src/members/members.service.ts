@@ -32,6 +32,14 @@ const accountInclude = {
   user: { select: { id: true, email: true, roles: { select: { role: true, teamId: true } } } },
 } as const;
 
+/** Porovnanie podľa slovenskej abecedy — priezvisko, potom meno (č za c, š za s, ž za z…). */
+export function bySlovakName(
+  a: { lastName: string; firstName: string },
+  b: { lastName: string; firstName: string },
+): number {
+  return a.lastName.localeCompare(b.lastName, 'sk') || a.firstName.localeCompare(b.firstName, 'sk');
+}
+
 export interface AccountResult {
   email: string;
   tempPassword: string | null;
@@ -45,7 +53,7 @@ export class MembersService {
     private readonly accounts: AccountsService,
   ) {}
 
-  list(params: {
+  async list(params: {
     categoryCode?: string;
     teamId?: string;
     teamIds?: string[]; // scope pre trénera (jeho družstvá)
@@ -90,7 +98,7 @@ export class MembersService {
       and.push({ user: { roles: { some: { role: params.role as never } } } });
     }
 
-    return this.prisma.member.findMany({
+    const members = await this.prisma.member.findMany({
       where: and.length ? { AND: and } : undefined,
       include: {
         memberships: activeMembership,
@@ -99,8 +107,9 @@ export class MembersService {
           include: { user: { select: { firstName: true, lastName: true, email: true, phone: true } } },
         },
       },
-      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     });
+    // triedenie podľa slovenskej abecedy (č za c, š za s, ž za z…)
+    return members.sort(bySlovakName);
   }
 
   async get(id: string) {
@@ -226,12 +235,12 @@ export class MembersService {
   }
 
   /** Zoznam rodičov (členovia s kontom a rolou PARENT) na priradenie k dieťaťu. */
-  listParents() {
-    return this.prisma.member.findMany({
+  async listParents() {
+    const parents = await this.prisma.member.findMany({
       where: { userId: { not: null }, user: { roles: { some: { role: 'PARENT' } } } },
       select: { id: true, firstName: true, lastName: true, user: { select: { email: true } } },
-      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     });
+    return parents.sort(bySlovakName);
   }
 
   /** Priradí rodiča k dieťaťu (väzba Guardian). Robí vedenie alebo tréner družstva dieťaťa. */

@@ -121,8 +121,8 @@ function MembersTable() {
       const vb = b.registrationValidUntil ? new Date(b.registrationValidUntil).getTime() : Infinity;
       if (va !== vb) return va - vb; // najskôr končiaca platnosť hore, bez preukazu dole
     }
-    // sekundárne (a primárne pre 'lastName') podľa priezviska
-    return (a.lastName + a.firstName).localeCompare(b.lastName + b.firstName, 'sk');
+    // sekundárne (a primárne pre 'lastName') podľa priezviska, potom mena — slovenská abeceda
+    return a.lastName.localeCompare(b.lastName, 'sk') || a.firstName.localeCompare(b.firstName, 'sk');
   });
 
   // klientská stránkovanie (pageSize === 0 znamená „Všetky")

@@ -94,8 +94,8 @@ export class EventsController {
   }
 
   @Get(':id/attendance')
-  attendance(@Param('id') eventId: string) {
-    return this.eventsService.attendance(eventId);
+  attendance(@Param('id') eventId: string, @CurrentUser() user: AuthUser) {
+    return this.eventsService.attendance(eventId, user);
   }
 
   @Post(':id/attendance')
@@ -105,6 +105,6 @@ export class EventsController {
     @Body(new ZodValidationPipe(markAttendanceSchema)) body: MarkAttendanceInput,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.eventsService.markAttendance(eventId, body, user.id);
+    return this.eventsService.markAttendance(eventId, body, user);
   }
 }

@@ -43,20 +43,24 @@ export class MatchesController {
 
   @Post(':id/nominations')
   @Roles('ADMIN', 'MANAGER', 'COACH')
-  nominate(@Param('id') matchId: string, @Body() body: { memberId: string }) {
-    return this.matchesService.nominate(matchId, body.memberId);
+  nominate(@Param('id') matchId: string, @Body() body: { memberId: string }, @CurrentUser() user: AuthUser) {
+    return this.matchesService.nominate(matchId, body.memberId, user);
   }
 
   @Delete(':id/nominations/:memberId')
   @Roles('ADMIN', 'MANAGER', 'COACH')
-  removeNomination(@Param('id') matchId: string, @Param('memberId') memberId: string) {
-    return this.matchesService.removeNomination(matchId, memberId);
+  removeNomination(@Param('id') matchId: string, @Param('memberId') memberId: string, @CurrentUser() user: AuthUser) {
+    return this.matchesService.removeNomination(matchId, memberId, user);
   }
 
   @Post(':id/score')
   @Roles('ADMIN', 'MANAGER', 'COACH')
-  setScore(@Param('id') matchId: string, @Body() body: { scoreUs: number; scoreThem: number }) {
-    return this.matchesService.setScore(matchId, body.scoreUs, body.scoreThem);
+  setScore(
+    @Param('id') matchId: string,
+    @Body() body: { scoreUs: number; scoreThem: number },
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.matchesService.setScore(matchId, body.scoreUs, body.scoreThem, user);
   }
 
   @Post(':id/state')
@@ -64,8 +68,9 @@ export class MatchesController {
   setState(
     @Param('id') matchId: string,
     @Body() body: { state: 'PLANNED' | 'LIVE' | 'FINISHED' | 'CANCELLED' },
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.matchesService.setState(matchId, body.state);
+    return this.matchesService.setState(matchId, body.state, user);
   }
 
   @Post(':id/events')
@@ -75,12 +80,12 @@ export class MatchesController {
     @Body(new ZodValidationPipe(matchEventSchema)) body: MatchEventInput,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.matchesService.addMatchEvent(matchId, body, user.id);
+    return this.matchesService.addMatchEvent(matchId, body, user);
   }
 
   @Delete(':id/events/:eventId')
   @Roles('ADMIN', 'MANAGER', 'COACH')
-  deleteEvent(@Param('id') matchId: string, @Param('eventId') eventId: string) {
-    return this.matchesService.deleteMatchEvent(matchId, eventId);
+  deleteEvent(@Param('id') matchId: string, @Param('eventId') eventId: string, @CurrentUser() user: AuthUser) {
+    return this.matchesService.deleteMatchEvent(matchId, eventId, user);
   }
 }

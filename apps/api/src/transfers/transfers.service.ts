@@ -78,9 +78,9 @@ export class TransfersService {
           select: { team: { select: { id: true, name: true } } },
         },
       },
-      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
       take: 40,
     });
+    members.sort((a, b) => a.lastName.localeCompare(b.lastName, 'sk') || a.firstName.localeCompare(b.firstName, 'sk'));
     return members.map((m) => ({
       id: m.id,
       firstName: m.firstName,
