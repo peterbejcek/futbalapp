@@ -184,17 +184,20 @@ export default function EventsPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600">Družstvo:</label>
-          <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-sm">
-            <option value="">Všetky</option>
-            {teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* filter družstiev len pre vedenie/trénerov; rodič/hráč vidí len svoje družstvá */}
+        {canManage(me) && (
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Družstvo:</label>
+            <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-sm">
+              <option value="">Všetky</option>
+              {teams.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         {/* prepínač zobrazenia */}
         <div className="ml-auto inline-flex overflow-hidden rounded-md border border-club-200">
           <button
