@@ -21,6 +21,12 @@ export function canManage(me: Me | null): boolean {
 export function coachTeams(me: Me | null): Array<{ id: string; name: string; categoryCode: string }> {
   return (me?.roles ?? []).filter((r) => r.role === 'COACH' && r.team).map((r) => r.team!);
 }
+/** Môže používateľ spravovať dané družstvo? Vedenie áno, tréner len svoje. */
+export function canManageTeam(me: Me | null, teamId: string | null | undefined): boolean {
+  if (isStaff(me)) return true;
+  if (!teamId) return false;
+  return coachTeams(me).some((t) => t.id === teamId);
+}
 
 export function fetchMe(): Promise<Me> {
   return api<Me>('/auth/me');

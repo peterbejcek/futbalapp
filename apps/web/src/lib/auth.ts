@@ -35,6 +35,12 @@ export function coachTeams(me: Me | null): Array<{ id: string; name: string; cat
 export function canManage(me: Me | null): boolean {
   return isStaff(me) || isCoach(me);
 }
+/** Môže používateľ spravovať dané družstvo? Vedenie áno, tréner len svoje. */
+export function canManageTeam(me: Me | null, teamId: string | null | undefined): boolean {
+  if (isStaff(me)) return true;
+  if (!teamId) return false;
+  return coachTeams(me).some((t) => t.id === teamId);
+}
 
 export function useMe(): { me: Me | null; loading: boolean } {
   const [me, setMe] = useState<Me | null>(null);

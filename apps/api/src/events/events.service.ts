@@ -227,7 +227,9 @@ export class EventsService {
       select: { id: true, teamId: true, seasonId: true },
     });
     if (!base) throw new NotFoundException('Udalosť neexistuje');
-    if (coachBlockedFromTeam(user, base.teamId)) throw new ForbiddenException('Dochádzka je len pre vaše družstvo');
+    // Detail tréningu (dochádzku) smie otvoriť len vedenie klubu a tréner daného
+    // družstva — rodič/hráč nemá vidieť dochádzku iných detí.
+    if (!canManageTeam(user, base.teamId)) throw new ForbiddenException('Dochádzka je len pre tréner družstva a vedenie');
     if (base.teamId) await this.prepareAttendance(base.id, base.teamId, base.seasonId);
 
     const event = await this.prisma.event.findUnique({

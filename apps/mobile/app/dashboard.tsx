@@ -6,7 +6,7 @@ import { eventTypeColor, formatEventDateTimeSk } from '@fkknv/shared';
 import { api, setToken } from '@/api';
 import { flush } from '@/offline';
 import { registerForPushNotifications } from '@/notifications';
-import { canManage, fetchMe, type Me } from '@/auth';
+import { canManage, canManageTeam, fetchMe, type Me } from '@/auth';
 import { colors } from '@/theme';
 
 interface EventItem {
@@ -15,7 +15,7 @@ interface EventItem {
   title: string;
   startAt: string;
   location: string | null;
-  team: { name: string } | null;
+  team: { id: string; name: string } | null;
   match: { id: string; opponent: string; isHome: boolean; opponentLogo: string | null } | null;
 }
 
@@ -100,9 +100,15 @@ export default function DashboardScreen() {
     fetchMe().then(setMe).catch(() => {});
   }, []);
 
+  // detail tréningu (dochádzku) otvorí len vedenie a tréner daného družstva
+  function canOpen(item: EventItem): boolean {
+    if (item.match) return true;
+    if (item.type === 'TRAINING') return canManageTeam(me, item.team?.id);
+    return false;
+  }
   function openEvent(item: EventItem) {
     if (item.match) router.push(`/match/${item.match.id}`);
-    else if (item.type === 'TRAINING') router.push(`/event/${item.id}/attendance`);
+    else if (item.type === 'TRAINING' && canManageTeam(me, item.team?.id)) router.push(`/event/${item.id}/attendance`);
   }
 
   // zvlášť zápasy (prvé) a tréningy
@@ -130,8 +136,9 @@ export default function DashboardScreen() {
   }
 
   function renderEventCard(item: EventItem) {
+    const openable = canOpen(item);
     return (
-      <Pressable style={styles.card} onPress={() => openEvent(item)}>
+      <Pressable style={styles.card} onPress={() => openEvent(item)} disabled={!openable}>
         <Text style={styles.badge}>
           {typeLabels[item.type] ?? item.type}
           {item.team ? ` · ${item.team.name}` : ''}
@@ -141,9 +148,11 @@ export default function DashboardScreen() {
           {item.location ? ` · ${item.location}` : ''}
         </Text>
         {item.match ? <MatchTeams item={item} /> : <Text style={styles.cardTitle}>{item.title}</Text>}
-        <Text style={styles.cardAction}>
-          {item.match ? 'Otvoriť zápas →' : item.type === 'TRAINING' ? 'Dochádzka →' : ''}
-        </Text>
+        {openable && (
+          <Text style={styles.cardAction}>
+            {item.match ? 'Otvoriť zápas →' : 'Dochádzka →'}
+          </Text>
+        )}
       </Pressable>
     );
   }

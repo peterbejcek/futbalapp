@@ -12,7 +12,7 @@ import {
   type SurfaceCode,
 } from '@fkknv/shared';
 import { api } from '@/lib/api';
-import { canManage, coachTeams, isStaff, useMe } from '@/lib/auth';
+import { canManage, canManageTeam, coachTeams, isStaff, useMe, type Me } from '@/lib/auth';
 import { Button, Card, ErrorText, Modal, inputCls, labelCls } from '@/components/ui';
 
 interface Team {
@@ -29,7 +29,7 @@ interface EventItem {
   location: string | null;
   surface: SurfaceCode | null;
   recurrenceGroupId: string | null;
-  team: { name: string; teamCategory: { code: string } } | null;
+  team: { id: string; name: string; teamCategory: { code: string } } | null;
   match: {
     id: string;
     state: string;
@@ -47,6 +47,16 @@ const typeLabels: Record<string, string> = {
   TOURNAMENT: 'Turnaj',
   CLUB_EVENT: 'Podujatie',
 };
+
+/**
+ * Odkaz na detail udalosti; `null` = detail sa neotvára.
+ * Zápas otvorí každý, kto ho vidí; detail tréningu/podujatia (dochádzku) len
+ * vedenie klubu a tréner daného družstva — rodič/hráč ho neotvorí.
+ */
+function eventHref(me: Me | null, e: EventItem): string | null {
+  if (e.match) return `/portal/zapasy/${e.match.id}`;
+  return canManageTeam(me, e.team?.id) ? `/portal/dochadzka/${e.id}` : null;
+}
 
 // logo nášho klubu (FK Košická Nová Ves) z futbalnetu
 const OUR_LOGO = 'https://api.sportnet.online/data/ppo/fk-kosicka-nova-ves.futbalnet.sk/logo';
@@ -242,11 +252,11 @@ export default function EventsPage() {
 
       {view === 'list' ? (
         <>
-          <EventList title="Najbližšie" events={grouped.upcoming} empty="Žiadne naplánované udalosti." />
-          {grouped.past.length > 0 && <EventList title="Odohrané" events={grouped.past.slice(0, 20)} empty="" />}
+          <EventList me={me} title="Najbližšie" events={grouped.upcoming} empty="Žiadne naplánované udalosti." />
+          {grouped.past.length > 0 && <EventList me={me} title="Odohrané" events={grouped.past.slice(0, 20)} empty="" />}
         </>
       ) : (
-        <MonthView month={month} events={events} />
+        <MonthView me={me} month={month} events={events} />
       )}
 
       <TrainingModal
@@ -271,7 +281,7 @@ export default function EventsPage() {
   );
 }
 
-function EventList({ title, events, empty }: { title: string; events: EventItem[]; empty: string }) {
+function EventList({ me, title, events, empty }: { me: Me | null; title: string; events: EventItem[]; empty: string }) {
   return (
     <section>
       <h2 className="mb-2 font-semibold text-club-800">{title}</h2>
@@ -280,31 +290,40 @@ function EventList({ title, events, empty }: { title: string; events: EventItem[
       ) : (
         <ul className="divide-y divide-club-100 rounded-lg border border-club-100 bg-white">
           {events.map((e) => {
-            const href = e.match ? `/portal/zapasy/${e.match.id}` : `/portal/dochadzka/${e.id}`;
+            const href = eventHref(me, e);
             const c = eventTypeColor(e.type);
+            const body = (
+              <>
+                <span
+                  className="inline-block rounded px-2 py-0.5 text-xs font-medium"
+                  style={{ backgroundColor: c.bg, color: c.text }}
+                >
+                  {typeLabels[e.type] ?? e.type}
+                  {e.team ? ` · ${e.team.name}` : ''}
+                  {e.recurrenceGroupId ? ' · séria' : ''}
+                </span>
+                <div className="mt-1 text-sm text-gray-600">
+                  {formatEventDateTimeSk(e.startAt)}
+                </div>
+                {e.match ? <MatchTeams e={e} /> : <div className="mt-1 font-medium">{e.title}</div>}
+                {(e.location || e.surface) && (
+                  <div className="mt-1 text-xs text-gray-500">
+                    {e.location}
+                    {e.location && e.surface ? ' · ' : ''}
+                    {e.surface ? SURFACE_LABELS_SK[e.surface] : ''}
+                  </div>
+                )}
+              </>
+            );
             return (
               <li key={e.id}>
-                <Link href={href} className="block px-4 py-3 hover:bg-club-50">
-                  <span
-                    className="inline-block rounded px-2 py-0.5 text-xs font-medium"
-                    style={{ backgroundColor: c.bg, color: c.text }}
-                  >
-                    {typeLabels[e.type] ?? e.type}
-                    {e.team ? ` · ${e.team.name}` : ''}
-                    {e.recurrenceGroupId ? ' · séria' : ''}
-                  </span>
-                  <div className="mt-1 text-sm text-gray-600">
-                    {formatEventDateTimeSk(e.startAt)}
-                  </div>
-                  {e.match ? <MatchTeams e={e} /> : <div className="mt-1 font-medium">{e.title}</div>}
-                  {(e.location || e.surface) && (
-                    <div className="mt-1 text-xs text-gray-500">
-                      {e.location}
-                      {e.location && e.surface ? ' · ' : ''}
-                      {e.surface ? SURFACE_LABELS_SK[e.surface] : ''}
-                    </div>
-                  )}
-                </Link>
+                {href ? (
+                  <Link href={href} className="block px-4 py-3 hover:bg-club-50">
+                    {body}
+                  </Link>
+                ) : (
+                  <div className="block px-4 py-3">{body}</div>
+                )}
               </li>
             );
           })}
@@ -314,7 +333,7 @@ function EventList({ title, events, empty }: { title: string; events: EventItem[
   );
 }
 
-function MonthView({ month, events }: { month: Date; events: EventItem[] }) {
+function MonthView({ me, month, events }: { me: Me | null; month: Date; events: EventItem[] }) {
   const year = month.getFullYear();
   const m = month.getMonth();
   const startWeekday = (new Date(year, m, 1).getDay() + 6) % 7; // Po = 0
@@ -363,11 +382,11 @@ function MonthView({ month, events }: { month: Date; events: EventItem[] }) {
                       .slice()
                       .sort((a, b) => a.startAt.localeCompare(b.startAt))
                       .map((e) => {
-                        const href = e.match ? `/portal/zapasy/${e.match.id}` : `/portal/dochadzka/${e.id}`;
+                        const href = eventHref(me, e);
                         const c = eventTypeColor(e.type);
                         const time = formatEventTimeSk(e.startAt);
                         const label = e.match ? `⚽ ${e.match.opponent}` : `${typeLabels[e.type] ?? e.type}${e.team ? ` ${e.team.name}` : ''}`;
-                        return (
+                        return href ? (
                           <Link
                             key={e.id}
                             href={href}
@@ -377,6 +396,15 @@ function MonthView({ month, events }: { month: Date; events: EventItem[] }) {
                           >
                             {time} {label}
                           </Link>
+                        ) : (
+                          <div
+                            key={e.id}
+                            title={`${time} · ${label}`}
+                            className="block truncate rounded px-1 py-0.5 text-[11px]"
+                            style={{ backgroundColor: c.bg, color: c.text }}
+                          >
+                            {time} {label}
+                          </div>
                         );
                       })}
                   </div>
