@@ -66,6 +66,11 @@ const ROLE_LABELS: Record<string, string> = {
   ADMIN: 'Admin',
 };
 
+/** Odstráni diakritiku a zjednotí veľkosť písmen — pre vyhľadávanie. */
+function stripDia(s: string): string {
+  return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+}
+
 /** Funkcia člena z rolí konta; hráč bez konta = Hráč podľa družstva. */
 function memberFunctions(m: MemberRow): string[] {
   const roles = m.user?.roles.map((r) => r.role) ?? [];
@@ -82,6 +87,7 @@ function MembersTable() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [teamFilter, setTeamFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [search, setSearch] = useState('');
   const [hideInactive, setHideInactive] = useState(false);
   const [sortBy, setSortBy] = useState<'lastName' | 'team' | 'card'>('lastName');
   const [pageSize, setPageSize] = useState(25);
@@ -110,8 +116,14 @@ function MembersTable() {
     }
   }, [categoryParam, teamFilter, roleFilter, hideInactive]);
 
+  // klientské vyhľadávanie podľa priezviska (bez ohľadu na diakritiku/veľkosť písmen)
+  const searchNorm = stripDia(search).trim();
+  const filteredMembers = searchNorm
+    ? members.filter((m) => stripDia(m.lastName).includes(searchNorm))
+    : members;
+
   // klientské zoradenie (priezvisko / družstvo / platnosť preukazu)
-  const sortedMembers = [...members].sort((a, b) => {
+  const sortedMembers = [...filteredMembers].sort((a, b) => {
     if (sortBy === 'team') {
       const ta = a.memberships[0]?.team.name ?? '';
       const tb = b.memberships[0]?.team.name ?? '';
@@ -142,7 +154,7 @@ function MembersTable() {
   // po zmene filtrov/zoradenia/veľkosti sa vráť na prvú stranu
   useEffect(() => {
     setPage(1);
-  }, [teamFilter, roleFilter, hideInactive, sortBy, pageSize, categoryParam]);
+  }, [teamFilter, roleFilter, search, hideInactive, sortBy, pageSize, categoryParam]);
 
   async function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -165,6 +177,27 @@ function MembersTable() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Hľadať:</label>
+            <div className="relative">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Priezvisko…"
+                className="w-44 rounded-md border border-gray-300 px-2 py-1 pr-6 text-sm"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  title="Vymazať"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600">Družstvo:</label>
             <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-sm">
@@ -353,10 +386,10 @@ function MembersTable() {
                 </td>
               </tr>
             ))}
-            {members.length === 0 && (
+            {pagedMembers.length === 0 && (
               <tr>
                 <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
-                  Žiadni členovia.
+                  {members.length === 0 ? 'Žiadni členovia.' : 'Pre zadané priezvisko sa nič nenašlo.'}
                 </td>
               </tr>
             )}
