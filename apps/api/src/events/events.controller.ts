@@ -10,7 +10,7 @@ import {
 import { EventsService } from './events.service';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
-import { canManageTeam } from '../auth/scope';
+import { canManageTeam, isCoach, isStaff } from '../auth/scope';
 import { ZodValidationPipe } from '../common/zod.pipe';
 
 @Controller('events')
@@ -28,8 +28,9 @@ export class EventsController {
     @Query('mine') mine?: string,
   ) {
     const range = { from: from ? new Date(from) : undefined, to: to ? new Date(to) : undefined };
-    // mine=true → len družstvá relevantné pre používateľa (hráč/rodič/tréner); vedenie vidí všetko
-    if (mine === 'true') {
+    // hráč/rodič vidí len udalosti družstiev, kde je on/jeho deti (+ celoklubové);
+    // vedenie a tréner vidia celý kalendár. mine=true vynúti scope aj pre trénera.
+    if (mine === 'true' || (!isStaff(user) && !isCoach(user))) {
       return this.eventsService.listForUser({ ...range, type }, user);
     }
     return this.eventsService.list({ categoryCode, teamId, type, ...range });

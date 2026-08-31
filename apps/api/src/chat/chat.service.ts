@@ -23,10 +23,27 @@ export class ChatService {
     @Inject(forwardRef(() => ChatGateway)) private readonly chatGateway: ChatGateway,
   ) {}
 
+  /** Družstvá relevantné pre používateľa: jeho vlastné (hráč) + jeho detí (rodič). */
+  private async relevantTeamIds(userId: string): Promise<string[]> {
+    const season = await this.prisma.season.findFirst({ where: { isActive: true } });
+    if (!season) return [];
+    const memberships = await this.prisma.teamMembership.findMany({
+      where: {
+        seasonId: season.id,
+        leftAt: null,
+        member: { OR: [{ userId }, { guardians: { some: { userId } } }] },
+      },
+      select: { teamId: true },
+    });
+    return [...new Set(memberships.map((m) => m.teamId))];
+  }
+
   /** Kanály, do ktorých má používateľ prístup, zoskupené podľa družstva. */
   async myChannels(user: AuthUser) {
     const staff = isStaff(user);
     const coach = user.roles.some((r) => r.role === 'COACH');
+    // hráč/rodič: len kanály svojich družstiev (a detí); tréner: všetky
+    const relevant = !staff && !coach ? await this.relevantTeamIds(user.id) : [];
     const channels = await this.prisma.channel.findMany({
       where: staff
         ? {}
@@ -35,7 +52,9 @@ export class ChatService {
               { kind: 'CLUB_ANNOUNCEMENT' }, // celoklubové oznamy číta každý prihlásený
               { members: { some: { userId: user.id } } },
               // tréner vidí komunikáciu v každom družstve + interný kanál trénerov/vedenia
-              ...(coach ? [{ teamId: { not: null } }, { kind: 'COACHES' as const }] : []),
+              ...(coach
+                ? [{ teamId: { not: null } }, { kind: 'COACHES' as const }]
+                : [{ teamId: { in: relevant } }]), // hráč/rodič: kanály svojich/detských družstiev
             ],
           },
       include: {
@@ -88,8 +107,14 @@ export class ChatService {
       return channel; // čítať môže každý prihlásený
     }
 
-    // tímové kanály: musí byť členom (alebo vedenie/tréner — ten vidí každé družstvo)
-    if (!staff && !coach && !membership) throw new ForbiddenException('Nie ste členom tohto kanála');
+    // tímové kanály: vedenie/tréner (vidí každé družstvo), člen kanála, alebo
+    // hráč/rodič družstva (jeho alebo jeho dieťaťa)
+    if (!staff && !coach && !membership) {
+      const relevant = channel.teamId ? await this.relevantTeamIds(user.id) : [];
+      if (!channel.teamId || !relevant.includes(channel.teamId)) {
+        throw new ForbiddenException('Nie ste členom tohto kanála');
+      }
+    }
 
     if (forPosting && READ_ONLY_FOR_MEMBERS.has(channel.kind) && !staff && !coach && !membership?.isModerator) {
       throw new ForbiddenException('Do oznamov družstva môže písať len tréner alebo vedenie');
