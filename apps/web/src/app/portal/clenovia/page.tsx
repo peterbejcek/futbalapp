@@ -31,6 +31,22 @@ interface MemberRow {
   guardians: Guardian[];
 }
 
+interface AssignedChild {
+  id: string;
+  firstName: string;
+  lastName: string;
+  status: string;
+  relation: string;
+  team: string | null;
+}
+interface ParentDetail {
+  assignedChildren: AssignedChild[];
+  requestedChildren: {
+    children: Array<{ firstName: string; lastName: string; birthDate: string | null; status: string }>;
+    note: string | null;
+  };
+}
+
 interface ImportResult {
   total: number;
   created: number;
@@ -500,6 +516,7 @@ function MemberModal({
   const [childMemberIds, setChildMemberIds] = useState<string[]>([]);
   const [childSearch, setChildSearch] = useState('');
   const [players, setPlayers] = useState<Array<{ id: string; firstName: string; lastName: string }>>([]);
+  const [parentDetail, setParentDetail] = useState<ParentDetail | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -539,11 +556,33 @@ function MemberModal({
     }
   }, [isParent, players.length]);
 
+  // pri otvorení rodiča načítaj priradené deti + deti uvedené pri registrácii
+  const reloadParentDetail = useCallback(() => {
+    if (member && isParent) {
+      api<ParentDetail>(`/members/${member.id}`)
+        .then((d) => setParentDetail({ assignedChildren: d.assignedChildren, requestedChildren: d.requestedChildren }))
+        .catch(() => {});
+    }
+  }, [member, isParent]);
+  useEffect(() => {
+    reloadParentDetail();
+  }, [reloadParentDetail]);
+
   function toggleRole(r: string) {
     setRoles((prev) => (prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]));
   }
   function toggleChild(id: string) {
     setChildMemberIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+  // odobratie priradenia dieťaťa rodičovi (väzba Guardian)
+  async function unlinkChild(childId: string) {
+    if (!member?.user) return;
+    try {
+      await api(`/members/${childId}/guardians/${member.user.id}`, { method: 'DELETE' });
+      reloadParentDetail();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Odobratie zlyhalo');
+    }
   }
 
   async function remove() {
@@ -839,6 +878,64 @@ function MemberModal({
             </>
           )}
         </div>
+
+        {/* Priradené deti + deti uvedené pri registrácii — pri funkcii Rodič */}
+        {isParent && parentDetail && (
+          <div className="rounded-md border border-club-100 p-3">
+            <label className={labelCls}>Priradené deti</label>
+            {parentDetail.assignedChildren.length === 0 ? (
+              <p className="text-sm text-gray-400">Zatiaľ žiadne priradené dieťa.</p>
+            ) : (
+              <ul className="space-y-1">
+                {parentDetail.assignedChildren.map((c) => (
+                  <li key={c.id} className="flex items-center justify-between gap-2 text-sm text-gray-700">
+                    <span>
+                      {c.lastName} {c.firstName}
+                      {c.team ? <span className="ml-1 text-xs text-gray-400">· {c.team}</span> : null}
+                    </span>
+                    {member?.user && (
+                      <button
+                        type="button"
+                        onClick={() => unlinkChild(c.id)}
+                        className="text-red-500 hover:text-red-700"
+                        title="Odobrať priradenie"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {/* Deti uvedené pri registrácii — upozorni, ak niektoré ešte nie je priradené */}
+            {(parentDetail.requestedChildren.children.length > 0 || parentDetail.requestedChildren.note) && (
+              <div className="mt-3 border-t border-club-100 pt-2">
+                <p className="text-xs font-medium text-gray-500">Uvedené pri registrácii:</p>
+                {parentDetail.requestedChildren.children.map((rc, i) => {
+                  const assigned = parentDetail.assignedChildren.some(
+                    (a) => stripDia(`${a.lastName} ${a.firstName}`) === stripDia(`${rc.lastName} ${rc.firstName}`),
+                  );
+                  return (
+                    <p key={i} className="text-sm text-gray-700">
+                      {rc.lastName} {rc.firstName}
+                      {rc.birthDate ? (
+                        <span className="text-xs text-gray-400"> ({new Date(rc.birthDate).toLocaleDateString('sk-SK')})</span>
+                      ) : null}{' '}
+                      {assigned ? (
+                        <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-700">priradené</span>
+                      ) : (
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700">nepriradené</span>
+                      )}
+                    </p>
+                  );
+                })}
+                {parentDetail.requestedChildren.note && (
+                  <p className="mt-1 text-sm text-gray-600">Poznámka: {parentDetail.requestedChildren.note}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Priradenie dieťaťa — pri funkcii Rodič */}
         {isParent && (

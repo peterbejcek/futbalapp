@@ -120,7 +120,27 @@ export class MembersService {
           include: { team: { include: { teamCategory: true } }, season: true },
           orderBy: { joinedAt: 'desc' },
         },
-        ...accountInclude,
+        user: {
+          select: {
+            id: true,
+            email: true,
+            roles: { select: { role: true, teamId: true } },
+            // deti, ktoré má rodič (konto) priradené (väzba Guardian)
+            guardianOf: {
+              include: {
+                member: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    status: true,
+                    memberships: activeMembership,
+                  },
+                },
+              },
+            },
+          },
+        },
         guardians: {
           include: { user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } } },
         },
@@ -128,7 +148,54 @@ export class MembersService {
       },
     });
     if (!member) throw new NotFoundException('Člen neexistuje');
-    return member;
+
+    // deti, ktoré rodič uviedol pri registrácii (podľa e-mailu konta) — na kontrolu,
+    // či sú všetky uvedené deti priradené
+    const requestedChildren = await this.requestedChildrenForParent(member.user?.email ?? null);
+
+    // priradené deti (väzba Guardian) — pre prehľad na karte rodiča
+    const assignedChildren = (member.user?.guardianOf ?? []).map((g) => ({
+      id: g.member.id,
+      firstName: g.member.firstName,
+      lastName: g.member.lastName,
+      status: g.member.status,
+      relation: g.relation,
+      team: g.member.memberships[0]?.team.name ?? null,
+    }));
+
+    return { ...member, assignedChildren, requestedChildren };
+  }
+
+  /**
+   * Deti uvedené rodičom pri registrácii (podľa e-mailu jeho konta): z prihlášok
+   * typu CHILD (meno dieťaťa) aj z poznámky pri type PARENT (deti sú už členmi).
+   * Slúži na overenie, či sú všetky uvedené deti aj reálne priradené.
+   */
+  private async requestedChildrenForParent(email: string | null) {
+    if (!email) return { children: [] as Array<{ firstName: string; lastName: string; birthDate: Date | null; status: string }>, note: null as string | null };
+    const reqs = await this.prisma.registrationRequest.findMany({
+      where: { parentEmail: { equals: email, mode: 'insensitive' } },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        applicantType: true,
+        childFirstName: true,
+        childLastName: true,
+        childBirthDate: true,
+        parentChildrenNote: true,
+        status: true,
+      },
+    });
+    const children = reqs
+      .filter((r) => r.childFirstName && r.childLastName)
+      .map((r) => ({
+        firstName: r.childFirstName as string,
+        lastName: r.childLastName as string,
+        birthDate: r.childBirthDate,
+        status: r.status,
+      }));
+    // poznámka o už existujúcich deťoch (type PARENT) — voľný text
+    const note = reqs.map((r) => r.parentChildrenNote).find((n): n is string => !!n && n.trim().length > 0) ?? null;
+    return { children, note };
   }
 
   /**

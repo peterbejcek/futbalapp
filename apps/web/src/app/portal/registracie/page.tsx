@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api } from '@/lib/api';
-import { Button, Card, ErrorText } from '@/components/ui';
+import { Button, Card, ErrorText, Modal, inputCls, labelCls } from '@/components/ui';
 
 interface RegRequest {
   id: string;
@@ -10,6 +10,15 @@ interface RegRequest {
   childFirstName: string | null;
   childLastName: string | null;
   childBirthDate: string | null;
+  birthNumber: string | null;
+  sex: string | null;
+  playerRegistrationNumber: string | null;
+  originCountry: string | null;
+  addressStreet: string | null;
+  addressHouseNumber: string | null;
+  addressZip: string | null;
+  addressCity: string | null;
+  playerEmail: string | null;
   healthNotes: string | null;
   parentFirstName: string | null;
   parentLastName: string | null;
@@ -17,6 +26,7 @@ interface RegRequest {
   parentPhone: string | null;
   parentRelation: string | null;
   parentChildrenNote: string | null;
+  consentGdpr: boolean;
   consentPhotos: boolean;
   note: string | null;
   createdAt: string;
@@ -26,9 +36,18 @@ interface ApprovedResult {
   player: {
     firstName: string;
     lastName: string;
+    reused?: boolean;
     account: { email: string; tempPassword: string | null } | null;
   } | null;
   parent: { email: string; tempPassword: string | null; accountCreated: boolean } | null;
+  linkedChildren?: Array<{ id: string; firstName: string; lastName: string }>;
+}
+
+interface PlayerOption {
+  id: string;
+  firstName: string;
+  lastName: string;
+  memberships: Array<{ team: { name: string } }>;
 }
 
 const RELATION_LABELS: Record<string, string> = {
@@ -38,11 +57,17 @@ const RELATION_LABELS: Record<string, string> = {
   RELATIVE: 'príbuzný',
 };
 
+/** Odstráni diakritiku a zjednotí veľkosť písmen — pre vyhľadávanie. */
+function stripDia(s: string): string {
+  return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+}
+
 export default function RegistrationsPage() {
   const [requests, setRequests] = useState<RegRequest[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [approved, setApproved] = useState<ApprovedResult | null>(null);
+  const [detail, setDetail] = useState<RegRequest | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -57,14 +82,22 @@ export default function RegistrationsPage() {
     void load();
   }, [load]);
 
-  async function decide(id: string, action: 'approve' | 'reject') {
+  async function decide(id: string, action: 'approve' | 'reject', childMemberIds?: string[]) {
     setBusyId(id);
+    setError(null);
     try {
       if (action === 'approve') {
-        const res = await api<ApprovedResult>(`/registration/${id}/approve`, { method: 'POST' });
-        if (res.player?.account?.tempPassword || res.parent?.tempPassword) setApproved(res);
+        const res = await api<ApprovedResult>(`/registration/${id}/approve`, {
+          method: 'POST',
+          body: JSON.stringify({ childMemberIds: childMemberIds ?? [] }),
+        });
+        setDetail(null);
+        if (res.player?.account?.tempPassword || res.parent?.tempPassword || res.player?.reused || res.linkedChildren?.length) {
+          setApproved(res);
+        }
       } else {
         await api(`/registration/${id}/reject`, { method: 'POST' });
+        setDetail(null);
       }
       await load();
     } catch (e) {
@@ -78,33 +111,7 @@ export default function RegistrationsPage() {
     <div className="space-y-5">
       <h1 className="text-2xl font-bold text-club-900">Registrácie na schválenie</h1>
       <ErrorText>{error}</ErrorText>
-      {approved && (
-        <Card className="border-club-300 bg-club-50">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-2 text-sm text-gray-700">
-              <p>
-                Schválené{approved.player ? <>: <strong>{approved.player.firstName} {approved.player.lastName}</strong></> : ' konto rodiča'}.
-                Odovzdajte dočasné heslá — po prihlásení sa dajú zmeniť:
-              </p>
-              {approved.player?.account?.tempPassword && (
-                <p>
-                  Hráč <strong>{approved.player.account.email}</strong>:{' '}
-                  <code className="font-bold tracking-wider text-club-800">{approved.player.account.tempPassword}</code>
-                </p>
-              )}
-              {approved.parent?.tempPassword && (
-                <p>
-                  Rodič <strong>{approved.parent.email}</strong>:{' '}
-                  <code className="font-bold tracking-wider text-club-800">{approved.parent.tempPassword}</code>
-                </p>
-              )}
-            </div>
-            <button onClick={() => setApproved(null)} className="text-sm text-club-600 hover:underline">
-              Zavrieť
-            </button>
-          </div>
-        </Card>
-      )}
+      {approved && <ApprovedBanner result={approved} onClose={() => setApproved(null)} />}
       {requests.length === 0 && !error && (
         <Card className="text-sm text-gray-500">Žiadne čakajúce prihlášky. 🎉</Card>
       )}
@@ -140,19 +147,18 @@ export default function RegistrationsPage() {
                   </p>
                 )}
                 {(r.parentEmail || r.parentPhone) && (
-                  <p className="text-gray-600">
-                    {[r.parentEmail, r.parentPhone].filter(Boolean).join(' · ')}
-                  </p>
+                  <p className="text-gray-600">{[r.parentEmail, r.parentPhone].filter(Boolean).join(' · ')}</p>
                 )}
                 {r.parentChildrenNote && <p className="text-gray-600">Deti (členovia): {r.parentChildrenNote}</p>}
-                {r.healthNotes && <p className="text-gray-600">Zdravotné: {r.healthNotes}</p>}
-                {r.note && <p className="text-gray-600">Poznámka: {r.note}</p>}
                 <p className="text-xs text-gray-400">
                   Fotosúhlas: {r.consentPhotos ? 'áno' : 'nie'} · prijaté{' '}
                   {new Date(r.createdAt).toLocaleDateString('sk-SK')}
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <Button variant="ghost" disabled={busyId === r.id} onClick={() => setDetail(r)}>
+                  Detail / priradiť
+                </Button>
                 <Button variant="danger" disabled={busyId === r.id} onClick={() => decide(r.id, 'reject')}>
                   Zamietnuť
                 </Button>
@@ -165,8 +171,229 @@ export default function RegistrationsPage() {
         ))}
       </div>
       <p className="text-sm text-gray-500">
-        Po schválení sa vytvorí člen, rodičovský účet a hráč sa zaradí do družstva podľa ročníka.
+        Po schválení sa vytvorí člen, rodičovský účet a hráč sa zaradí do družstva podľa ročníka. Ak je hráč už členom
+        (import z futbalnetu alebo skoršia registrácia), priradí sa k rodičovi bez vytvorenia duplikátu.
       </p>
+
+      {detail && (
+        <RegDetailModal
+          request={detail}
+          busy={busyId === detail.id}
+          onClose={() => setDetail(null)}
+          onApprove={(childMemberIds) => decide(detail.id, 'approve', childMemberIds)}
+          onReject={() => decide(detail.id, 'reject')}
+        />
+      )}
     </div>
+  );
+}
+
+function ApprovedBanner({ result, onClose }: { result: ApprovedResult; onClose: () => void }) {
+  return (
+    <Card className="border-club-300 bg-club-50">
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-2 text-sm text-gray-700">
+          <p>
+            Schválené
+            {result.player ? (
+              <>
+                : <strong>{result.player.firstName} {result.player.lastName}</strong>
+                {result.player.reused ? ' (už bol členom — priradený k rodičovi)' : ''}
+              </>
+            ) : (
+              ' konto rodiča'
+            )}
+            .
+          </p>
+          {result.linkedChildren && result.linkedChildren.length > 0 && (
+            <p>
+              Priradené deti:{' '}
+              <strong>{result.linkedChildren.map((c) => `${c.firstName} ${c.lastName}`).join(', ')}</strong>
+            </p>
+          )}
+          {(result.player?.account?.tempPassword || result.parent?.tempPassword) && (
+            <p>Odovzdajte dočasné heslá — po prihlásení sa dajú zmeniť:</p>
+          )}
+          {result.player?.account?.tempPassword && (
+            <p>
+              Hráč <strong>{result.player.account.email}</strong>:{' '}
+              <code className="font-bold tracking-wider text-club-800">{result.player.account.tempPassword}</code>
+            </p>
+          )}
+          {result.parent?.tempPassword && (
+            <p>
+              Rodič <strong>{result.parent.email}</strong>:{' '}
+              <code className="font-bold tracking-wider text-club-800">{result.parent.tempPassword}</code>
+            </p>
+          )}
+        </div>
+        <button onClick={onClose} className="text-sm text-club-600 hover:underline">
+          Zavrieť
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+function Field({ label, value }: { label: string; value: ReactNode }) {
+  if (value === null || value === undefined || value === '') return null;
+  return (
+    <div>
+      <dt className="text-xs text-gray-500">{label}</dt>
+      <dd className="text-sm text-gray-800">{value}</dd>
+    </div>
+  );
+}
+
+function RegDetailModal({
+  request,
+  busy,
+  onClose,
+  onApprove,
+  onReject,
+}: {
+  request: RegRequest;
+  busy: boolean;
+  onClose: () => void;
+  onApprove: (childMemberIds: string[]) => void;
+  onReject: () => void;
+}) {
+  const [players, setPlayers] = useState<PlayerOption[]>([]);
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<string[]>([]);
+
+  const isParentType = request.applicantType === 'PARENT';
+  const address = [
+    [request.addressStreet, request.addressHouseNumber].filter(Boolean).join(' '),
+    [request.addressZip, request.addressCity].filter(Boolean).join(' '),
+  ]
+    .filter((s) => s.trim().length > 0)
+    .join(', ');
+
+  useEffect(() => {
+    api<PlayerOption[]>('/members?role=PLAYER')
+      .then(setPlayers)
+      .catch(() => {});
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = stripDia(search).trim();
+    const list = q ? players.filter((p) => stripDia(p.lastName).includes(q)) : players;
+    return list
+      .slice()
+      .sort((a, b) => a.lastName.localeCompare(b.lastName, 'sk') || a.firstName.localeCompare(b.firstName, 'sk'));
+  }, [players, search]);
+
+  function toggle(id: string) {
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Detail prihlášky">
+      <div className="space-y-4">
+        <span className="inline-block rounded bg-club-100 px-2 py-0.5 text-xs font-medium text-club-700">
+          {isParentType ? 'Konto rodiča (deti sú už členmi)' : request.applicantType === 'ADULT' ? 'Dospelý hráč' : 'Dieťa s rodičom'}
+        </span>
+
+        {!isParentType && (
+          <section>
+            <h3 className="mb-1 font-semibold text-club-800">Hráč</h3>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+              <Field label="Meno a priezvisko" value={`${request.childFirstName ?? ''} ${request.childLastName ?? ''}`.trim()} />
+              <Field
+                label="Dátum narodenia"
+                value={request.childBirthDate ? new Date(request.childBirthDate).toLocaleDateString('sk-SK') : null}
+              />
+              <Field label="Rodné číslo" value={request.birthNumber} />
+              <Field label="Pohlavie" value={request.sex === 'M' ? 'muž' : request.sex === 'F' ? 'žena' : null} />
+              <Field label="Registračné číslo" value={request.playerRegistrationNumber} />
+              <Field label="Krajina pôvodu" value={request.originCountry} />
+              <Field label="Vlastný e-mail (hráč)" value={request.playerEmail} />
+              {address && <Field label="Adresa" value={address} />}
+              {request.healthNotes && <Field label="Zdravotné poznámky" value={request.healthNotes} />}
+            </dl>
+          </section>
+        )}
+
+        {(request.parentFirstName || request.parentEmail) && (
+          <section>
+            <h3 className="mb-1 font-semibold text-club-800">Rodič</h3>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+              <Field label="Meno a priezvisko" value={`${request.parentFirstName ?? ''} ${request.parentLastName ?? ''}`.trim()} />
+              <Field
+                label="Vzťah"
+                value={request.parentRelation ? RELATION_LABELS[request.parentRelation] ?? request.parentRelation : null}
+              />
+              <Field label="E-mail" value={request.parentEmail} />
+              <Field label="Telefón" value={request.parentPhone} />
+              {request.parentChildrenNote && <Field label="Deti (už členovia)" value={request.parentChildrenNote} />}
+            </dl>
+          </section>
+        )}
+
+        <section>
+          <h3 className="mb-1 font-semibold text-club-800">Súhlasy a poznámky</h3>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+            <Field label="GDPR súhlas" value={request.consentGdpr ? 'áno' : 'nie'} />
+            <Field label="Fotosúhlas" value={request.consentPhotos ? 'áno' : 'nie'} />
+            {request.note && <Field label="Poznámka" value={request.note} />}
+            <Field label="Prijaté" value={new Date(request.createdAt).toLocaleString('sk-SK')} />
+          </dl>
+        </section>
+
+        {/* Priradenie existujúceho člena */}
+        <section className="rounded-md border border-club-100 p-3">
+          <label className={labelCls}>
+            {isParentType ? 'Priradiť deti (existujúci členovia)' : 'Hráč už je členom? Priradiť existujúceho'}
+          </label>
+          <p className="mb-2 text-xs text-gray-500">
+            {isParentType
+              ? 'Vyberte deti, ktoré sú už členmi klubu — priradia sa k rodičovi.'
+              : 'Ak je hráč už členom (import z futbalnetu / skoršia registrácia), vyberte ho — nevytvorí sa duplikát. Inak nechajte prázdne a vytvorí sa nový člen.'}
+          </p>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Hľadať podľa priezviska…"
+            className={`${inputCls} mb-2`}
+          />
+          <div className="max-h-48 space-y-1 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-sm text-gray-400">{players.length ? 'Nič nenájdené.' : 'Žiadni hráči.'}</p>
+            ) : (
+              filtered.map((p) => (
+                <label key={p.id} className="flex items-center gap-2 text-sm text-gray-700">
+                  <input type="checkbox" checked={selected.includes(p.id)} onChange={() => toggle(p.id)} />
+                  {p.lastName} {p.firstName}
+                  {p.memberships[0]?.team.name ? (
+                    <span className="text-xs text-gray-400"> · {p.memberships[0].team.name}</span>
+                  ) : null}
+                </label>
+              ))
+            )}
+          </div>
+          {selected.length > 0 && (
+            <p className="mt-2 text-xs text-club-700">Vybraných: {selected.length}</p>
+          )}
+        </section>
+
+        <div className="flex justify-between gap-2">
+          <Button variant="danger" onClick={onReject} disabled={busy}>
+            Zamietnuť
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={onClose} disabled={busy}>
+              Zrušiť
+            </Button>
+            <Button onClick={() => onApprove(selected)} disabled={busy || (isParentType && selected.length === 0)}>
+              {busy ? 'Spracúvam…' : 'Schváliť'}
+            </Button>
+          </div>
+        </div>
+        {isParentType && selected.length === 0 && (
+          <p className="text-right text-xs text-amber-700">Vyberte aspoň jedno dieťa na priradenie.</p>
+        )}
+      </div>
+    </Modal>
   );
 }

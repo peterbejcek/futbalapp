@@ -33,8 +33,12 @@ export class RegistrationController {
 
   @Post(':id/approve')
   @Roles('ADMIN', 'MANAGER')
-  approve(@Param('id') id: string, @CurrentUser() user: AuthUser) {
-    return this.registrationService.approve(id, user.id);
+  approve(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body?: { childMemberIds?: string[] },
+  ) {
+    return this.registrationService.approve(id, user.id, { childMemberIds: body?.childMemberIds });
   }
 
   @Post(':id/reject')
