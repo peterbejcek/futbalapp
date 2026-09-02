@@ -74,7 +74,27 @@ export class AccountsService {
       },
     });
     await this.syncRoles(user.id, input.roles, input.coachTeamIds, input.allowedRoles);
+    // nové konto → pošli prihlasovacie údaje (dočasné heslo) na registrovaný e-mail
+    await this.sendCredentialsEmail(email, input.firstName, tempPassword);
     return { userId: user.id, email, tempPassword, created: true };
+  }
+
+  /** Odošle novému kontu prihlasovacie údaje s dočasným heslom. */
+  private async sendCredentialsEmail(email: string, firstName: string, tempPassword: string) {
+    const link = 'https://fkknv.sk/prihlasenie';
+    const html = `
+      <div style="font-family:Arial,Helvetica,sans-serif;color:#16223c">
+        <h2 style="color:#1a2848">Vitajte v portáli FK Košická Nová Ves</h2>
+        <p>Dobrý deň${firstName ? ` ${firstName}` : ''},</p>
+        <p>bolo vám vytvorené konto do klubového portálu. Prihláste sa týmito údajmi:</p>
+        <table style="margin:12px 0;font-size:15px">
+          <tr><td style="color:#6b7280;padding:2px 8px 2px 0">Prihlasovací e-mail:</td><td><strong>${email}</strong></td></tr>
+          <tr><td style="color:#6b7280;padding:2px 8px 2px 0">Dočasné heslo:</td><td><strong style="letter-spacing:1px">${tempPassword}</strong></td></tr>
+        </table>
+        <p><a href="${link}" style="display:inline-block;background:#2b4278;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Prihlásiť sa</a></p>
+        <p style="color:#6b7280;font-size:13px">Po prihlásení si heslo, prosím, zmeňte v nastaveniach. Ak ste o konto nežiadali, tento e-mail ignorujte.</p>
+      </div>`;
+    await this.email.send([email], 'Prihlasovacie údaje — FK Košická Nová Ves', html);
   }
 
   /**
