@@ -7,8 +7,17 @@ export type MemberStatus = (typeof MEMBER_STATUSES)[number];
 export const ATTENDANCE_STATUSES = ['PRESENT', 'ABSENT', 'EXCUSED', 'INJURED', 'SICK', 'UNKNOWN'] as const;
 export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
 
-export const EVENT_TYPES = ['TRAINING', 'MATCH', 'TOURNAMENT', 'CLUB_EVENT'] as const;
+export const EVENT_TYPES = ['TRAINING', 'MATCH', 'TOURNAMENT', 'CLUB_EVENT', 'PARENT_MEETING'] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
+
+/** Slovenské názvy typov udalostí (pre kalendár a dashboard). */
+export const EVENT_TYPE_LABELS_SK: Record<EventType, string> = {
+  TRAINING: 'Tréning',
+  MATCH: 'Zápas',
+  TOURNAMENT: 'Turnaj',
+  CLUB_EVENT: 'Podujatie',
+  PARENT_MEETING: 'Rodičovské združenie',
+};
 
 /** Povrch ihriska. */
 export const SURFACE_CODES = ['PT', 'UT', 'VT', 'MT', 'MI'] as const;

@@ -1,7 +1,8 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import type { MatchEventInput } from '@fkknv/shared';
+import { formatEventDateTimeSk, type MatchEventInput } from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../notifications/push.service';
+import { EmailService } from '../notifications/email.service';
 import { coachBlockedFromTeam } from '../auth/scope';
 import type { AuthUser } from '../auth/current-user.decorator';
 
@@ -13,6 +14,7 @@ export class MatchesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pushService: PushService,
+    private readonly email: EmailService,
   ) {}
 
   /** Tréner smie spravovať zápas len svojho družstva. */
@@ -92,6 +94,100 @@ export class MatchesService {
       });
     }
     return nomination;
+  }
+
+  /**
+   * Rozpošle e-mailom oznam o nominácii hráčom / rodičom nominovaných hráčov.
+   * Vráti počet oslovených adries a zoznam nominovaných hráčov, ktorí nemajú
+   * konto s e-mailom ani priradeného rodiča s e-mailom (nedostanú oznam).
+   */
+  async emailNomination(matchId: string, user: AuthUser) {
+    await this.assertMatchTeam(matchId, user);
+    const match = await this.prisma.match.findUnique({
+      where: { id: matchId },
+      include: {
+        event: { include: { team: { include: { teamCategory: true } } } },
+        nominations: {
+          where: { status: { not: 'REMOVED' } },
+          include: {
+            member: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                user: { select: { email: true } },
+                guardians: { select: { user: { select: { email: true } } } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!match) throw new NotFoundException('Zápas neexistuje');
+    const ev = match.event;
+    const teamName = ev.team?.name ?? 'FK KNV';
+    const vs = match.isHome ? `${teamName} – ${match.opponent}` : `${match.opponent} – ${teamName}`;
+    const when = formatEventDateTimeSk(ev.startAt);
+    const category = ev.team?.teamCategory.code ?? null;
+    const needsConfirm = category ? CONFIRM_CATEGORIES.includes(category) : false;
+
+    // unikátne e-maily príjemcov + hráči bez akéhokoľvek e-mailu
+    const emails = new Set<string>();
+    const missing: Array<{ id: string; name: string }> = [];
+    for (const nom of match.nominations) {
+      const m = nom.member;
+      const own = m.user?.email ? [m.user.email] : [];
+      const guardianEmails = m.guardians.map((g) => g.user.email).filter((e): e is string => !!e);
+      const all = [...own, ...guardianEmails];
+      if (all.length === 0) missing.push({ id: m.id, name: `${m.lastName} ${m.firstName}` });
+      else for (const e of all) emails.add(e.trim().toLowerCase());
+    }
+
+    const html = `
+      <div style="font-family:Arial,Helvetica,sans-serif;color:#16223c">
+        <h2 style="color:#1a2848">Nominácia na zápas</h2>
+        <p>Váš hráč je v nominácii na najbližší zápas:</p>
+        <table style="margin:10px 0;font-size:15px">
+          <tr><td style="color:#6b7280;padding:2px 8px 2px 0">Zápas:</td><td><strong>${vs}</strong></td></tr>
+          <tr><td style="color:#6b7280;padding:2px 8px 2px 0">Kedy:</td><td><strong>${when}</strong></td></tr>
+          ${ev.location ? `<tr><td style="color:#6b7280;padding:2px 8px 2px 0">Kde:</td><td>${ev.location}</td></tr>` : ''}
+        </table>
+        ${
+          needsConfirm
+            ? `<p>Prosíme o <strong>potvrdenie účasti</strong> v aplikácii / portáli (Prehľad → nominácie).</p>`
+            : ''
+        }
+        <p><a href="https://fkknv.sk/prihlasenie" style="display:inline-block;background:#2b4278;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Otvoriť portál</a></p>
+      </div>`;
+    const subject = `Nominácia na zápas — ${vs}`;
+    let sent = 0;
+    for (const to of emails) {
+      const res = await this.email.send([to], subject, html);
+      if (res.sent) sent++;
+    }
+    return { recipients: emails.size, sent, missing, needsConfirm };
+  }
+
+  /**
+   * Zápasy, na ktoré je prihlásený používateľ (alebo jeho deti) nominovaný —
+   * na zvýraznenie „nominovaný" v kalendári a na dashboarde.
+   */
+  async myNominatedMatches(userId: string) {
+    const memberIds = await this.myMemberIds(userId);
+    if (memberIds.length === 0) return [];
+    const noms = await this.prisma.matchNomination.findMany({
+      where: { memberId: { in: memberIds }, status: { not: 'REMOVED' } },
+      select: {
+        matchId: true,
+        status: true,
+        member: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+    return noms.map((n) => ({
+      matchId: n.matchId,
+      status: n.status,
+      member: n.member,
+    }));
   }
 
   /** Členovia, ku ktorým má používateľ prístup (vlastný člen + deti). */

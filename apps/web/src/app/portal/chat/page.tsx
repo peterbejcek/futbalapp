@@ -47,6 +47,7 @@ interface Channel {
   teamName: string | null;
   categoryCode: string | null;
   lastMessage: { body: string; createdAt: string } | null;
+  unreadCount: number;
 }
 
 const KIND_LABELS: Record<string, string> = {
@@ -101,14 +102,28 @@ export default function ChatPage() {
     setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
   }, []);
 
-  useEffect(() => {
-    api<Channel[]>('/chat/channels')
-      .then((list) => {
-        setChannels(list);
-        if (list.length > 0) setActiveId((current) => current ?? list[0]!.id);
-      })
-      .catch((e) => setError(e.message));
+  const reloadChannels = useCallback(async () => {
+    try {
+      const list = await api<Channel[]>('/chat/channels');
+      setChannels(list);
+      return list;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Načítanie zlyhalo');
+      return [];
+    }
   }, []);
+
+  useEffect(() => {
+    void reloadChannels().then((list) => {
+      if (list.length > 0) setActiveId((current) => current ?? list[0]!.id);
+    });
+  }, [reloadChannels]);
+
+  // otvorenie kanála: hneď vynuluj neprečítané (na serveri sa označí pri načítaní správ)
+  function openChannel(id: string) {
+    setActiveId(id);
+    setChannels((prev) => prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c)));
+  }
 
   const loadMessages = useCallback(async () => {
     if (!activeId) return;
@@ -136,7 +151,8 @@ export default function ChatPage() {
   // pri zmene kanála: vyčisti zoznam, načítaj históriu, prihlás sa na realtime
   useEffect(() => {
     setMessages([]); // nech sa pod novým kanálom nezobrazujú správy predchádzajúceho
-    void loadMessages();
+    // po načítaní (server označí kanál za prečítaný) obnov zoznam s počtami neprečítaných
+    void loadMessages().then(() => reloadChannels());
     const socket = socketRef.current;
     if (!socket || !activeId) return;
 
@@ -149,7 +165,7 @@ export default function ChatPage() {
       socket.off('message', onMessage);
       socket.emit('leave', { channelId: activeId });
     };
-  }, [loadMessages, activeId, appendMessage]);
+  }, [loadMessages, activeId, appendMessage, reloadChannels]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -167,6 +183,7 @@ export default function ChatPage() {
         body: JSON.stringify({ body }),
       });
       appendMessage(message, channelId);
+      void reloadChannels();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Odoslanie zlyhalo');
       setText(body);
@@ -213,32 +230,52 @@ export default function ChatPage() {
           <h2 className="sticky top-0 border-b border-club-100 bg-white px-4 py-3 text-sm font-semibold text-club-800">
             Kanály
           </h2>
-          {groupChannels(channels).map((group) => (
-            <div key={group.key}>
-              <div className="bg-club-50 px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-club-700">
-                {group.label}
+          {groupChannels(channels).map((group) => {
+            const groupUnread = group.channels.some((c) => c.unreadCount > 0 && c.id !== activeId);
+            return (
+              <div key={group.key}>
+                <div className="flex items-center gap-2 bg-club-50 px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-club-700">
+                  {group.label}
+                  {groupUnread && <span className="inline-block h-2 w-2 rounded-full bg-red-500" title="Neprečítané správy" />}
+                </div>
+                <ul>
+                  {group.channels.map((channel) => {
+                    const unread = channel.unreadCount > 0 && channel.id !== activeId;
+                    return (
+                      <li key={channel.id}>
+                        <button
+                          onClick={() => openChannel(channel.id)}
+                          className={`flex w-full items-start justify-between gap-2 px-4 py-2 text-left text-sm hover:bg-club-50 ${
+                            channel.id === activeId
+                              ? 'bg-club-50 font-semibold text-club-800'
+                              : unread
+                                ? 'font-semibold text-club-900'
+                                : 'text-gray-700'
+                          }`}
+                        >
+                          <span className="min-w-0 flex-1">
+                            {KIND_LABELS[channel.kind] ?? channel.name}
+                            {channel.lastMessage && (
+                              <span
+                                className={`mt-0.5 block truncate text-xs font-normal ${unread ? 'text-gray-600' : 'text-gray-400'}`}
+                              >
+                                {channel.lastMessage.body}
+                              </span>
+                            )}
+                          </span>
+                          {unread && (
+                            <span className="mt-0.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-bold text-white">
+                              {channel.unreadCount}
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
-              <ul>
-                {group.channels.map((channel) => (
-                  <li key={channel.id}>
-                    <button
-                      onClick={() => setActiveId(channel.id)}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-club-50 ${
-                        channel.id === activeId ? 'bg-club-50 font-semibold text-club-800' : 'text-gray-700'
-                      }`}
-                    >
-                      {KIND_LABELS[channel.kind] ?? channel.name}
-                      {channel.lastMessage && (
-                        <span className="mt-0.5 block truncate text-xs font-normal text-gray-400">
-                          {channel.lastMessage.body}
-                        </span>
-                      )}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+            );
+          })}
           {channels.length === 0 && <p className="px-4 py-6 text-sm text-gray-500">Žiadne kanály.</p>}
         </aside>
 

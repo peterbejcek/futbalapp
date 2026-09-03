@@ -37,6 +37,7 @@ model User {
   member       Member?
   messages     Message[]
   channelMemberships ChannelMember[]
+  channelReads ChannelRead[]
   pushTokens   PushToken[]
 }
 
@@ -330,6 +331,7 @@ model Team {
   memberships  TeamMembership[]
   userRoles    UserRole[]
   events       Event[]
+  audienceEvents Event[]        @relation("EventAudience")
   channels     Channel[]
 
   @@unique([teamCategoryId, name])
@@ -516,6 +518,7 @@ enum EventType {
   MATCH
   TOURNAMENT
   CLUB_EVENT
+  PARENT_MEETING
 }
 
 enum EventSource {
@@ -561,6 +564,10 @@ model Event {
   team        Team?        @relation(fields: [teamId], references: [id])
   attendances Attendance[]
   match       Match?
+  /// Družstvá, ktorých sa udalosť týka (napr. rodičovské združenie pre viac
+  /// družstiev naraz). Prázdne = celoklubová udalosť. Používa sa nad rámec
+  /// jediného `teamId` pri udalostiach smerovaných na viacero družstiev.
+  audienceTeams Team[]     @relation("EventAudience")
 
   @@index([teamId, startAt])
   @@index([recurrenceGroupId])
@@ -699,8 +706,24 @@ model Channel {
   team     Team?           @relation(fields: [teamId], references: [id])
   members  ChannelMember[]
   messages Message[]
+  reads    ChannelRead[]
 
   @@index([teamId])
+}
+
+/// Kedy naposledy používateľ čítal kanál — na zvýraznenie neprečítaných správ.
+/// Vedie sa pre každého používateľa s prístupom (aj vedenie/tréner, ktorí nie
+/// sú členmi kanála), preto samostatná tabuľka mimo ChannelMember.
+model ChannelRead {
+  id         String   @id @default(cuid())
+  channelId  String
+  userId     String
+  lastReadAt DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
 }
 
 model ChannelMember {

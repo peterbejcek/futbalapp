@@ -383,18 +383,6 @@ export default function RegistrationPage() {
                 </div>
               </fieldset>
 
-              {/* GDPR súhlas rodiča */}
-              <label className="flex items-start gap-2 text-sm text-gray-700">
-                <input type="checkbox" checked={gdpr} onChange={(e) => setGdpr(e.target.checked)} required className="mt-1" />
-                <span>
-                  Súhlasím so spracovaním osobných údajov na účely členstva a registrácie hráča podľa{' '}
-                  <Link href="/dokumenty/ochrana-osobnych-udajov" target="_blank" className="text-club-600 underline">
-                    Zásad ochrany osobných údajov (GDPR)
-                  </Link>{' '}
-                  (povinné).
-                </span>
-              </label>
-
               {/* Registrovať dieťa, alebo deti už sú členmi */}
               <fieldset className="space-y-2">
                 <legend className="font-semibold text-club-800">Deti</legend>
@@ -455,27 +443,27 @@ export default function RegistrationPage() {
                 <legend className="font-semibold text-club-800">Hráč (vy)</legend>
                 <PlayerFields value={adult} onChange={(patch) => setAdult((p) => ({ ...p, ...patch }))} adult onError={setError} />
               </fieldset>
-
-              <label className="flex items-start gap-2 text-sm text-gray-700">
-                <input type="checkbox" checked={gdpr} onChange={(e) => setGdpr(e.target.checked)} required className="mt-1" />
-                <span>
-                  Súhlasím so spracovaním osobných údajov na účely členstva a registrácie hráča podľa{' '}
-                  <Link href="/dokumenty/ochrana-osobnych-udajov" target="_blank" className="text-club-600 underline">
-                    Zásad ochrany osobných údajov (GDPR)
-                  </Link>{' '}
-                  (povinné).
-                </span>
-              </label>
             </>
           )}
 
-          {/* Fotosúhlas (spoločný) — netýka sa PARENT bez dieťaťa */}
-          {!(role === 'PARENT' && parentMode === 'EXISTING') && (
+          {/* Súhlasy — v každej verzii registrácie: najprv GDPR (povinné), potom fotosúhlas */}
+          <fieldset className="space-y-3">
+            <legend className="font-semibold text-club-800">Súhlasy</legend>
+            <label className="flex items-start gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={gdpr} onChange={(e) => setGdpr(e.target.checked)} required className="mt-1" />
+              <span>
+                Súhlasím so spracovaním osobných údajov na účely členstva a registrácie hráča podľa{' '}
+                <Link href="/dokumenty/ochrana-osobnych-udajov" target="_blank" className="text-club-600 underline">
+                  Zásad ochrany osobných údajov (GDPR)
+                </Link>{' '}
+                (povinné).
+              </span>
+            </label>
             <label className="flex items-start gap-2 text-sm text-gray-700">
               <input type="checkbox" checked={photos} onChange={(e) => setPhotos(e.target.checked)} className="mt-1" />
-              <span>Súhlasím so zverejňovaním fotografií z tréningov a zápasov (nepovinné).</span>
+              <span>Súhlasím so zhotovovaním a zverejňovaním fotografií z tréningov a zápasov (nepovinné).</span>
             </label>
-          )}
+          </fieldset>
 
           <div>
             <label className={label}>Poznámka pre klub (nepovinné)</label>

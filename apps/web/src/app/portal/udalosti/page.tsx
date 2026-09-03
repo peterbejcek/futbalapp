@@ -30,6 +30,7 @@ interface EventItem {
   surface: SurfaceCode | null;
   recurrenceGroupId: string | null;
   team: { id: string; name: string; teamCategory: { code: string } } | null;
+  audienceTeams?: Array<{ id: string; name: string }>;
   match: {
     id: string;
     state: string;
@@ -46,16 +47,26 @@ const typeLabels: Record<string, string> = {
   MATCH: 'Zápas',
   TOURNAMENT: 'Turnaj',
   CLUB_EVENT: 'Podujatie',
+  PARENT_MEETING: 'Rodičovské združenie',
 };
 
 /**
  * Odkaz na detail udalosti; `null` = detail sa neotvára.
- * Zápas otvorí každý, kto ho vidí; detail tréningu/podujatia (dochádzku) len
- * vedenie klubu a tréner daného družstva — rodič/hráč ho neotvorí.
+ * Zápas otvorí každý, kto ho vidí; detail tréningu (dochádzku) len vedenie klubu
+ * a tréner daného družstva. Rodičovské združenie a celoklubové podujatia nemajú
+ * detail (všetky info sú na karte).
  */
 function eventHref(me: Me | null, e: EventItem): string | null {
   if (e.match) return `/portal/zapasy/${e.match.id}`;
+  if (e.type === 'PARENT_MEETING') return null;
   return canManageTeam(me, e.team?.id) ? `/portal/dochadzka/${e.id}` : null;
+}
+
+/** Komu je udalosť určená (rodičovské združenie): zoznam družstiev alebo „celý klub". */
+function audienceLabel(e: EventItem): string | null {
+  if (e.type !== 'PARENT_MEETING') return null;
+  if (e.audienceTeams && e.audienceTeams.length > 0) return e.audienceTeams.map((t) => t.name).join(', ');
+  return 'celý klub';
 }
 
 // logo nášho klubu (FK Košická Nová Ves) z futbalnetu
@@ -108,6 +119,8 @@ export default function EventsPage() {
   const [error, setError] = useState<string | null>(null);
   const [trainingOpen, setTrainingOpen] = useState(false);
   const [matchOpen, setMatchOpen] = useState(false);
+  const [meetingOpen, setMeetingOpen] = useState(false);
+  const [nominatedMatchIds, setNominatedMatchIds] = useState<Set<string>>(new Set());
   const [venues, setVenues] = useState<string[]>([]);
   const [opponents, setOpponents] = useState<string[]>([]);
   const [view, setView] = useState<'list' | 'month'>('list');
@@ -147,6 +160,9 @@ export default function EventsPage() {
   useEffect(() => {
     api<Team[]>('/seasons/teams').then(setTeams).catch(() => {});
     api<string[]>('/events/locations').then(setVenues).catch(() => {});
+    api<Array<{ matchId: string }>>('/matches/my/nominated')
+      .then((rows) => setNominatedMatchIds(new Set(rows.map((r) => r.matchId))))
+      .catch(() => {});
     Promise.all([
       api<string[]>('/matches/opponents').catch(() => []),
       api<Array<{ name: string }>>('/clubs').catch(() => []),
@@ -184,9 +200,12 @@ export default function EventsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-club-900">Kalendár</h1>
         {canManage(me) && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="ghost" onClick={() => setTrainingOpen(true)}>
               + Tréning
+            </Button>
+            <Button variant="ghost" onClick={() => setMeetingOpen(true)}>
+              + Rodičovské
             </Button>
             <Button onClick={() => setMatchOpen(true)}>+ Zápas / turnaj</Button>
           </div>
@@ -252,11 +271,11 @@ export default function EventsPage() {
 
       {view === 'list' ? (
         <>
-          <EventList me={me} title="Najbližšie" events={grouped.upcoming} empty="Žiadne naplánované udalosti." />
-          {grouped.past.length > 0 && <EventList me={me} title="Odohrané" events={grouped.past.slice(0, 20)} empty="" />}
+          <EventList me={me} nominated={nominatedMatchIds} title="Najbližšie" events={grouped.upcoming} empty="Žiadne naplánované udalosti." />
+          {grouped.past.length > 0 && <EventList me={me} nominated={nominatedMatchIds} title="Odohrané" events={grouped.past.slice(0, 20)} empty="" />}
         </>
       ) : (
-        <MonthView me={me} month={month} events={events} />
+        <MonthView me={me} nominated={nominatedMatchIds} month={month} events={events} />
       )}
 
       <TrainingModal
@@ -277,11 +296,33 @@ export default function EventsPage() {
           void load();
         }}
       />
+      <ParentMeetingModal
+        open={meetingOpen}
+        onClose={() => setMeetingOpen(false)}
+        teams={availableTeams}
+        canWholeClub={isStaff(me)}
+        onDone={() => {
+          setMeetingOpen(false);
+          void load();
+        }}
+      />
     </div>
   );
 }
 
-function EventList({ me, title, events, empty }: { me: Me | null; title: string; events: EventItem[]; empty: string }) {
+function EventList({
+  me,
+  nominated,
+  title,
+  events,
+  empty,
+}: {
+  me: Me | null;
+  nominated: Set<string>;
+  title: string;
+  events: EventItem[];
+  empty: string;
+}) {
   return (
     <section>
       <h2 className="mb-2 font-semibold text-club-800">{title}</h2>
@@ -292,6 +333,8 @@ function EventList({ me, title, events, empty }: { me: Me | null; title: string;
           {events.map((e) => {
             const href = eventHref(me, e);
             const c = eventTypeColor(e.type);
+            const audience = audienceLabel(e);
+            const isNominated = !!e.match && nominated.has(e.match.id);
             const body = (
               <>
                 <span
@@ -302,10 +345,16 @@ function EventList({ me, title, events, empty }: { me: Me | null; title: string;
                   {e.team ? ` · ${e.team.name}` : ''}
                   {e.recurrenceGroupId ? ' · séria' : ''}
                 </span>
+                {isNominated && (
+                  <span className="ml-2 inline-block rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                    Nominovaný
+                  </span>
+                )}
                 <div className="mt-1 text-sm text-gray-600">
                   {formatEventDateTimeSk(e.startAt)}
                 </div>
                 {e.match ? <MatchTeams e={e} /> : <div className="mt-1 font-medium">{e.title}</div>}
+                {audience && <div className="mt-1 text-xs text-club-700">Pre: {audience}</div>}
                 {(e.location || e.surface) && (
                   <div className="mt-1 text-xs text-gray-500">
                     {e.location}
@@ -333,7 +382,17 @@ function EventList({ me, title, events, empty }: { me: Me | null; title: string;
   );
 }
 
-function MonthView({ me, month, events }: { me: Me | null; month: Date; events: EventItem[] }) {
+function MonthView({
+  me,
+  nominated,
+  month,
+  events,
+}: {
+  me: Me | null;
+  nominated: Set<string>;
+  month: Date;
+  events: EventItem[];
+}) {
   const year = month.getFullYear();
   const m = month.getMonth();
   const startWeekday = (new Date(year, m, 1).getDay() + 6) % 7; // Po = 0
@@ -385,7 +444,8 @@ function MonthView({ me, month, events }: { me: Me | null; month: Date; events: 
                         const href = eventHref(me, e);
                         const c = eventTypeColor(e.type);
                         const time = formatEventTimeSk(e.startAt);
-                        const label = e.match ? `⚽ ${e.match.opponent}` : `${typeLabels[e.type] ?? e.type}${e.team ? ` ${e.team.name}` : ''}`;
+                        const isNominated = !!e.match && nominated.has(e.match.id);
+                        const label = `${e.match ? `⚽ ${e.match.opponent}` : `${typeLabels[e.type] ?? e.type}${e.team ? ` ${e.team.name}` : ''}`}${isNominated ? ' ✓' : ''}`;
                         return href ? (
                           <Link
                             key={e.id}
@@ -692,6 +752,121 @@ function MatchModal({
             Zrušiť
           </Button>
           <Button onClick={submit} disabled={busy || !teamId || !opponent || !date}>
+            {busy ? 'Ukladám…' : 'Vytvoriť'}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/** Rodičovské združenie: pre vybrané družstvá alebo celý klub. */
+function ParentMeetingModal({
+  open,
+  onClose,
+  teams,
+  canWholeClub,
+  onDone,
+}: {
+  open: boolean;
+  onClose: () => void;
+  teams: Team[];
+  canWholeClub: boolean;
+  onDone: () => void;
+}) {
+  const [title, setTitle] = useState('Rodičovské združenie');
+  const [wholeClub, setWholeClub] = useState(false);
+  const [teamIds, setTeamIds] = useState<string[]>([]);
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('17:00');
+  const [location, setLocation] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // tréner nemôže robiť celoklubové združenie
+  useEffect(() => {
+    if (!canWholeClub && wholeClub) setWholeClub(false);
+  }, [canWholeClub, wholeClub]);
+
+  function toggleTeam(id: string) {
+    setTeamIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api('/events', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'PARENT_MEETING',
+          title,
+          startAt: `${date}T${time}:00.000Z`,
+          location: location || undefined,
+          audienceTeamIds: wholeClub ? [] : teamIds,
+        }),
+      });
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Uloženie zlyhalo');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const valid = !!date && (wholeClub || teamIds.length > 0);
+
+  return (
+    <Modal open={open} onClose={onClose} title="Nové rodičovské združenie">
+      <div className="space-y-4">
+        <div>
+          <label className={labelCls}>Názov</label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} />
+        </div>
+
+        <div>
+          <label className={labelCls}>Pre koho</label>
+          {canWholeClub && (
+            <label className="mb-2 flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={wholeClub} onChange={(e) => setWholeClub(e.target.checked)} />
+              Celý klub (všetky družstvá)
+            </label>
+          )}
+          {!wholeClub && (
+            <div className="grid max-h-40 grid-cols-2 gap-1 overflow-y-auto rounded-md border border-gray-200 p-2">
+              {teams.map((t) => (
+                <label key={t.id} className="flex items-center gap-2 text-sm text-gray-700">
+                  <input type="checkbox" checked={teamIds.includes(t.id)} onChange={() => toggleTeam(t.id)} />
+                  {t.name}
+                </label>
+              ))}
+              {teams.length === 0 && <p className="text-sm text-gray-400">Žiadne družstvá.</p>}
+            </div>
+          )}
+          <p className="mt-1 text-xs text-gray-500">Vyberte jedno či viac družstiev, alebo celý klub.</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelCls}>Dátum</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Čas</label>
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={inputCls} />
+          </div>
+        </div>
+        <div>
+          <label className={labelCls}>Miesto</label>
+          <input value={location} onChange={(e) => setLocation(e.target.value)} className={inputCls} list="venue-list" placeholder="Klubovňa / ihrisko KNV" />
+        </div>
+
+        <ErrorText>{error}</ErrorText>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            Zrušiť
+          </Button>
+          <Button onClick={submit} disabled={busy || !valid}>
             {busy ? 'Ukladám…' : 'Vytvoriť'}
           </Button>
         </div>

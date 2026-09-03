@@ -62,6 +62,25 @@ export class ChatService {
         messages: { orderBy: { createdAt: 'desc' }, take: 1, select: { body: true, createdAt: true } },
       },
     });
+
+    // stav prečítania pre zvýraznenie neprečítaných správ
+    const reads = await this.prisma.channelRead.findMany({
+      where: { userId: user.id, channelId: { in: channels.map((c) => c.id) } },
+      select: { channelId: true, lastReadAt: true },
+    });
+    const lastReadByChannel = new Map(reads.map((r) => [r.channelId, r.lastReadAt]));
+    // počet neprečítaných (od cudzieho odosielateľa) pre každý kanál
+    const unreadByChannel = new Map<string, number>();
+    await Promise.all(
+      channels.map(async (channel) => {
+        const lastReadAt = lastReadByChannel.get(channel.id) ?? new Date(0);
+        const count = await this.prisma.message.count({
+          where: { channelId: channel.id, senderId: { not: user.id }, createdAt: { gt: lastReadAt } },
+        });
+        unreadByChannel.set(channel.id, count);
+      }),
+    );
+
     return channels
       .map((channel) => ({
         id: channel.id,
@@ -72,6 +91,7 @@ export class ChatService {
         categoryCode: channel.team?.teamCategory.code ?? null,
         categorySort: channel.team?.teamCategory.sortOrder ?? -1,
         lastMessage: channel.messages[0] ?? null,
+        unreadCount: unreadByChannel.get(channel.id) ?? 0,
       }))
       .sort(
         (a, b) =>
@@ -130,7 +150,19 @@ export class ChatService {
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
+    // otvorenie kanála (nie stránkovanie histórie) označí správy za prečítané
+    if (!before) await this.markRead(channelId, user.id);
     return messages.reverse();
+  }
+
+  /** Označí kanál za prečítaný po prihlásenom používateľovi (lastReadAt = teraz). */
+  async markRead(channelId: string, userId: string) {
+    await this.prisma.channelRead.upsert({
+      where: { channelId_userId: { channelId, userId } },
+      create: { channelId, userId, lastReadAt: new Date() },
+      update: { lastReadAt: new Date() },
+    });
+    return { ok: true };
   }
 
   async post(channelId: string, user: AuthUser, body: string) {

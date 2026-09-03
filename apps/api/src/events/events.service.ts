@@ -11,6 +11,13 @@ import { ClubsService } from '../clubs/clubs.service';
 import { canManageTeam, coachBlockedFromTeam, coachTeamIds, isStaff } from '../auth/scope';
 import type { AuthUser } from '../auth/current-user.decorator';
 
+/** Spoločné pripojenia pri načítaní udalostí (družstvo, zápas, cieľové družstvá). */
+const EVENT_INCLUDE = {
+  team: { include: { teamCategory: true } },
+  match: true,
+  audienceTeams: { select: { id: true, name: true }, orderBy: { sortOrder: 'asc' } },
+} as const;
+
 @Injectable()
 export class EventsService {
   constructor(
@@ -28,7 +35,7 @@ export class EventsService {
         type: params.type ? (params.type as never) : undefined,
         startAt: { gte: params.from, lte: params.to },
       },
-      include: { team: { include: { teamCategory: true } }, match: true },
+      include: EVENT_INCLUDE,
       orderBy: { startAt: 'asc' },
     });
   }
@@ -59,11 +66,17 @@ export class EventsService {
     const teamIds = await this.relevantTeamIds(user);
     return this.prisma.event.findMany({
       where: {
-        OR: [{ teamId: { in: teamIds } }, { teamId: null }],
+        OR: [
+          { teamId: { in: teamIds } },
+          // celoklubová udalosť bez cielenia na konkrétne družstvá
+          { AND: [{ teamId: null }, { audienceTeams: { none: {} } }] },
+          // udalosť cielená na moje družstvá (napr. rodičovské združenie)
+          { audienceTeams: { some: { id: { in: teamIds } } } },
+        ],
         type: params.type ? (params.type as never) : undefined,
         startAt: { gte: params.from, lte: params.to },
       },
-      include: { team: { include: { teamCategory: true } }, match: true },
+      include: EVENT_INCLUDE,
       orderBy: { startAt: 'asc' },
     });
   }
@@ -121,6 +134,8 @@ export class EventsService {
       await this.clubs.ensure(input.opponent);
     }
 
+    // cieľové družstvá (rodičovské združenie a pod.) — prázdne = celoklubová udalosť
+    const audienceTeamIds = [...new Set(input.audienceTeamIds ?? [])];
     const event = await this.prisma.event.create({
       data: {
         type: input.type,
@@ -135,6 +150,7 @@ export class EventsService {
         match: isMatch
           ? { create: { opponent: input.opponent ?? 'Neznámy súper', isHome: input.isHome ?? true, opponentLogo } }
           : undefined,
+        audienceTeams: audienceTeamIds.length ? { connect: audienceTeamIds.map((id) => ({ id })) } : undefined,
       },
       include: { match: true },
     });

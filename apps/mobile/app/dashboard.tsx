@@ -16,6 +16,7 @@ interface EventItem {
   startAt: string;
   location: string | null;
   team: { id: string; name: string } | null;
+  audienceTeams?: Array<{ id: string; name: string }>;
   match: { id: string; opponent: string; isHome: boolean; opponentLogo: string | null } | null;
 }
 
@@ -40,6 +41,7 @@ const typeLabels: Record<string, string> = {
   MATCH: 'Zápas',
   TOURNAMENT: 'Turnaj',
   CLUB_EVENT: 'Podujatie',
+  PARENT_MEETING: 'Rodičovské združenie',
 };
 
 const MONTHS_SK = [
@@ -59,6 +61,7 @@ export default function DashboardScreen() {
   const [cards, setCards] = useState<RegCard[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
+  const [nominated, setNominated] = useState<Set<string>>(new Set());
   const [view, setView] = useState<ViewMode>('upcoming');
   const [month, setMonth] = useState(() => {
     const d = new Date();
@@ -85,6 +88,9 @@ export default function DashboardScreen() {
       const list = await api<EventItem[]>(url);
       setEvents(view === 'month' ? list : list.slice(0, 20));
       api<RegCard[]>('/members/registration-cards').then(setCards).catch(() => {});
+      api<Array<{ matchId: string }>>('/matches/my/nominated')
+        .then((rows) => setNominated(new Set(rows.map((r) => r.matchId))))
+        .catch(() => {});
     } catch {
       // token expiroval → späť na login
       await setToken(null);
@@ -137,17 +143,28 @@ export default function DashboardScreen() {
 
   function renderEventCard(item: EventItem) {
     const openable = canOpen(item);
+    const isNominated = !!item.match && nominated.has(item.match.id);
+    const audience =
+      item.type === 'PARENT_MEETING'
+        ? item.audienceTeams && item.audienceTeams.length > 0
+          ? item.audienceTeams.map((t) => t.name).join(', ')
+          : 'celý klub'
+        : null;
     return (
       <Pressable style={styles.card} onPress={() => openEvent(item)} disabled={!openable}>
-        <Text style={styles.badge}>
-          {typeLabels[item.type] ?? item.type}
-          {item.team ? ` · ${item.team.name}` : ''}
-        </Text>
+        <View style={styles.badgeRow}>
+          <Text style={styles.badge}>
+            {typeLabels[item.type] ?? item.type}
+            {item.team ? ` · ${item.team.name}` : ''}
+          </Text>
+          {isNominated && <Text style={styles.nomBadge}>Nominovaný</Text>}
+        </View>
         <Text style={styles.cardMeta}>
           {formatEventDateTimeSk(item.startAt)}
           {item.location ? ` · ${item.location}` : ''}
         </Text>
         {item.match ? <MatchTeams item={item} /> : <Text style={styles.cardTitle}>{item.title}</Text>}
+        {audience && <Text style={styles.audience}>Pre: {audience}</Text>}
         {openable && (
           <Text style={styles.cardAction}>
             {item.match ? 'Otvoriť zápas →' : 'Dochádzka →'}
@@ -444,6 +461,19 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   badge: { color: colors.club600, fontSize: 12, fontWeight: '600', marginBottom: 4 },
+  badgeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  nomBadge: {
+    color: '#166534',
+    backgroundColor: '#dcfce7',
+    fontSize: 11,
+    fontWeight: '700',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    overflow: 'hidden',
+    marginBottom: 4,
+  },
+  audience: { color: colors.club700, fontSize: 12, marginTop: 4 },
   cardTitle: { fontSize: 16, fontWeight: '600', color: colors.club900 },
   cardMeta: { color: colors.gray, fontSize: 13, marginTop: 4 },
   cardAction: { color: colors.club600, fontSize: 13, fontWeight: '600', marginTop: 6 },

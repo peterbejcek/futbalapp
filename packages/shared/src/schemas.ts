@@ -117,6 +117,9 @@ export const createEventSchema = z.object({
   type: z.enum(EVENT_TYPES),
   title: z.string().min(2).max(120),
   teamId: z.string().optional(), // null/prázdne = celoklubová udalosť
+  /// cieľové družstvá (napr. rodičovské združenie pre viac družstiev naraz);
+  /// prázdne = celoklubová udalosť
+  audienceTeamIds: z.array(z.string()).optional(),
   startAt: z.coerce.date(),
   endAt: z.coerce.date().optional(),
   location: z.string().max(200).optional(),

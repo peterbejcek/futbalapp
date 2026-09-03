@@ -73,6 +73,8 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   const [scoreUs, setScoreUs] = useState('0');
   const [scoreThem, setScoreThem] = useState('0');
   const [error, setError] = useState<string | null>(null);
+  const [notifyBusy, setNotifyBusy] = useState(false);
+  const [notifyResult, setNotifyResult] = useState<{ recipients: number; missing: Array<{ id: string; name: string }> } | null>(null);
 
   // spravovať zápas/nomináciu môže vedenie, alebo tréner tohto družstva
   const manage = isStaff(me) || (!!match?.event.team && coachTeams(me).some((t) => t.id === match.event.team!.id));
@@ -113,9 +115,26 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
     await load();
   }
 
+  async function sendNominationEmail() {
+    setNotifyBusy(true);
+    setError(null);
+    try {
+      const res = await api<{ recipients: number; sent: number; missing: Array<{ id: string; name: string }> }>(
+        `/matches/${id}/notify-nomination`,
+        { method: 'POST' },
+      );
+      setNotifyResult({ recipients: res.recipients, missing: res.missing });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Odoslanie zlyhalo');
+    } finally {
+      setNotifyBusy(false);
+    }
+  }
+
   async function toggleNomination(member: Member, on: boolean) {
     if (on) await api(`/matches/${id}/nominations`, { method: 'POST', body: JSON.stringify({ memberId: member.id }) });
     else await api(`/matches/${id}/nominations/${member.id}`, { method: 'DELETE' });
+    setNotifyResult(null);
     await load();
   }
 
@@ -283,7 +302,32 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
               })}
               {roster.length === 0 && <li className="text-sm text-gray-500">Družstvo nemá hráčov.</li>}
             </ul>
-          ) : (
+          ) : null}
+          {manage && (
+            <div className="mt-3 border-t border-club-100 pt-3">
+              <Button variant="ghost" onClick={sendNominationEmail} disabled={notifyBusy || match.nominations.length === 0}>
+                {notifyBusy ? 'Odosielam…' : '✉ Rozposlať oznam e-mailom'}
+              </Button>
+              {notifyResult && (
+                <div className="mt-2 rounded-md bg-club-50 p-3 text-sm text-gray-700">
+                  <p>Oznam odoslaný na {notifyResult.recipients} e-mailových adries.</p>
+                  {notifyResult.missing.length > 0 && (
+                    <div className="mt-2">
+                      <p className="font-medium text-amber-700">
+                        Bez e-mailu (nedostali oznam) — chýba konto alebo rodič s e-mailom:
+                      </p>
+                      <ul className="mt-1 list-inside list-disc text-gray-600">
+                        {notifyResult.missing.map((m) => (
+                          <li key={m.id}>{m.name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {!manage && (
             <ul className="space-y-1 text-sm">
               {match.nominations.map((n) => (
                 <li key={n.id}>

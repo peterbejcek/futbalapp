@@ -20,6 +20,12 @@ export class MatchesController {
     return this.matchesService.myNominations(user.id);
   }
 
+  /** Zápasy, na ktoré je prihlásený (alebo jeho deti) nominovaný — pre kalendár/dashboard. */
+  @Get('my/nominated')
+  myNominated(@CurrentUser() user: AuthUser) {
+    return this.matchesService.myNominatedMatches(user.id);
+  }
+
   /** Hráč/rodič potvrdí alebo odmietne účasť na zápase. */
   @Post('nominations/:nominationId/respond')
   respond(
@@ -51,6 +57,13 @@ export class MatchesController {
   @Roles('ADMIN', 'MANAGER', 'COACH')
   removeNomination(@Param('id') matchId: string, @Param('memberId') memberId: string, @CurrentUser() user: AuthUser) {
     return this.matchesService.removeNomination(matchId, memberId, user);
+  }
+
+  /** Rozposlať oznam o nominácii e-mailom hráčom/rodičom. */
+  @Post(':id/notify-nomination')
+  @Roles('ADMIN', 'MANAGER', 'COACH')
+  notifyNomination(@Param('id') matchId: string, @CurrentUser() user: AuthUser) {
+    return this.matchesService.emailNomination(matchId, user);
   }
 
   @Post(':id/score')

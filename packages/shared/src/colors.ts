@@ -37,6 +37,7 @@ export const EVENT_TYPE_COLORS: Record<EventType, ColorPair> = {
   MATCH: { bg: '#dbeafe', text: '#1e40af' }, // modrá
   TOURNAMENT: { bg: '#fef3c7', text: '#92400e' }, // jantárová
   CLUB_EVENT: { bg: '#f3e8ff', text: '#6b21a8' }, // fialová
+  PARENT_MEETING: { bg: '#ffe4e6', text: '#9f1239' }, // ružová
 };
 
 export function eventTypeColor(type: string | null | undefined): ColorPair {

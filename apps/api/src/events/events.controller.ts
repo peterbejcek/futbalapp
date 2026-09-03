@@ -48,6 +48,15 @@ export class EventsController {
     if (!canManageTeam(user, body.teamId ?? null) && body.teamId) {
       throw new ForbiddenException('Nemôžete vytvárať udalosti pre iné družstvo');
     }
+    // cieľové družstvá (rodičovské združenie): tréner len svoje; celoklubové len vedenie
+    const audience = body.audienceTeamIds ?? [];
+    if (audience.length) {
+      if (!audience.every((teamId) => canManageTeam(user, teamId))) {
+        throw new ForbiddenException('Nemôžete vytvárať udalosti pre iné družstvo');
+      }
+    } else if (body.type === 'PARENT_MEETING' && !body.teamId && !isStaff(user)) {
+      throw new ForbiddenException('Celoklubovú udalosť môže vytvoriť len vedenie klubu');
+    }
     return this.eventsService.create(body, user.id);
   }
 

@@ -20,6 +20,7 @@ export default function NominationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [nominated, setNominated] = useState<Set<string>>(new Set());
+  const [notifying, setNotifying] = useState(false);
 
   const load = useCallback(async () => {
     const match = await api<MatchDetail>(`/matches/${id}`);
@@ -55,6 +56,25 @@ export default function NominationScreen() {
     }
   }
 
+  async function sendEmail() {
+    setNotifying(true);
+    try {
+      const res = await api<{ recipients: number; sent: number; missing: Array<{ name: string }> }>(
+        `/matches/${id}/notify-nomination`,
+        { method: 'POST' },
+      );
+      const missingMsg =
+        res.missing.length > 0
+          ? `\n\nBez e-mailu (nedostali oznam):\n${res.missing.map((m) => `• ${m.name}`).join('\n')}`
+          : '';
+      Alert.alert('Oznam odoslaný', `Odoslané na ${res.recipients} adries.${missingMsg}`);
+    } catch (e) {
+      Alert.alert('Chyba', e instanceof Error ? e.message : 'Odoslanie zlyhalo');
+    } finally {
+      setNotifying(false);
+    }
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>
@@ -78,6 +98,13 @@ export default function NominationScreen() {
           );
         }}
       />
+      <Pressable
+        style={[styles.notifyBtn, (notifying || nominated.size === 0) && styles.notifyBtnDisabled]}
+        onPress={sendEmail}
+        disabled={notifying || nominated.size === 0}
+      >
+        <Text style={styles.notifyText}>{notifying ? 'Odosielam…' : '✉ Rozposlať oznam e-mailom'}</Text>
+      </Pressable>
       <Text style={styles.hint}>Ťuknutím pridáte alebo odoberiete hráča — aj počas zápasu.</Text>
     </View>
   );
@@ -101,5 +128,8 @@ const styles = StyleSheet.create({
   rowOn: { borderColor: colors.club600 },
   name: { fontSize: 16, fontWeight: '600', color: colors.club900 },
   mark: { fontWeight: '700' },
+  notifyBtn: { backgroundColor: colors.club600, borderRadius: 8, padding: 14, marginTop: 8 },
+  notifyBtnDisabled: { opacity: 0.5 },
+  notifyText: { color: colors.white, fontWeight: '700', textAlign: 'center' },
   hint: { color: colors.gray, fontSize: 12, textAlign: 'center', paddingVertical: 8 },
 });
