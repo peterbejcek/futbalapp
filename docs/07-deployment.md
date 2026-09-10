@@ -168,16 +168,27 @@ eas build --platform ios --profile production       # certifikáty vybaví EAS s
 
 ## Krok 7 — Zálohy a monitoring
 
-**Denná záloha DB** (skript `infra/backup.sh` je v repe):
+**Zálohy DB — denná / týždenná / mesačná** (skript `infra/backup.sh` je v repe).
+Každá vrstva má vlastný priečinok a retenciu (grandfather-father-son): denné
+`/opt/fkknv/backups/daily`, týždenné `/weekly`, mesačné `/monthly`. Predvolene sa
+ponecháva 14 denných, 8 týždenných a 12 mesačných (dá sa zmeniť cez env
+`RETAIN_DAILY` / `RETAIN_WEEKLY` / `RETAIN_MONTHLY`). Formát je `pg_dump -Fc`;
+každá záloha sa po vytvorení overí (`pg_restore -l`) a až potom uloží.
 
 ```bash
-chmod +x /opt/fkknv/app/infra/backup.sh
+chmod +x /opt/fkknv/app/infra/backup.sh /opt/fkknv/app/infra/restore.sh
 crontab -e
-# denne o 3:30 záloha, o 8:00 posiela API upomienky samo
-30 3 * * * /opt/fkknv/app/infra/backup.sh >> /var/log/fkknv-backup.log 2>&1
+# denne 3:30, týždenne v nedeľu 3:40, mesačne 1. v mesiaci 3:50
+30 3 * * *   /opt/fkknv/app/infra/backup.sh daily   >> /var/log/fkknv-backup.log 2>&1
+40 3 * * 0   /opt/fkknv/app/infra/backup.sh weekly  >> /var/log/fkknv-backup.log 2>&1
+50 3 1 * *   /opt/fkknv/app/infra/backup.sh monthly >> /var/log/fkknv-backup.log 2>&1
 ```
 
-Zálohy odporúčam navyše synchronizovať mimo VPS (napr. `rclone` na Hetzner Storage Box / S3 — RPO 24 h). **Otestujte obnovu** aspoň raz: `pg_restore -U fkknv -d fkknv --clean <dump>`.
+Prvú zálohu spusti ručne na overenie: `/opt/fkknv/app/infra/backup.sh daily`.
+
+Zálohy odporúčam navyše synchronizovať mimo VPS (napr. `rclone` na Hetzner
+Storage Box / S3 — RPO 24 h). **Otestujte obnovu** aspoň raz skriptom
+`infra/restore.sh <dump>` (pýta potvrdenie, spustí `pg_restore --clean`).
 
 **Monitoring (zadarmo):**
 - Uptime: uptimerobot.com — HTTPS check na `https://api.fkknv.sk/api/v1/health` a `https://fkknv.sk`, alert na e-mail predsedu.

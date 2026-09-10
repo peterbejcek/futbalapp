@@ -113,13 +113,19 @@ Prihláste sa na `https://fkknv.sk` a **heslo admina hneď zmeňte** (Nastavenia
 
 ## Krok 6 — Zálohy
 
+Denné, týždenné a mesačné zálohy (každá vrstva vlastný priečinok + retencia):
+
 ```bash
-chmod +x /opt/fkknv/app/infra/backup.sh
+chmod +x /opt/fkknv/app/infra/backup.sh /opt/fkknv/app/infra/restore.sh
 crontab -e
-# denná záloha DB o 3:30
-30 3 * * * /opt/fkknv/app/infra/backup.sh >> /var/log/fkknv-backup.log 2>&1
+# denne 3:30, týždenne v nedeľu 3:40, mesačne 1. v mesiaci 3:50
+30 3 * * *   /opt/fkknv/app/infra/backup.sh daily   >> /var/log/fkknv-backup.log 2>&1
+40 3 * * 0   /opt/fkknv/app/infra/backup.sh weekly  >> /var/log/fkknv-backup.log 2>&1
+50 3 1 * *   /opt/fkknv/app/infra/backup.sh monthly >> /var/log/fkknv-backup.log 2>&1
 ```
 
+Zálohy sú v `/opt/fkknv/backups/{daily,weekly,monthly}`. Prvú spusti ručne:
+`/opt/fkknv/app/infra/backup.sh daily`. Obnova: `infra/restore.sh <dump>`.
 Zálohy odporúčam kopírovať aj mimo VPS (rclone na S3 / Storage Box).
 Aspoň raz otestujte obnovu: `pg_restore -U fkknv -d fkknv --clean <dump>`.
 
