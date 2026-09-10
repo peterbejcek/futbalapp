@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {
   WEEKDAY_SHORT_SK,
   eventTypeColor,
+  categoryColor,
   SURFACE_CODES,
   SURFACE_LABELS_SK,
   formatEventDateTimeSk,
@@ -442,10 +443,15 @@ function MonthView({
                       .sort((a, b) => a.startAt.localeCompare(b.startAt))
                       .map((e) => {
                         const href = eventHref(me, e);
-                        const c = eventTypeColor(e.type);
+                        // zápas: farba podľa kategórie družstva + písomné označenie družstva
+                        const c = e.match && e.team ? categoryColor(e.team.teamCategory.code) : eventTypeColor(e.type);
                         const time = formatEventTimeSk(e.startAt);
                         const isNominated = !!e.match && nominated.has(e.match.id);
-                        const label = `${e.match ? `⚽ ${e.match.opponent}` : `${typeLabels[e.type] ?? e.type}${e.team ? ` ${e.team.name}` : ''}`}${isNominated ? ' ✓' : ''}`;
+                        const label = `${
+                          e.match
+                            ? `${e.team ? `${e.team.name} ` : ''}⚽ ${e.match.opponent}`
+                            : `${typeLabels[e.type] ?? e.type}${e.team ? ` ${e.team.name}` : ''}`
+                        }${isNominated ? ' ✓' : ''}`;
                         return href ? (
                           <Link
                             key={e.id}
