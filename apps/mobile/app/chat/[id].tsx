@@ -42,7 +42,15 @@ interface PickedFile {
 }
 
 function apiOrigin(): string {
-  return new URL(API_URL).origin;
+  // origin bez cesty (napr. https://api.fkknv.sk); bez závislosti na URL API
+  const m = API_URL.match(/^(https?:\/\/[^/]+)/);
+  return m ? m[1]! : API_URL;
+}
+
+/** Lokálny čas „HH:MM" bez Intl (toLocaleTimeString s options padá na Android Hermes). */
+function fmtTime(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 export default function ChatScreen() {
@@ -178,7 +186,7 @@ export default function ChatScreen() {
               {item.sender.firstName} {item.sender.lastName}
               <Text style={styles.time}>
                 {'  '}
-                {new Date(item.createdAt).toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' })}
+                {fmtTime(item.createdAt)}
               </Text>
             </Text>
             {item.body ? <Text style={styles.body}>{item.body}</Text> : null}

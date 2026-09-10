@@ -44,8 +44,16 @@ interface Comment {
 const ROLE_LABELS: Record<string, string> = { ADMIN: 'Admin', MANAGER: 'Vedúci klubu', COACH: 'Tréneri' };
 const ROLE_OPTIONS = ['ADMIN', 'MANAGER', 'COACH'] as const;
 
+// bez Intl (toLocale* s options padá na Android Hermes); termín je dátum v UTC
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('sk-SK', { timeZone: 'UTC' });
+  const d = new Date(iso);
+  return `${d.getUTCDate()}. ${d.getUTCMonth() + 1}. ${d.getUTCFullYear()}`;
+}
+// dátum a čas komentára v lokálnom čase zariadenia (bez Intl)
+function fmtDateTime(iso: string) {
+  const d = new Date(iso);
+  const t = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()} ${t}`;
 }
 function assigneeLabel(t: Task) {
   if (t.assigneeName) return t.assigneeName;
@@ -320,7 +328,7 @@ function CommentsPane({ task, onClose }: { task: Task; onClose: () => void }) {
           <View style={styles.commentItem}>
             <Text style={styles.commentAuthor}>
               {c.authorName}{' '}
-              <Text style={styles.commentTime}>{new Date(c.createdAt).toLocaleString('sk-SK')}</Text>
+              <Text style={styles.commentTime}>{fmtDateTime(c.createdAt)}</Text>
             </Text>
             <Text style={styles.commentBody}>{c.body}</Text>
           </View>

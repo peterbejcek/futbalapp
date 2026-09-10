@@ -46,7 +46,11 @@ export async function registerForPushNotifications(): Promise<void> {
       method: 'POST',
       body: JSON.stringify({ token, platform: Platform.OS === 'ios' ? 'ios' : 'android' }),
     });
-  } catch {
-    // push nie je kritický — appka funguje aj bez neho
+    console.log('[push] token zaregistrovaný:', token);
+  } catch (e) {
+    // push nie je kritický — appka funguje aj bez neho.
+    // Na Androide sem spadne, ak chýbajú FCM (Firebase) credentials pre projekt —
+    // getExpoPushTokenAsync vtedy vyhodí chybu (na iOS APNs rieši EAS automaticky).
+    console.warn('[push] registrácia zlyhala:', e instanceof Error ? e.message : e);
   }
 }
