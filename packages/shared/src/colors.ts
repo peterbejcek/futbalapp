@@ -33,7 +33,7 @@ export function categoryColor(code: string | null | undefined): ColorPair {
 
 /** Farby podľa typu udalosti — pre kalendár (tréning vs zápas). */
 export const EVENT_TYPE_COLORS: Record<EventType, ColorPair> = {
-  TRAINING: { bg: '#dcfce7', text: '#166534' }, // zelená
+  TRAINING: { bg: '#e2e8f0', text: '#334155' }, // bridlicová (neutrálna, nekoliduje so žiadnou kategóriou)
   MATCH: { bg: '#dbeafe', text: '#1e40af' }, // modrá
   TOURNAMENT: { bg: '#fef3c7', text: '#92400e' }, // jantárová
   CLUB_EVENT: { bg: '#f3e8ff', text: '#6b21a8' }, // fialová

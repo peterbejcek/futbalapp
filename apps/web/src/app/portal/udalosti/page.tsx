@@ -63,10 +63,15 @@ function eventHref(me: Me | null, e: EventItem): string | null {
   return canManageTeam(me, e.team?.id) ? `/portal/dochadzka/${e.id}` : null;
 }
 
+/** Kompaktný názov družstva pre kalendár (úspora miesta, bez medzier): „U 13 A" → „U13A". */
+function compactTeam(name: string | null | undefined): string {
+  return (name ?? '').replace(/\s+/g, '');
+}
+
 /** Komu je udalosť určená (rodičovské združenie): zoznam družstiev alebo „celý klub". */
 function audienceLabel(e: EventItem): string | null {
   if (e.type !== 'PARENT_MEETING') return null;
-  if (e.audienceTeams && e.audienceTeams.length > 0) return e.audienceTeams.map((t) => t.name).join(', ');
+  if (e.audienceTeams && e.audienceTeams.length > 0) return e.audienceTeams.map((t) => compactTeam(t.name)).join(', ');
   return 'celý klub';
 }
 
@@ -89,7 +94,7 @@ function Logo({ src, size = 20 }: { src: string; size?: number }) {
 /** Zápas ako mini-tabuľka: domáci hore, hostia dole (s logami a skóre). */
 function MatchTeams({ e }: { e: EventItem }) {
   const m = e.match!;
-  const our = { name: e.team?.name ?? 'FK KNV', logo: OUR_LOGO };
+  const our = { name: compactTeam(e.team?.name) || 'FK KNV', logo: OUR_LOGO };
   const opp = { name: m.opponent, logo: m.opponentLogo };
   const home = m.isHome ? our : opp;
   const away = m.isHome ? opp : our;
@@ -343,7 +348,7 @@ function EventList({
                   style={{ backgroundColor: c.bg, color: c.text }}
                 >
                   {typeLabels[e.type] ?? e.type}
-                  {e.team ? ` · ${e.team.name}` : ''}
+                  {e.team ? ` · ${compactTeam(e.team.name)}` : ''}
                   {e.recurrenceGroupId ? ' · séria' : ''}
                 </span>
                 {isNominated && (
@@ -447,10 +452,12 @@ function MonthView({
                         const c = e.match && e.team ? categoryColor(e.team.teamCategory.code) : eventTypeColor(e.type);
                         const time = formatEventTimeSk(e.startAt);
                         const isNominated = !!e.match && nominated.has(e.match.id);
+                        // zápas aj tréning: názov družstva (bez medzier) hneď za časom;
+                        // tréning má formát „U15A Tréning" (družstvo, potom typ)
                         const label = `${
                           e.match
-                            ? `${e.team ? `${e.team.name} ` : ''}⚽ ${e.match.opponent}`
-                            : `${typeLabels[e.type] ?? e.type}${e.team ? ` ${e.team.name}` : ''}`
+                            ? `${e.team ? `${compactTeam(e.team.name)} ` : ''}⚽ ${e.match.opponent}`
+                            : `${e.team ? `${compactTeam(e.team.name)} ` : ''}${typeLabels[e.type] ?? e.type}`
                         }${isNominated ? ' ✓' : ''}`;
                         return href ? (
                           <Link
