@@ -23,6 +23,7 @@
     },
     "android": {
       "package": "sk.fkknv.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#16223c"

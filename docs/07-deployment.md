@@ -153,7 +153,41 @@ eas build --platform ios --profile production       # certifikáty vybaví EAS s
 
 **Aktualizácie appky:** JS zmeny bez store review: `eas update --branch production`. Zmeny natívnych závislostí = nový `eas build` + submit.
 
-**Push notifikácie:** Expo Push funguje out-of-the-box pre buildy cez EAS (FCM/APNs kľúče vybaví `eas build` sprievodca). Otestujte: pošlite správu do kanála a overte notifikáciu na fyzickom telefóne.
+### Push notifikácie
+
+Appka posiela push cez **Expo Push** (nové správy v komunikácii, nominácie, úlohy, upomienky).
+
+- **iOS (APNs):** kľúče vybaví `eas build` sprievodca automaticky — netreba nič navyše.
+- **Android (FCM):** Expo Push na Androide **vyžaduje vlastný Firebase projekt** a FCM V1
+  kľúč. Bez neho appka na Androide síce vypýta povolenie, ale token sa nezaregistruje a
+  žiadna notifikácia nepríde (na iOS to funguje). Nastavenie je jednorazové:
+
+**Čo je „Firebase projekt":** Firebase je bezplatná služba Googlu; jej súčasťou je
+**FCM (Firebase Cloud Messaging)** — brána, cez ktorú Google doručuje push na Android
+zariadenia. Expo posiela naše notifikácie práve cez FCM, preto potrebuje prístup k
+jednému Firebase projektu klubu.
+
+1. **Vytvor Firebase projekt:** [console.firebase.google.com](https://console.firebase.google.com)
+   → **Add project** → názov napr. „FK KNV" → Google Analytics môžeš vypnúť → Create.
+2. **Pridaj Android aplikáciu do projektu:** v projekte klikni na ikonu **Android**
+   (Add app) → do poľa *Android package name* zadaj presne **`sk.fkknv.app`**
+   (musí sa zhodovať s `android.package` v `app.json`) → prezývku a SHA‑1 môžeš
+   nechať prázdne → **Register app**.
+3. **Stiahni `google-services.json`** (Firebase ho ponúkne hneď v ďalšom kroku) a ulož
+   ho do `apps/mobile/google-services.json`. Súbor **commitni do repa** — build ho
+   potrebuje (obsahuje len konfiguráciu projektu a verejný kľúč, nie tajomstvo).
+   V `app.json` je už naň odkaz: `"android": { "googleServicesFile": "./google-services.json" }`.
+4. **Nahraj FCM V1 kľúč do EAS** (tým Expo získa právo odosielať cez tvoj FCM):
+   - Firebase → **⚙ Project settings → Service accounts → Generate new private key** →
+     stiahne sa JSON so servisným účtom (**tajné — necommitovať!**).
+   - V `apps/mobile` spusti `eas credentials` → *Android* → *Google Service Account* →
+     *Manage push notifications (FCM V1)* → nahraj ten JSON.
+5. **Nový Android build** (zmena natívnej konfigurácie, nie OTA):
+   `eas build --platform android --profile production` a nahraj do Play Console.
+
+**Overenie:** na fyzickom Androide sa prihlás, pošli správu do kanála a skontroluj
+notifikáciu. V dev builde vidno v logoch `[push] token zaregistrovaný: …` (úspech)
+alebo `[push] registrácia zlyhala: …` (typicky chýbajúce FCM credentials).
 
 ---
 
