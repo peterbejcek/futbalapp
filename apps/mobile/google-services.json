@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "248502106928",
+    "project_id": "fk-knv",
+    "storage_bucket": "fk-knv.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:248502106928:android:f974253b57ca58a2c0e6f5",
+        "android_client_info": {
+          "package_name": "sk.fkknv.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAWr6kDMVXbpWJUB52VwEFEoECmPSxy1Y8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
