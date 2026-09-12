@@ -8,13 +8,19 @@ const CATEGORY_NAMES: Record<string, string> = {
   U8: 'Prípravka U8',
   U9: 'Prípravka U9',
   U10: 'Prípravka U10',
-  U11: 'Mladší žiaci U11',
-  U13: 'Starší žiaci U13',
-  U15: 'Mladší dorast U15',
-  U17: 'Dorast U17',
+  U11: 'Prípravka U11',
+  U13: 'Mladší žiaci U13',
+  U15: 'Starší žiaci U15',
+  U17: 'Mladší dorast U17',
   U19: 'Starší dorast U19',
   MUZI: 'Muži',
 };
+
+/** Doplnkové (B) družstvá nad rámec jedného predvoleného na kategóriu. */
+const EXTRA_TEAMS: Array<{ code: string; name: string }> = [
+  { code: 'U13', name: 'U13 B' },
+  { code: 'U15', name: 'U15 B' },
+];
 
 async function main() {
   // 1. Kategórie
@@ -65,16 +71,8 @@ async function main() {
     console.log(`Vytvorený admin účet ${adminEmail}`);
   }
 
-  // 4. Predvolené družstvo pre každú kategóriu (jedno, admin môže pridať A/B)
-  //    + 3 podkanály na družstvo (Oznamy / Tréningy / Všeobecné)
-  for (const code of CATEGORY_CODES) {
-    const category = await prisma.teamCategory.findUniqueOrThrow({ where: { code } });
-    let team = await prisma.team.findFirst({ where: { teamCategoryId: category.id } });
-    if (!team) {
-      team = await prisma.team.create({
-        data: { teamCategoryId: category.id, name: code, sortOrder: 0 },
-      });
-    }
+  // Vytvorí 3 podkanály družstva (Oznamy / Tréningy / Všeobecné), ak chýbajú.
+  const ensureSubchannels = async (team: { id: string; name: string }) => {
     const subchannels: Array<{ kind: 'TEAM_ANNOUNCEMENTS' | 'TEAM_TRAINING' | 'TEAM_GENERAL'; name: string }> = [
       { kind: 'TEAM_ANNOUNCEMENTS', name: `${team.name} · Oznamy` },
       { kind: 'TEAM_TRAINING', name: `${team.name} · Tréningy` },
@@ -86,6 +84,31 @@ async function main() {
         await prisma.channel.create({ data: { kind: sc.kind, teamId: team.id, name: sc.name } });
       }
     }
+  };
+
+  // 4a. Predvolené družstvo pre každú kategóriu (jedno; ďalšie A/B sa pridávajú
+  //     nižšie alebo cez Nastavenia) + podkanály.
+  for (const code of CATEGORY_CODES) {
+    const category = await prisma.teamCategory.findUniqueOrThrow({ where: { code } });
+    let team = await prisma.team.findFirst({ where: { teamCategoryId: category.id } });
+    if (!team) {
+      team = await prisma.team.create({
+        data: { teamCategoryId: category.id, name: code, sortOrder: 0 },
+      });
+    }
+    await ensureSubchannels(team);
+  }
+
+  // 4b. Doplnkové (B) družstvá — idempotentne podľa názvu + ich podkanály.
+  for (const t of EXTRA_TEAMS) {
+    const category = await prisma.teamCategory.findUniqueOrThrow({ where: { code: t.code } });
+    let team = await prisma.team.findFirst({ where: { teamCategoryId: category.id, name: t.name } });
+    if (!team) {
+      team = await prisma.team.create({
+        data: { teamCategoryId: category.id, name: t.name, sortOrder: 1 },
+      });
+    }
+    await ensureSubchannels(team);
   }
 
   // Celoklubový kanál oznamov
