@@ -35,6 +35,7 @@ const navigation: Entry[] = [
   { kind: 'leaf', href: '/portal/prehlady', label: 'Štatistiky', show: ({ manage }) => manage },
   { kind: 'leaf', href: '/portal/ulohy', label: 'Úlohy', show: ({ manage }) => manage },
   { kind: 'leaf', href: '/portal/chat', label: 'Komunikácia', show: () => true },
+  { kind: 'leaf', href: '/portal/pomoc', label: 'Pomoc', show: () => true },
 ];
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
