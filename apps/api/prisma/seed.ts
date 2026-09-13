@@ -16,6 +16,16 @@ const CATEGORY_NAMES: Record<string, string> = {
   MUZI: 'Muži',
 };
 
+/**
+ * Názov hlavného družstva kategórie. Predvolene je to kód (napr. „U11"), ale
+ * kde existuje A/B rozdelenie, hlavné družstvo má príponu „A".
+ */
+const PRIMARY_TEAM_NAME: Record<string, string> = {
+  U13: 'U13 A',
+  U15: 'U15 A',
+};
+const primaryTeamName = (code: string) => PRIMARY_TEAM_NAME[code] ?? code;
+
 /** Doplnkové (B) družstvá nad rámec jedného predvoleného na kategóriu. */
 const EXTRA_TEAMS: Array<{ code: string; name: string }> = [
   { code: 'U13', name: 'U13 B' },
@@ -93,10 +103,31 @@ async function main() {
     let team = await prisma.team.findFirst({ where: { teamCategoryId: category.id } });
     if (!team) {
       team = await prisma.team.create({
-        data: { teamCategoryId: category.id, name: code, sortOrder: 0 },
+        data: { teamCategoryId: category.id, name: primaryTeamName(code), sortOrder: 0 },
       });
     }
     await ensureSubchannels(team);
+  }
+
+  // 4a′. Premenovanie hlavného družstva na „A" tam, kde existuje A/B rozdelenie
+  //      (napr. staršie DB mali hlavné družstvo pomenované len kódom „U13"/„U15").
+  //      Idempotentné: hľadá presne kódom pomenované družstvo; po premenovaní ho
+  //      už nenájde. Premenuje aj názvy jeho podkanálov.
+  for (const [code, aName] of Object.entries(PRIMARY_TEAM_NAME)) {
+    const category = await prisma.teamCategory.findUniqueOrThrow({ where: { code } });
+    const legacy = await prisma.team.findFirst({ where: { teamCategoryId: category.id, name: code } });
+    if (legacy) {
+      await prisma.team.update({ where: { id: legacy.id }, data: { name: aName } });
+      const channels = await prisma.channel.findMany({ where: { teamId: legacy.id } });
+      for (const ch of channels) {
+        if (ch.name.startsWith(`${code} · `)) {
+          await prisma.channel.update({
+            where: { id: ch.id },
+            data: { name: `${aName}${ch.name.slice(code.length)}` },
+          });
+        }
+      }
+    }
   }
 
   // 4b. Doplnkové (B) družstvá — idempotentne podľa názvu + ich podkanály.
