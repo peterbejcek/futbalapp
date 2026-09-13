@@ -30,7 +30,7 @@ export class SeasonsService {
   /** Zoznam všetkých družstiev (na výber v UI). */
   teams() {
     return this.prisma.team.findMany({
-      include: { teamCategory: { select: { code: true, name: true, sortOrder: true } } },
+      include: { teamCategory: { select: { code: true, name: true, sortOrder: true, sportnetUrl: true } } },
       orderBy: [{ teamCategory: { sortOrder: 'asc' } }, { sortOrder: 'asc' }],
     });
   }

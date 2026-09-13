@@ -52,6 +52,12 @@ export class FutbalnetController {
     return this.futbalnetService.setTeamSportnet(teamId, body.programUrl, body.teamName);
   }
 
+  /** Nastaví URL súťaže družstva pre sekciu Tabuľka (embed tabuľky/programu). */
+  @Post('team/:teamId/sportnet-url')
+  setTeamSportnetUrl(@Param('teamId') teamId: string, @Body() body: { url: string | null }) {
+    return this.futbalnetService.setTeamSportnetUrl(teamId, body.url);
+  }
+
   /** Vytvorí/aktualizuje rozpis zápasov družstva zo sportnetu. */
   @Post('team/:teamId/import')
   importTeam(@Param('teamId') teamId: string) {

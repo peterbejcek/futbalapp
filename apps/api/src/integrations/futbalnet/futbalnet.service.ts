@@ -149,6 +149,14 @@ export class FutbalnetService {
     return this.prisma.teamCategory.update({ where: { id: category.id }, data: { sportnetUrl: clean } });
   }
 
+  /** Nastaví sportnet.sme.sk URL súťaže pre konkrétne družstvo (Tabuľka — A/B môžu mať vlastnú). */
+  async setTeamSportnetUrl(teamId: string, url: string | null) {
+    const team = await this.prisma.team.findUnique({ where: { id: teamId } });
+    if (!team) throw new NotFoundException('Družstvo neexistuje');
+    const clean = url?.trim().replace(/\/+$/, '') || null;
+    return this.prisma.team.update({ where: { id: teamId }, data: { sportnetUrl: clean } });
+  }
+
   /** Týždenný sync všetkých nakonfigurovaných kategórií (pondelok 5:00). */
   @Cron('0 5 * * 1')
   async syncAll() {
