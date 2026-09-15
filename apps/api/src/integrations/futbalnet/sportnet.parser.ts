@@ -1,9 +1,12 @@
 /**
  * Parser programu zápasov zo stránky sportnet.sme.sk (futbalnet).
  * Stránka je Next.js (SSR) — dáta zápasov sú vložené v HTML v RSC payloade,
- * kde sú úvodzovky escapované ako \". Vyberáme dvojice tímov, dátum a logá.
+ * kde sú úvodzovky escapované ako \". Vyberáme stabilné ID zápasu, dvojice
+ * tímov, dátum a logá.
  */
 export interface SportnetFixture {
+  /** Stabilné ID zápasu zo sportnetu (nemení sa pri preložení termínu). */
+  id: string;
   startAt: Date;
   home: string;
   homeLogo: string | null;
@@ -11,9 +14,11 @@ export interface SportnetFixture {
   awayLogo: string | null;
 }
 
-// date $D<iso>, homeTeam{name, ... logo.src}, ... awayTeam{name, ... logo.src}
+// {id, appSpace, ... date $D<iso>, homeTeam{name, ... logo.src}, ... awayTeam{name, ... logo.src}}
+// id je zachytené na začiatku objektu zápasu (za ním nasleduje appSpace), aby sa
+// spoľahlivo viazalo na správny zápas.
 const FIXTURE_RE =
-  /date\\":\\"\$D([0-9T:.Z-]+)\\",\\"homeTeam\\":\{\\"name\\":\\"([^\\]+)\\"[\s\S]*?\\"logo\\":\{\\"src\\":\\"([^\\]+)\\"[\s\S]*?\\"awayTeam\\":\{\\"name\\":\\"([^\\]+)\\"[\s\S]*?\\"logo\\":\{\\"src\\":\\"([^\\]+)\\"/g;
+  /\\"id\\":\\"([a-f0-9]{24})\\",\\"appSpace\\"[\s\S]*?date\\":\\"\$D([0-9T:.Z-]+)\\",\\"homeTeam\\":\{\\"name\\":\\"([^\\]+)\\"[\s\S]*?\\"logo\\":\{\\"src\\":\\"([^\\]+)\\"[\s\S]*?\\"awayTeam\\":\{\\"name\\":\\"([^\\]+)\\"[\s\S]*?\\"logo\\":\{\\"src\\":\\"([^\\]+)\\"/g;
 
 export function parseSportnetProgram(html: string): SportnetFixture[] {
   const out: SportnetFixture[] = [];
@@ -21,14 +26,14 @@ export function parseSportnetProgram(html: string): SportnetFixture[] {
   let m: RegExpExecArray | null;
   FIXTURE_RE.lastIndex = 0;
   while ((m = FIXTURE_RE.exec(html))) {
-    const [, iso, home, homeLogo, away, awayLogo] = m;
-    if (!iso || !home || !away) continue;
+    const [, id, iso, home, homeLogo, away, awayLogo] = m;
+    if (!id || !iso || !home || !away) continue;
     const startAt = new Date(iso);
     if (Number.isNaN(startAt.getTime())) continue;
-    const key = `${iso}|${home}|${away}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (seen.has(id)) continue;
+    seen.add(id);
     out.push({
+      id,
       startAt,
       home: home.trim(),
       homeLogo: homeLogo || null,
@@ -39,7 +44,7 @@ export function parseSportnetProgram(html: string): SportnetFixture[] {
   return out;
 }
 
-/** Stabilný externý identifikátor zápasu pre idempotentný import. */
+/** Stabilný externý identifikátor zápasu pre idempotentný import (prežije zmenu termínu). */
 export function sportnetMatchKey(f: SportnetFixture): string {
-  return `sn:${f.startAt.toISOString()}:${f.home}=>${f.away}`;
+  return `sn:${f.id}`;
 }

@@ -11,6 +11,29 @@ interface OurMatch extends NormalizedMatch {
   isHome: boolean;
 }
 
+/**
+ * Sportnet uvádza čas zápasu ako absolútny okamih (UTC). Portál však časy udalostí
+ * ukladá ako „nástenný" (wall-clock) čas v UTC komponentoch pre pásmo Bratislavy
+ * (17:00 v Košiciach = 17:00Z), aby sa zobrazoval rovnaký čas ako na sportnete.
+ * Táto funkcia prevedie okamih na bratislavský nástenný čas uložený v UTC.
+ */
+function toBratislavaWallClock(instant: Date): Date {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Bratislava',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(instant);
+  const p = Object.fromEntries(parts.map((x) => [x.type, x.value])) as Record<string, string>;
+  let hour = Number(p.hour);
+  if (hour === 24) hour = 0; // en-GB hour12:false môže o polnoci vrátiť „24"
+  return new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), hour, Number(p.minute), Number(p.second)));
+}
+
 @Injectable()
 export class FutbalnetService {
   private readonly logger = new Logger(FutbalnetService.name);
@@ -59,7 +82,11 @@ export class FutbalnetService {
     let created = 0;
     let updated = 0;
     let ours = 0;
+    const keptIds: string[] = []; // externalId zápasov nášho tímu videných v tomto importe
+    const wallTimes: Date[] = []; // nástenné časy všetkých zápasov v tomto okne (na rozsah)
     for (const f of fixtures) {
+      const startAt = toBratislavaWallClock(f.startAt);
+      wallTimes.push(startAt);
       const homeIsUs = f.home.toLowerCase() === ourName;
       const awayIsUs = f.away.toLowerCase() === ourName;
       if (!homeIsUs && !awayIsUs) continue;
@@ -72,6 +99,7 @@ export class FutbalnetService {
 
       const title = homeIsUs ? `${team.name} vs ${opponent}` : `${opponent} vs ${team.name}`;
       const externalId = sportnetMatchKey(f);
+      keptIds.push(externalId);
 
       const existing = await this.prisma.event.findUnique({
         where: { futbalnetId: externalId },
@@ -80,7 +108,7 @@ export class FutbalnetService {
       if (existing) {
         await this.prisma.event.update({
           where: { id: existing.id },
-          data: { startAt: f.startAt, title, teamId: team.id },
+          data: { startAt, title, teamId: team.id },
         });
         if (existing.match) {
           await this.prisma.match.update({
@@ -96,7 +124,7 @@ export class FutbalnetService {
             seasonId: season.id,
             teamId: team.id,
             title,
-            startAt: f.startAt,
+            startAt,
             source: 'FUTBALNET',
             futbalnetId: externalId,
             match: { create: { opponent, isHome: homeIsUs, opponentLogo } },
@@ -105,7 +133,29 @@ export class FutbalnetService {
         created++;
       }
     }
-    return { total: fixtures.length, ours, created, updated };
+
+    // Zosúladenie: v rámci okna, ktoré program zobrazuje (rozsah dní videných
+    // zápasov), zmaž staré importované zápasy tohto družstva, ktoré už na
+    // sportnete nie sú (napr. duplikáty po preložení termínu). Mimo okna sa
+    // nemaže (program ukazuje len najbližšie kolá) a ručné zápasy tiež nie.
+    let removed = 0;
+    if (ours > 0 && wallTimes.length > 0) {
+      const times = wallTimes.map((d) => d.getTime());
+      const min = new Date(Math.min(...times));
+      const max = new Date(Math.max(...times));
+      const from = new Date(Date.UTC(min.getUTCFullYear(), min.getUTCMonth(), min.getUTCDate(), 0, 0, 0));
+      const to = new Date(Date.UTC(max.getUTCFullYear(), max.getUTCMonth(), max.getUTCDate(), 23, 59, 59, 999));
+      const res = await this.prisma.event.deleteMany({
+        where: {
+          teamId: team.id,
+          source: 'FUTBALNET',
+          startAt: { gte: from, lte: to },
+          futbalnetId: { notIn: keptIds },
+        },
+      });
+      removed = res.count;
+    }
+    return { total: fixtures.length, ours, created, updated, removed };
   }
 
   /** Uloží konfiguráciu sync-u pre kategóriu (URL súťaže + názov nášho tímu). */
@@ -236,11 +286,13 @@ export class FutbalnetService {
     for (const match of ours) {
       const futbalnetId = `${categoryCode}:${match.externalId}`;
       const title = match.isHome ? `${teamName} vs ${match.opponent}` : `${match.opponent} vs ${teamName}`;
+      // sportnet/futbalnet dávajú absolútny čas → ulož ako bratislavský nástenný čas
+      const startAt = toBratislavaWallClock(match.startAt);
       const existing = await this.prisma.event.findUnique({ where: { futbalnetId } });
       if (existing) {
         await this.prisma.event.update({
           where: { id: existing.id },
-          data: { startAt: match.startAt, location: match.location, title },
+          data: { startAt, location: match.location, title },
         });
         updated++;
       } else {
@@ -250,7 +302,7 @@ export class FutbalnetService {
             seasonId: season.id,
             teamId: defaultTeam.id,
             title,
-            startAt: match.startAt,
+            startAt,
             location: match.location,
             source: 'FUTBALNET',
             futbalnetId,

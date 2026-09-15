@@ -194,11 +194,14 @@ function SportnetTeamRow({
     setBusy(true);
     try {
       await persist();
-      const r = await api<{ total: number; ours: number; created: number; updated: number }>(
+      const r = await api<{ total: number; ours: number; created: number; updated: number; removed: number }>(
         `/futbalnet/team/${team.id}/import`,
         { method: 'POST' },
       );
-      onMsg(`${team.name}: našich zápasov ${r.ours} · vytvorené ${r.created}, aktualizované ${r.updated} (z ${r.total} v programe)`);
+      onMsg(
+        `${team.name}: našich zápasov ${r.ours} · vytvorené ${r.created}, aktualizované ${r.updated}` +
+          `${r.removed ? `, odstránené ${r.removed}` : ''} (z ${r.total} v programe)`,
+      );
       onDone();
     } catch (e) {
       onErr(e instanceof Error ? e.message : 'Import zlyhal');
