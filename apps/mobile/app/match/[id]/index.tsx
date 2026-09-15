@@ -4,6 +4,7 @@ import { Link, useLocalSearchParams } from 'expo-router';
 import * as Crypto from 'expo-crypto';
 import { MATCH_EVENT_LABELS_SK, formatEventTimeSk, type MatchEventType } from '@fkknv/shared';
 import { api } from '@/api';
+import { canManageTeam, fetchMe, type Me } from '@/auth';
 import { enqueue, flush } from '@/offline';
 import { colors } from '@/theme';
 
@@ -29,7 +30,7 @@ interface MatchDetail {
   state: string;
   meetAt: string | null;
   notes: string | null;
-  event: { title: string; startAt: string; team: { name: string } | null };
+  event: { title: string; startAt: string; team: { id: string; name: string } | null };
   nominations: Nomination[];
   events: MatchEventRow[];
 }
@@ -53,6 +54,10 @@ export default function MatchLiveScreen() {
   const [scoreUs, setScoreUs] = useState('0');
   const [scoreThem, setScoreThem] = useState('0');
   const [pending, setPending] = useState(0);
+  const [me, setMe] = useState<Me | null>(null);
+  const [meetDraft, setMeetDraft] = useState('');
+  const [notesDraft, setNotesDraft] = useState('');
+  const [detailsBusy, setDetailsBusy] = useState(false);
 
   const load = useCallback(async () => {
     const { pending: p } = await flush();
@@ -68,6 +73,9 @@ export default function MatchLiveScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+  useEffect(() => {
+    fetchMe().then(setMe).catch(() => {});
+  }, []);
 
   // skóre v poliach drž zosynchronizované s načítaným zápasom
   useEffect(() => {
@@ -76,6 +84,33 @@ export default function MatchLiveScreen() {
       setScoreThem(String(match.scoreThem ?? 0));
     }
   }, [match?.scoreUs, match?.scoreThem]);
+
+  // čas zrazu (meetAt alebo hodina pred začiatkom) a poznámky z načítaného zápasu
+  useEffect(() => {
+    if (match) {
+      setMeetDraft(formatEventTimeSk(match.meetAt ?? new Date(new Date(match.event.startAt).getTime() - 3_600_000)));
+      setNotesDraft(match.notes ?? '');
+    }
+  }, [match?.meetAt, match?.notes, match?.event.startAt]);
+
+  async function saveDetails() {
+    if (!match) return;
+    setDetailsBusy(true);
+    try {
+      const start = new Date(match.event.startAt);
+      const m = /^(\d{1,2}):(\d{2})$/.exec(meetDraft.trim());
+      const meetAt = m
+        ? new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate(), Number(m[1]), Number(m[2]))).toISOString()
+        : null;
+      await api(`/matches/${id}/details`, { method: 'POST', body: JSON.stringify({ meetAt, notes: notesDraft }) });
+      await load();
+      Alert.alert('Uložené', 'Zraz a poznámky boli uložené.');
+    } catch (e) {
+      Alert.alert('Chyba', e instanceof Error ? e.message : 'Uloženie zlyhalo');
+    } finally {
+      setDetailsBusy(false);
+    }
+  }
 
   async function setState(state: string) {
     try {
@@ -160,18 +195,46 @@ export default function MatchLiveScreen() {
       {pending > 0 && <Text style={styles.offline}>Offline — {pending} udalostí čaká na odoslanie.</Text>}
 
       {/* Zraz a poznámky */}
-      <View style={styles.meetBox}>
-        <Text style={styles.meetLine}>
-          <Text style={styles.meetLabel}>Zraz: </Text>
-          {formatEventTimeSk(match.meetAt ?? new Date(new Date(match.event.startAt).getTime() - 3_600_000))}
-        </Text>
-        {match.notes ? (
-          <Text style={styles.meetNotes}>
-            <Text style={styles.meetLabel}>Poznámky: </Text>
-            {match.notes}
+      {canManageTeam(me, match.event.team?.id) ? (
+        <View style={styles.meetBox}>
+          <Text style={styles.meetLabel}>Čas zrazu (HH:MM)</Text>
+          <TextInput
+            style={styles.meetInput}
+            value={meetDraft}
+            onChangeText={setMeetDraft}
+            placeholder="napr. 15:30"
+            keyboardType="numbers-and-punctuation"
+          />
+          <Text style={[styles.meetLabel, { marginTop: 8 }]}>Poznámky k zápasu</Text>
+          <TextInput
+            style={[styles.meetInput, styles.meetNotesInput]}
+            value={notesDraft}
+            onChangeText={setNotesDraft}
+            placeholder="výstroj, doprava, zraz pri klubovni…"
+            multiline
+          />
+          <Pressable
+            style={[styles.saveScoreBtn, detailsBusy && { opacity: 0.5 }, { alignSelf: 'flex-end', marginTop: 8 }]}
+            onPress={saveDetails}
+            disabled={detailsBusy}
+          >
+            <Text style={styles.saveScoreText}>{detailsBusy ? 'Ukladám…' : 'Uložiť zraz a poznámky'}</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.meetBox}>
+          <Text style={styles.meetLine}>
+            <Text style={styles.meetLabel}>Zraz: </Text>
+            {formatEventTimeSk(match.meetAt ?? new Date(new Date(match.event.startAt).getTime() - 3_600_000))}
           </Text>
-        ) : null}
-      </View>
+          {match.notes ? (
+            <Text style={styles.meetNotes}>
+              <Text style={styles.meetLabel}>Poznámky: </Text>
+              {match.notes}
+            </Text>
+          ) : null}
+        </View>
+      )}
 
       {/* editovateľný výsledok */}
       {recording && (
@@ -323,6 +386,17 @@ const styles = StyleSheet.create({
   meetLine: { fontSize: 15, color: colors.club900 },
   meetNotes: { fontSize: 14, color: colors.club800 },
   meetLabel: { color: colors.gray },
+  meetInput: {
+    borderWidth: 1,
+    borderColor: colors.club100,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 15,
+    marginTop: 4,
+    backgroundColor: colors.club50,
+  },
+  meetNotesInput: { minHeight: 64, textAlignVertical: 'top' },
   scoreEditRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 8, marginBottom: 14 },
   scoreEditCol: { alignItems: 'center' },
   scoreEditLabel: { fontSize: 11, color: colors.gray, marginBottom: 2 },
