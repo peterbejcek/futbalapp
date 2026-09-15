@@ -6,6 +6,7 @@ import {
   MATCH_EVENT_LABELS_SK,
   SURFACE_LABELS_SK,
   formatEventDateTimeSk,
+  formatEventTimeSk,
   type MatchEventType,
   type SurfaceCode,
 } from '@fkknv/shared';
@@ -38,6 +39,8 @@ interface MatchDetail {
   scoreUs: number | null;
   scoreThem: number | null;
   state: string;
+  meetAt: string | null;
+  notes: string | null;
   event: {
     id: string;
     title: string;
@@ -62,6 +65,12 @@ function fmtMinute(minute: number, stoppage: number | null) {
   return stoppage ? `${minute}+${stoppage}` : `${minute}`;
 }
 
+/** Čas zrazu: explicitný meetAt, inak hodina pred začiatkom zápasu. */
+function meetTimeOf(match: { meetAt: string | null; event: { startAt: string } }): Date {
+  if (match.meetAt) return new Date(match.meetAt);
+  return new Date(new Date(match.event.startAt).getTime() - 3_600_000);
+}
+
 export default function MatchPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { me } = useMe();
@@ -75,6 +84,9 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   const [error, setError] = useState<string | null>(null);
   const [notifyBusy, setNotifyBusy] = useState(false);
   const [notifyResult, setNotifyResult] = useState<{ recipients: number; missing: Array<{ id: string; name: string }> } | null>(null);
+  const [meetDraft, setMeetDraft] = useState('');
+  const [notesDraft, setNotesDraft] = useState('');
+  const [detailsBusy, setDetailsBusy] = useState(false);
 
   // spravovať zápas/nomináciu môže vedenie, alebo tréner tohto družstva
   const manage = isStaff(me) || (!!match?.event.team && coachTeams(me).some((t) => t.id === match.event.team!.id));
@@ -100,6 +112,36 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       setScoreThem(String(match.scoreThem ?? 0));
     }
   }, [match?.scoreUs, match?.scoreThem]);
+
+  // čas zrazu a poznámky z načítaného zápasu (čas zrazu = meetAt, inak 1h pred začiatkom)
+  useEffect(() => {
+    if (match) {
+      setMeetDraft(formatEventTimeSk(meetTimeOf(match)));
+      setNotesDraft(match.notes ?? '');
+    }
+  }, [match?.meetAt, match?.notes, match?.event.startAt]);
+
+  async function saveDetails() {
+    if (!match) return;
+    setDetailsBusy(true);
+    setError(null);
+    try {
+      const start = new Date(match.event.startAt);
+      const m = /^(\d{1,2}):(\d{2})$/.exec(meetDraft.trim());
+      const meetAt = m
+        ? new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate(), Number(m[1]), Number(m[2]))).toISOString()
+        : null;
+      await api(`/matches/${id}/details`, {
+        method: 'POST',
+        body: JSON.stringify({ meetAt, notes: notesDraft }),
+      });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Uloženie zlyhalo');
+    } finally {
+      setDetailsBusy(false);
+    }
+  }
 
   async function setState(state: string) {
     await api(`/matches/${id}/state`, { method: 'POST', body: JSON.stringify({ state }) });
@@ -272,6 +314,55 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       </Card>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
+
+      {/* Čas zrazu a poznámky k zápasu */}
+      <Card>
+        <h2 className="mb-3 font-semibold text-club-800">Zraz a poznámky</h2>
+        {manage ? (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <label className="block text-xs text-gray-500">Čas zrazu (stretnutia)</label>
+                <input
+                  type="time"
+                  value={meetDraft}
+                  onChange={(e) => setMeetDraft(e.target.value)}
+                  className="rounded-md border border-gray-300 px-2 py-1 text-sm"
+                />
+                <p className="mt-1 text-xs text-gray-400">Predvolene hodina pred začiatkom zápasu.</p>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500">Poznámky k zápasu</label>
+              <textarea
+                value={notesDraft}
+                onChange={(e) => setNotesDraft(e.target.value)}
+                rows={3}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                placeholder="Napr. výstroj, doprava, zraz pri klubovni…"
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button variant="ghost" onClick={saveDetails} disabled={detailsBusy}>
+                {detailsBusy ? 'Ukladám…' : 'Uložiť zraz a poznámky'}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-1 text-sm text-gray-700">
+            <p>
+              <span className="text-gray-500">Zraz: </span>
+              <strong>{formatEventTimeSk(meetTimeOf(match))}</strong>
+            </p>
+            {match.notes ? (
+              <p className="whitespace-pre-wrap">
+                <span className="text-gray-500">Poznámky: </span>
+                {match.notes}
+              </p>
+            ) : null}
+          </div>
+        )}
+      </Card>
 
       <div className="grid gap-5 lg:grid-cols-2">
         {/* Nominácia */}

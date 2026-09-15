@@ -40,6 +40,8 @@ interface EventItem {
     opponent: string;
     isHome: boolean;
     opponentLogo: string | null;
+    meetAt: string | null;
+    notes: string | null;
   } | null;
 }
 
@@ -73,6 +75,13 @@ function audienceLabel(e: EventItem): string | null {
   if (e.type !== 'PARENT_MEETING') return null;
   if (e.audienceTeams && e.audienceTeams.length > 0) return e.audienceTeams.map((t) => compactTeam(t.name)).join(', ');
   return 'celý klub';
+}
+
+/** Čas zrazu zápasu: explicitný meetAt, inak hodina pred začiatkom. */
+function matchMeetTime(e: EventItem): Date | null {
+  if (!e.match) return null;
+  if (e.match.meetAt) return new Date(e.match.meetAt);
+  return new Date(new Date(e.startAt).getTime() - 3_600_000);
 }
 
 // logo nášho klubu (FK Košická Nová Ves) z futbalnetu
@@ -360,6 +369,12 @@ function EventList({
                   {formatEventDateTimeSk(e.startAt)}
                 </div>
                 {e.match ? <MatchTeams e={e} /> : <div className="mt-1 font-medium">{e.title}</div>}
+                {e.match && (
+                  <div className="mt-1 text-xs text-gray-500">
+                    Zraz: {formatEventTimeSk(matchMeetTime(e)!)}
+                    {e.match.notes ? ` · ${e.match.notes}` : ''}
+                  </div>
+                )}
                 {audience && <div className="mt-1 text-xs text-club-700">Pre: {audience}</div>}
                 {(e.location || e.surface) && (
                   <div className="mt-1 text-xs text-gray-500">

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Link, useLocalSearchParams } from 'expo-router';
 import * as Crypto from 'expo-crypto';
-import { MATCH_EVENT_LABELS_SK, type MatchEventType } from '@fkknv/shared';
+import { MATCH_EVENT_LABELS_SK, formatEventTimeSk, type MatchEventType } from '@fkknv/shared';
 import { api } from '@/api';
 import { enqueue, flush } from '@/offline';
 import { colors } from '@/theme';
@@ -27,6 +27,8 @@ interface MatchDetail {
   scoreUs: number | null;
   scoreThem: number | null;
   state: string;
+  meetAt: string | null;
+  notes: string | null;
   event: { title: string; startAt: string; team: { name: string } | null };
   nominations: Nomination[];
   events: MatchEventRow[];
@@ -156,6 +158,20 @@ export default function MatchLiveScreen() {
         {match.state === 'LIVE' ? '● NAŽIVO' : match.state === 'FINISHED' ? 'Ukončený' : match.state === 'CANCELLED' ? 'Zrušený' : 'Plánovaný'}
       </Text>
       {pending > 0 && <Text style={styles.offline}>Offline — {pending} udalostí čaká na odoslanie.</Text>}
+
+      {/* Zraz a poznámky */}
+      <View style={styles.meetBox}>
+        <Text style={styles.meetLine}>
+          <Text style={styles.meetLabel}>Zraz: </Text>
+          {formatEventTimeSk(match.meetAt ?? new Date(new Date(match.event.startAt).getTime() - 3_600_000))}
+        </Text>
+        {match.notes ? (
+          <Text style={styles.meetNotes}>
+            <Text style={styles.meetLabel}>Poznámky: </Text>
+            {match.notes}
+          </Text>
+        ) : null}
+      </View>
 
       {/* editovateľný výsledok */}
       {recording && (
@@ -295,6 +311,18 @@ const styles = StyleSheet.create({
   score: { fontSize: 48, fontWeight: '800', color: colors.club800, textAlign: 'center', marginVertical: 4 },
   stateText: { textAlign: 'center', color: colors.club600, fontWeight: '700', marginBottom: 12 },
   offline: { backgroundColor: '#fef3c7', color: '#92400e', padding: 8, borderRadius: 6, marginBottom: 8, fontSize: 13 },
+  meetBox: {
+    backgroundColor: colors.white,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.club100,
+    padding: 12,
+    marginBottom: 12,
+    gap: 4,
+  },
+  meetLine: { fontSize: 15, color: colors.club900 },
+  meetNotes: { fontSize: 14, color: colors.club800 },
+  meetLabel: { color: colors.gray },
   scoreEditRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 8, marginBottom: 14 },
   scoreEditCol: { alignItems: 'center' },
   scoreEditLabel: { fontSize: 11, color: colors.gray, marginBottom: 2 },

@@ -281,6 +281,19 @@ export class MatchesService {
   }
 
   /**
+   * Nastaví čas zrazu (stretnutia) a/alebo poznámky k zápasu — tréner družstva
+   * alebo vedenie. `meetAt`/`notes` null vymaže hodnotu (pri čase sa vráti k
+   * predvolenému — hodina pred začiatkom).
+   */
+  async setDetails(matchId: string, input: { meetAt?: string | null; notes?: string | null }, user: AuthUser) {
+    await this.assertMatchTeam(matchId, user);
+    const data: { meetAt?: Date | null; notes?: string | null } = {};
+    if (input.meetAt !== undefined) data.meetAt = input.meetAt ? new Date(input.meetAt) : null;
+    if (input.notes !== undefined) data.notes = input.notes?.trim() ? input.notes.trim() : null;
+    return this.prisma.match.update({ where: { id: matchId }, data });
+  }
+
+  /**
    * Živý zápis udalosti (gól, striedanie, karta...) s minutážou.
    * clientId zaručuje idempotenciu pri offline synchronizácii —
    * opakované odoslanie tej istej udalosti nevytvorí duplikát.

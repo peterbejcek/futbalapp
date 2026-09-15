@@ -76,6 +76,17 @@ export class MatchesController {
     return this.matchesService.setScore(matchId, body.scoreUs, body.scoreThem, user);
   }
 
+  /** Čas zrazu a poznámky k zápasu — tréner družstva alebo vedenie. */
+  @Post(':id/details')
+  @Roles('ADMIN', 'MANAGER', 'COACH')
+  setDetails(
+    @Param('id') matchId: string,
+    @Body() body: { meetAt?: string | null; notes?: string | null },
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.matchesService.setDetails(matchId, body, user);
+  }
+
   @Post(':id/state')
   @Roles('ADMIN', 'MANAGER', 'COACH')
   setState(

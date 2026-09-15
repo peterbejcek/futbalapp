@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { eventTypeColor, formatEventDateTimeSk } from '@fkknv/shared';
+import { eventTypeColor, formatEventDateTimeSk, formatEventTimeSk } from '@fkknv/shared';
 import { api, setToken } from '@/api';
 import { flush } from '@/offline';
 import { registerForPushNotifications } from '@/notifications';
@@ -17,7 +17,7 @@ interface EventItem {
   location: string | null;
   team: { id: string; name: string } | null;
   audienceTeams?: Array<{ id: string; name: string }>;
-  match: { id: string; opponent: string; isHome: boolean; opponentLogo: string | null } | null;
+  match: { id: string; opponent: string; isHome: boolean; opponentLogo: string | null; meetAt: string | null } | null;
 }
 
 // logo nášho klubu (FK Košická Nová Ves) z futbalnetu
@@ -164,6 +164,11 @@ export default function DashboardScreen() {
           {item.location ? ` · ${item.location}` : ''}
         </Text>
         {item.match ? <MatchTeams item={item} /> : <Text style={styles.cardTitle}>{item.title}</Text>}
+        {item.match && (
+          <Text style={styles.meetLine}>
+            Zraz: {formatEventTimeSk(item.match.meetAt ?? new Date(new Date(item.startAt).getTime() - 3_600_000))}
+          </Text>
+        )}
         {audience && <Text style={styles.audience}>Pre: {audience}</Text>}
         {openable && (
           <Text style={styles.cardAction}>
@@ -474,6 +479,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   audience: { color: colors.club700, fontSize: 12, marginTop: 4 },
+  meetLine: { color: colors.club800, fontSize: 13, marginTop: 4 },
   cardTitle: { fontSize: 16, fontWeight: '600', color: colors.club900 },
   cardMeta: { color: colors.gray, fontSize: 13, marginTop: 4 },
   cardAction: { color: colors.club600, fontSize: 13, fontWeight: '600', marginTop: 6 },

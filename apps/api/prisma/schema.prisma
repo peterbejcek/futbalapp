@@ -642,6 +642,11 @@ model Match {
   competition String?
   scoreUs     Int?
   scoreThem   Int?
+  /// Čas zrazu/stretnutia hráčov pred zápasom (wall-clock UTC). Ak null, berie sa
+  /// hodina pred začiatkom zápasu. Nastavuje tréner družstva alebo admin.
+  meetAt      DateTime?
+  /// Voľné poznámky k zápasu (edituje tréner družstva alebo admin).
+  notes       String?
   state       MatchState @default(PLANNED)
 
   event       Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
