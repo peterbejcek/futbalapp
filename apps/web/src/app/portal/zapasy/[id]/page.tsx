@@ -241,7 +241,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
         </div>
         <p className="text-sm text-gray-500">{match.event.title}</p>
         <p className="my-1 text-5xl font-extrabold text-club-800">
-          {match.scoreUs ?? 0} : {match.scoreThem ?? 0}
+          {(match.isHome ? match.scoreUs : match.scoreThem) ?? 0} : {(match.isHome ? match.scoreThem : match.scoreUs) ?? 0}
         </p>
         <p className="text-sm font-semibold text-club-600">
           {match.state === 'LIVE' ? '● NAŽIVO' : match.state === 'FINISHED' ? 'Ukončený' : match.state === 'CANCELLED' ? 'Zrušený' : 'Plánovaný'}
@@ -258,8 +258,8 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
               <input
                 type="number"
                 min={0}
-                value={scoreUs}
-                onChange={(e) => setScoreUs(e.target.value)}
+                value={match.isHome ? scoreUs : scoreThem}
+                onChange={(e) => (match.isHome ? setScoreUs : setScoreThem)(e.target.value)}
                 className="w-16 rounded-md border border-gray-300 px-2 py-1 text-center text-lg font-bold"
               />
             </div>
@@ -269,8 +269,8 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
               <input
                 type="number"
                 min={0}
-                value={scoreThem}
-                onChange={(e) => setScoreThem(e.target.value)}
+                value={match.isHome ? scoreThem : scoreUs}
+                onChange={(e) => (match.isHome ? setScoreThem : setScoreUs)(e.target.value)}
                 className="w-16 rounded-md border border-gray-300 px-2 py-1 text-center text-lg font-bold"
               />
             </div>

@@ -187,7 +187,7 @@ export default function MatchLiveScreen() {
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
       <Text style={styles.title}>{match.event.title}</Text>
       <Text style={styles.score}>
-        {match.scoreUs ?? 0} : {match.scoreThem ?? 0}
+        {(match.isHome ? match.scoreUs : match.scoreThem) ?? 0} : {(match.isHome ? match.scoreThem : match.scoreUs) ?? 0}
       </Text>
       <Text style={styles.stateText}>
         {match.state === 'LIVE' ? '● NAŽIVO' : match.state === 'FINISHED' ? 'Ukončený' : match.state === 'CANCELLED' ? 'Zrušený' : 'Plánovaný'}
@@ -244,8 +244,8 @@ export default function MatchLiveScreen() {
             <TextInput
               style={styles.numInput}
               keyboardType="number-pad"
-              value={scoreUs}
-              onChangeText={setScoreUs}
+              value={match.isHome ? scoreUs : scoreThem}
+              onChangeText={match.isHome ? setScoreUs : setScoreThem}
             />
           </View>
           <Text style={styles.scoreColon}>:</Text>
@@ -254,8 +254,8 @@ export default function MatchLiveScreen() {
             <TextInput
               style={styles.numInput}
               keyboardType="number-pad"
-              value={scoreThem}
-              onChangeText={setScoreThem}
+              value={match.isHome ? scoreThem : scoreUs}
+              onChangeText={match.isHome ? setScoreThem : setScoreUs}
             />
           </View>
           <Pressable style={styles.saveScoreBtn} onPress={saveScore}>
