@@ -23,6 +23,10 @@ Identifikátory aplikácie (už nastavené v `app.json` / `eas.json`):
 môže trvať aj niekoľko dní až týždňov — založ ho čo najskôr. Ako jednotlivec je to
 rýchlejšie. Review appky potom trvá typicky 1–3 dni.
 
+👉 Ak má byť vydavateľom **MS ART Design s.r.o.**, ale appku chceš v obchodoch čo
+najskôr, čítaj **sekciu 6** — dá sa vydať pod súkromným účtom a firemný subjekt
+doplniť dodatočne (Apple konverziou účtu, Google prenosom appky).
+
 ---
 
 ## 1. Spoločná príprava (obe platformy)
@@ -133,3 +137,119 @@ telefóny, fotky, zdravotné poznámky) vrátane **údajov maloletých**. Preto:
 - [ ] Demo účet pre recenzenta pripravený a uvedený v poznámkach.
 - [ ] Screenshoty pre obe platformy.
 - [ ] Internal testing / TestFlight prešlo bez pádov.
+
+---
+
+## 6. Vydavateľ: súkromná osoba teraz, MS ART Design s.r.o. potom
+
+Cieľ: **appka v obchodoch čo najskôr**, vydavateľ (názov pod menom appky)
+nakoniec **MS ART Design s.r.o.** Oboje sa dá — netreba čakať na firemný účet.
+
+### 6.1 Apple — odporúčaná cesta: vydaj teraz, účet potom *prekonvertuj*
+
+Aktuálny stav: platené členstvo ako **jednotlivec**, testovacia verzia už beží
+v App Store Connect.
+
+1. **Vydaj appku pod súkromným účtom.** Review typicky 1–3 dni. Appka pôjde von
+   s vydavateľom „Peter Bejček“.
+2. **Paralelne vyrieš D-U-N-S číslo pre MS ART Design s.r.o.**
+   Najprv over, či firma už jedno má (D&B ich prideľuje aj bez žiadosti) —
+   Apple má na to bezplatný nástroj: <https://developer.apple.com/enroll/duns-lookup/>.
+   Ak existuje, nečakáš ani deň; ak nie, vyžiadanie je zdarma a trvá rádovo
+   dni až 30 dní.
+3. **Požiadaj Apple o zmenu typu subjektu** (Individual → Organization):
+   Apple Developer → *Contact us* → **Membership and Account → Program Enrollment**.
+   V žiadosti uveď: názov firmy vrátane „s.r.o.“, D-U-N-S číslo, právnu adresu,
+   telefón a menu konateľa. Apple do ~2 týždňov zavolá na uvedené číslo kvôli
+   verifikácii a potom dožiada doklady.
+
+**Prečo konverzia a nie prenos appky:** účet zostáva ten istý — rovnaké
+**Team ID**, rovnaké certifikáty a APNs kľúč, rovnaké TestFlight, žiadny druhý
+poplatok 99 $. Mení sa len typ a názov subjektu, ktorý sa prepíše aj pod appkou
+v App Store. Nulový technický dopad na už nainštalované appky.
+
+### 6.2 Apple — záložná cesta: App Transfer
+
+Ak by Apple konverziu nepovolil, funguje **prenos appky** do nového firemného
+účtu (nové členstvo 99 $/rok pre s.r.o.) — appka si ponechá bundle ID
+`sk.fkknv.app`, hodnotenia, recenzie aj inštalačnú bázu a používatelia dostávajú
+updaty ďalej.
+
+Podmienky prenosu (splníme ich práve tým, že najprv vydáme):
+- appka **musí mať aspoň jednu verziu vydanú v App Store** (TestFlight nestačí);
+- nesmie byť v stave *Waiting for Review / In Review / Pending Developer Release*
+  a pod.; prenos teda rob medzi vydaniami;
+- obidva účty musia mať odklikané aktuálne zmluvy.
+
+Čo si pri tejto ceste treba odpracovať:
+- **TestFlight sa musí pred prenosom vypnúť** (zmažú sa buildy aj testeri) —
+  po prenose testerov pozvi nanovo;
+- **nové APNs kľúče** pod novým teamom → `eas credentials` (staré platia do
+  expirácie, ale nové buildy potrebujú nový kľúč);
+- **zmena Team ID mení keychain access group** → appka používa `expo-secure-store`
+  na uloženie prihlásenia, takže po prvom builde pod novým účtom sa
+  **používatelia raz odhlásia**. Naplánuj oznam v klubovej komunikácii;
+- v `eas.json` / EAS credentials prepíš `appleTeamId` a App Store Connect API kľúč.
+
+### 6.3 Google Play — tu je reálne úzke hrdlo
+
+Play Console **nekonvertuje** typ účtu. Zásadné je, ktorý typ účtu zakladáme:
+
+| | Osobný účet | Firemný účet (s.r.o.) |
+|---|---|---|
+| D-U-N-S | netreba | **povinné** |
+| Closed testing pred produkciou | **12 testerov × 14 dní v kuse** + žiadosť o production access (review ≤ 7 dní) | **neplatí** — ide sa priamo do produkcie |
+| Reálny čas do vydania | ~3 týždne | pár dní po overení účtu (ak je D-U-N-S) |
+| Cena | 25 $ jednorazovo | 25 $ jednorazovo |
+
+Preto: **rozbeh obe cesty naraz** (25 $ navyše je zanedbateľné oproti týždňom):
+
+1. **Dnes** založ osobný účet, nahraj produkčný AAB do **Closed testing** a pozvi
+   **12+ testerov** (tréneri, vedenie, rodičia — klub ich má dosť). Tým sa hneď
+   rozbehne 14-dňový odpočet. Testeri musia pozvánku *prijať a appku nainštalovať*
+   pod pozvaným Google kontom, inak sa nepočítajú.
+2. **Paralelne** s D-U-N-S číslom založ firemný účet pre MS ART Design s.r.o.
+   Ak je overený skôr, publikuj priamo z neho a osobný účet zahoď.
+3. Ak vyhrá osobný účet, publikuj z neho a appku neskôr **prenes** do firemného
+   (Play Console → *Transfer app*; treba transaction ID z platby 25 $ cieľového
+   účtu, Google to spracuje typicky do 2 pracovných dní). Prenášajú sa
+   používatelia, štatistiky, hodnotenia, recenzie aj podpisový kľúč
+   (Play App Signing).
+   Po prenose treba ručne prenastaviť prístupy k prepojeným službám
+   (Firebase/FCM, Analytics) a znovu vytvoriť testovacie skupiny.
+   `google-services.json` sa nemení — Firebase projekt na Play účte nezávisí,
+   takže push notifikácie idú ďalej.
+
+### 6.4 EU DSA — „trader status“ (dôležité pre súkromný účet)
+
+Pri distribúcii v EU treba v App Store Connect aj v Play Console deklarovať
+*trader status*. Kto je **trader**, má na stránke appky **verejne zobrazenú
+adresu, telefón a e-mail**. Pri firemnom účte je to adresa firmy; pri súkromnom
+účte by to bola **tvoja osobná adresa a telefón**.
+
+- FK KNV je appka **zdarma, bez reklám a bez in-app nákupov** — pri takom
+  nasadení sa dá deklarovať **non-trader** a kontaktné údaje sa nezverejňujú
+  (appka v EU zostáva dostupná, len sa používateľom zobrazí, že sa na vzťah
+  neuplatňujú spotrebiteľské práva).
+- Ak sa trader status deklarovať musí, Apple pripúšťa namiesto adresy aj
+  **P. O. Box** (treba doklad o vzťahu k nemu).
+- Ak si nie si istý zaradením, poraď sa — posúdenie „trader vs non-trader“ je
+  právna otázka, nie technická.
+
+### 6.5 Časová os v kocke
+
+| Kedy | Apple | Google Play |
+|---|---|---|
+| Deň 0 | submit pod súkromným účtom; D-U-N-S lookup | osobný účet + closed testing s 12 testermi; D-U-N-S lookup |
+| Deň 1–4 | **appka live v App Store** | beží 14-dňový test |
+| Deň ~7–30 | žiadosť o konverziu na s.r.o. → verifikačný telefonát | firemný účet po D-U-N-S; alebo production access po teste |
+| Potom | vydavateľ = MS ART Design s.r.o. (bez prenosu, bez ďalších 99 $) | publikácia; prípadný *Transfer app* na s.r.o. |
+
+### 6.6 Čo ešte treba dotiahnuť v repozitári
+
+- [ ] `apps/mobile/app.json`: `version` je `0.1.0` → pre prvé store vydanie zvýš
+      na `1.0.0` (`runtimeVersion` nechaj `1.0.0`, je to natívna kompatibilita).
+- [ ] `eas.json` → `submit.production` je prázdny; po založení appky doplň
+      `ascAppId` (a `appleTeamId`, ak ho budeš fixovať).
+- [ ] Veľkosti iOS screenshotov ber podľa toho, čo aktuálne žiada App Store
+      Connect (požiadavky Apple sa menili, sada v sekcii 1 je orientačná).
