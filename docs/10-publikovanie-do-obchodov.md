@@ -202,7 +202,30 @@ Play Console **nekonvertuje** typ účtu. Zásadné je, ktorý typ účtu zaklad
 | Reálny čas do vydania | ~3 týždne | pár dní po overení účtu (ak je D-U-N-S) |
 | Cena | 25 $ jednorazovo | 25 $ jednorazovo |
 
-Preto: **rozbeh obe cesty naraz** (25 $ navyše je zanedbateľné oproti týždňom):
+Požiadavku na closed testing Google definuje výslovne len na *personal developer
+accounts created after November 13, 2023* — firemný účet do toho rozsahu nepadá.
+Firemný účet má namiesto toho vlastnú bránu: povinné D-U-N-S číslo a overenie
+identity, pri ktorom Google páruje názov firmy, adresu a telefón s D&B záznamom.
+
+**Rozhodovacie pravidlo — všetko závisí od D-U-N-S:**
+
+- **D-U-N-S už existuje (alebo príde do ~týždňa)** → zakladaj **len firemný účet**.
+  Je to rýchlejšie aj čistejšie: bez osobného účtu, bez prenosu appky, bez
+  duplicitných 25 $, a vydavateľom je hneď MS ART Design s.r.o.
+- **D-U-N-S neexistuje a D&B sa vlečie** (až 30 dní) → až vtedy sa vyplatí hedge
+  nižšie, aby 14-dňový odpočet bežal počas čakania.
+
+⚠️ Ak D&B záznam existuje, ale má **neaktuálne údaje** (adresa, názov, telefón),
+oprav ho *pred* založením účtu — nesúlad údajov je najčastejší dôvod, prečo
+verifikácia firemného účtu spadne. Ten istý záznam použije aj Apple pri konverzii.
+
+⚠️ Typ Play účtu sa **nedá zmeniť** a D-U-N-S sa nedá prepísať na existujúcom
+payments profile. Vydanie z osobného účtu teda znamená, že cesta k s.r.o. už
+vedie len cez prenos appky. (Apple je opačný prípad — tam konverzia existuje,
+preto vydanie pod súkromným Apple účtom nič nekazí.)
+
+Hedge, ak D-U-N-S nie je po ruke: **rozbeh obe cesty naraz** (25 $ navyše je
+zanedbateľné oproti týždňom):
 
 1. **Dnes** založ osobný účet, nahraj produkčný AAB do **Closed testing** a pozvi
    **12+ testerov** (tréneri, vedenie, rodičia — klub ich má dosť). Tým sa hneď
