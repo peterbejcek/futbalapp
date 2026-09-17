@@ -29,6 +29,9 @@ model User {
   firstName    String
   lastName     String
   locale       String     @default("sk")
+  /// Testovacie (demo) konto pre app-store review — vidí len demo dáta a je pre
+  /// ostatných neviditeľné. Ostatní používatelia demo dáta nevidia.
+  isDemo       Boolean    @default(false)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -87,6 +90,8 @@ model Member {
   id             String       @id @default(cuid())
   /// Poradové číslo pre variabilný symbol (RRMM + 6 číslic)
   memberSeq      Int          @unique @default(autoincrement())
+  /// Testovací (demo) člen — viditeľný len pre demo konto (app-store review).
+  isDemo         Boolean      @default(false)
   firstName      String
   lastName       String
   /// Voliteľné — hráči majú dátum narodenia (zaradenie do kategórie),
@@ -244,6 +249,8 @@ model Task {
   description    String?
   dueDate        DateTime?
   done           Boolean   @default(false)
+  /// Testovacia (demo) úloha — viditeľná len pre demo konto (app-store review).
+  isDemo         Boolean   @default(false)
   doneAt         DateTime?
   doneById       String?
   createdById    String
@@ -322,6 +329,8 @@ model Team {
   teamCategoryId String
   name           String
   sortOrder      Int    @default(0)
+  /// Testovacie (demo) družstvo — viditeľné len pre demo konto (app-store review).
+  isDemo         Boolean @default(false)
   /// URL programu súťaže tohto družstva na sportnet.sme.sk (zdroj rozpisu zápasov)
   sportnetProgramUrl String?
   /// Presný názov tohto družstva na sportnete (napr. "FK Košická Nová Ves B")
@@ -548,6 +557,8 @@ model Event {
   id       String    @id @default(cuid())
   type     EventType
   seasonId String
+  /// Testovacia (demo) udalosť — viditeľná len pre demo konto (app-store review).
+  isDemo   Boolean   @default(false)
   /// null = celoklubová udalosť (bez konkrétneho družstva)
   teamId   String?
   title    String
@@ -709,6 +720,8 @@ model Channel {
   kind      ChannelKind
   teamId    String?
   name      String
+  /// Testovací (demo) kanál — viditeľný len pre demo konto (app-store review).
+  isDemo    Boolean     @default(false)
   createdAt DateTime    @default(now())
 
   team     Team?           @relation(fields: [teamId], references: [id])

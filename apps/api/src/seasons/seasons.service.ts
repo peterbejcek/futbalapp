@@ -20,16 +20,17 @@ export class SeasonsService {
     });
   }
 
-  categories() {
+  categories(isDemo = false) {
     return this.prisma.teamCategory.findMany({
       orderBy: { sortOrder: 'asc' },
-      include: { teams: { orderBy: { sortOrder: 'asc' } } },
+      include: { teams: { where: { isDemo }, orderBy: { sortOrder: 'asc' } } },
     });
   }
 
   /** Zoznam všetkých družstiev (na výber v UI). */
-  teams() {
+  teams(isDemo = false) {
     return this.prisma.team.findMany({
+      where: { isDemo },
       include: { teamCategory: { select: { code: true, name: true, sortOrder: true, sportnetUrl: true } } },
       orderBy: [{ teamCategory: { sortOrder: 'asc' } }, { sortOrder: 'asc' }],
     });
@@ -111,9 +112,11 @@ export class SeasonsService {
       }));
 
     const members = await this.prisma.member.findMany({
-      // len hráči (majú dátum narodenia); vedenie/tréner/rodič sa do družstiev nezaraďujú
+      // len hráči (majú dátum narodenia); vedenie/tréner/rodič sa do družstiev nezaraďujú;
+      // demo členov automatické zaraďovanie nikdy nerieši
       where: {
         status: 'ACTIVE',
+        isDemo: false,
         birthDate: { not: null },
         NOT: { user: { roles: { some: { role: { in: ['ADMIN', 'MANAGER', 'COACH', 'PARENT'] as never } } } } },
       },

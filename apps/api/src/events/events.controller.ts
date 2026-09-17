@@ -33,7 +33,7 @@ export class EventsController {
     if (mine === 'true' || (!isStaff(user) && !isCoach(user))) {
       return this.eventsService.listForUser({ ...range, type }, user);
     }
-    return this.eventsService.list({ categoryCode, teamId, type, ...range });
+    return this.eventsService.list({ categoryCode, teamId, type, ...range, isDemo: user.isDemo });
   }
 
   @Get('locations')
@@ -57,7 +57,7 @@ export class EventsController {
     } else if (body.type === 'PARENT_MEETING' && !body.teamId && !isStaff(user)) {
       throw new ForbiddenException('Celoklubovú udalosť môže vytvoriť len vedenie klubu');
     }
-    return this.eventsService.create(body, user.id);
+    return this.eventsService.create(body, user.id, user.isDemo);
   }
 
   @Post('recurring')
@@ -69,7 +69,7 @@ export class EventsController {
     if (!canManageTeam(user, body.teamId)) {
       throw new ForbiddenException('Nemôžete vytvárať tréningy pre iné družstvo');
     }
-    return this.eventsService.createRecurring(body, user.id);
+    return this.eventsService.createRecurring(body, user.id, user.isDemo);
   }
 
   @Patch(':id')

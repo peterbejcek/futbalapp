@@ -8,7 +8,7 @@ import {
 } from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClubsService } from '../clubs/clubs.service';
-import { canManageTeam, coachBlockedFromTeam, coachTeamIds, isStaff } from '../auth/scope';
+import { canManageTeam, coachBlockedFromTeam, coachTeamIds, isDemoScope, isStaff } from '../auth/scope';
 import type { AuthUser } from '../auth/current-user.decorator';
 
 /** Spoločné pripojenia pri načítaní udalostí (družstvo, zápas, cieľové družstvá). */
@@ -25,9 +25,10 @@ export class EventsService {
     private readonly clubs: ClubsService,
   ) {}
 
-  list(params: { categoryCode?: string; teamId?: string; from?: Date; to?: Date; type?: string }) {
+  list(params: { categoryCode?: string; teamId?: string; from?: Date; to?: Date; type?: string; isDemo?: boolean }) {
     return this.prisma.event.findMany({
       where: {
+        isDemo: params.isDemo ?? false,
         team: {
           id: params.teamId ? params.teamId : undefined,
           teamCategory: params.categoryCode ? { code: params.categoryCode } : undefined,
@@ -62,10 +63,11 @@ export class EventsService {
 
   /** Udalosti relevantné pre používateľa: vedenie vidí všetko; ostatní svoje družstvá + celoklubové. */
   async listForUser(params: { from?: Date; to?: Date; type?: string }, user: AuthUser) {
-    if (isStaff(user)) return this.list(params);
+    if (isStaff(user)) return this.list({ ...params, isDemo: isDemoScope(user) });
     const teamIds = await this.relevantTeamIds(user);
     return this.prisma.event.findMany({
       where: {
+        isDemo: isDemoScope(user),
         OR: [
           { teamId: { in: teamIds } },
           // celoklubová udalosť bez cielenia na konkrétne družstvá
@@ -121,7 +123,7 @@ export class EventsService {
    * Vytvorí jednu udalosť; pri TRAINING predpripraví dochádzku družstva,
    * pri MATCH/TOURNAMENT vytvorí Match záznam.
    */
-  async create(input: CreateEventInput, createdById: string) {
+  async create(input: CreateEventInput, createdById: string, isDemo = false) {
     const season = await this.prisma.season.findFirst({ where: { isActive: true } });
     if (!season) throw new BadRequestException('Neexistuje aktívna sezóna');
     const team = await this.resolveTeam(input.teamId);
@@ -141,6 +143,7 @@ export class EventsService {
         type: input.type,
         seasonId: season.id,
         teamId: team?.id,
+        isDemo,
         title: input.title,
         startAt: input.startAt,
         endAt: input.endAt,
@@ -165,7 +168,7 @@ export class EventsService {
    * Vytvorí sériu opakovaných tréningov (napr. utorky+piatky 16:00–17:00)
    * ako samostatné udalosti so spoločným recurrenceGroupId.
    */
-  async createRecurring(input: CreateRecurringTrainingInput, createdById: string) {
+  async createRecurring(input: CreateRecurringTrainingInput, createdById: string, isDemo = false) {
     const season = await this.prisma.season.findFirst({ where: { isActive: true } });
     if (!season) throw new BadRequestException('Neexistuje aktívna sezóna');
     const team = await this.resolveTeam(input.teamId);
@@ -189,6 +192,7 @@ export class EventsService {
           type: 'TRAINING',
           seasonId: season.id,
           teamId: team.id,
+          isDemo,
           title: input.title,
           startAt: occ.startAt,
           endAt: occ.endAt,

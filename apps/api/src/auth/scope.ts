@@ -32,3 +32,12 @@ export function canManageTeam(user: AuthUser, teamId: string | null | undefined)
   if (!teamId) return false;
   return coachTeamIds(user).includes(teamId);
 }
+
+/**
+ * Oddelenie testovacích (demo) dát od ostrých. Demo konto (app-store review) vidí
+ * LEN demo dáta; ostatní používatelia demo dáta NIKDY nevidia. Vracia hodnotu poľa
+ * `isDemo`, ktorou sa filtrujú modely s týmto poľom (User/Member/Team/Event/Channel/Task).
+ */
+export function isDemoScope(user: AuthUser): boolean {
+  return !!user.isDemo;
+}

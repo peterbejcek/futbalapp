@@ -6,6 +6,8 @@ export interface AuthUser {
   email: string;
   /** teamId = scope pre COACH (družstvo); null pre ADMIN/MANAGER/PLAYER/PARENT */
   roles: Array<{ role: Role; teamId: string | null }>;
+  /** Demo (test) konto pre app-store review — vidí len demo dáta. */
+  isDemo: boolean;
 }
 
 export const CurrentUser = createParamDecorator((_: unknown, ctx: ExecutionContext): AuthUser => {

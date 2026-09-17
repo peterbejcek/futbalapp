@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/commo
 import { createTeamSchema, type CreateTeamInput } from '@fkknv/shared';
 import { SeasonsService } from './seasons.service';
 import { Roles } from '../auth/roles.decorator';
+import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { ZodValidationPipe } from '../common/zod.pipe';
 
 @Controller('seasons')
@@ -19,13 +20,13 @@ export class SeasonsController {
   }
 
   @Get('categories')
-  categories() {
-    return this.seasonsService.categories();
+  categories(@CurrentUser() user: AuthUser) {
+    return this.seasonsService.categories(user.isDemo);
   }
 
   @Get('teams')
-  teams() {
-    return this.seasonsService.teams();
+  teams(@CurrentUser() user: AuthUser) {
+    return this.seasonsService.teams(user.isDemo);
   }
 
   @Post('teams')

@@ -10,8 +10,8 @@ export class MatchesController {
   constructor(private readonly matchesService: MatchesService) {}
 
   @Get('stats')
-  stats(@Query('category') categoryCode?: string, @Query('team') teamId?: string) {
-    return this.matchesService.playerStats({ categoryCode, teamId });
+  stats(@CurrentUser() user: AuthUser, @Query('category') categoryCode?: string, @Query('team') teamId?: string) {
+    return this.matchesService.playerStats({ categoryCode, teamId, isDemo: user.isDemo });
   }
 
   /** Moje (a detí) nominácie na potvrdenie účasti (U17/U19/Muži). */
@@ -43,8 +43,8 @@ export class MatchesController {
   }
 
   @Get(':id')
-  get(@Param('id') id: string) {
-    return this.matchesService.get(id);
+  get(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.matchesService.get(id, user);
   }
 
   @Post(':id/nominations')

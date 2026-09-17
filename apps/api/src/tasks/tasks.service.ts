@@ -47,6 +47,7 @@ export class TasksService {
 
   async list(user: AuthUser) {
     const tasks = await this.prisma.task.findMany({
+      where: { isDemo: !!user.isDemo },
       orderBy: [{ done: 'asc' }, { createdAt: 'desc' }],
       include: { _count: { select: { comments: true } } },
     });
@@ -126,6 +127,7 @@ export class TasksService {
         assigneeUserId: input.assigneeUserId || null,
         assigneeRole: input.assigneeUserId ? null : assigneeRole,
         createdById: user.id,
+        isDemo: !!user.isDemo,
       },
     });
     // notifikácia e-mailom tomu, kto má úlohu splniť (nezablokuje vytvorenie pri chybe)

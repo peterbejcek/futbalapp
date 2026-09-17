@@ -34,7 +34,7 @@ export class ChatGateway implements OnGatewayConnection {
       const token = (socket.handshake.auth as { token?: string }).token;
       if (!token) throw new Error('missing token');
       const payload = await this.jwtService.verifyAsync<AuthUser & { sub: string }>(token);
-      socket.data.user = { id: payload.sub, email: payload.email, roles: payload.roles } satisfies AuthUser;
+      socket.data.user = { id: payload.sub, email: payload.email, roles: payload.roles, isDemo: !!payload.isDemo } satisfies AuthUser;
     } catch {
       socket.disconnect(true);
     }

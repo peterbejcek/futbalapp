@@ -29,7 +29,7 @@ export class MatchesService {
     }
   }
 
-  async get(id: string) {
+  async get(id: string, user?: AuthUser) {
     const match = await this.prisma.match.findUnique({
       where: { id },
       include: {
@@ -48,6 +48,8 @@ export class MatchesService {
       },
     });
     if (!match) throw new NotFoundException('Zápas neexistuje');
+    // demo izolácia: demo konto vidí len demo zápasy a naopak
+    if (user && match.event.isDemo !== !!user.isDemo) throw new NotFoundException('Zápas neexistuje');
     return match;
   }
 
@@ -347,9 +349,10 @@ export class MatchesService {
   }
 
   /** Štatistiky hráčov: góly a asistencie. Filter podľa kategórie alebo družstva. */
-  async playerStats(filter: { categoryCode?: string; teamId?: string }) {
+  async playerStats(filter: { categoryCode?: string; teamId?: string; isDemo?: boolean }) {
     const matchWhere = {
       event: {
+        isDemo: filter.isDemo ?? false,
         team: {
           id: filter.teamId ? filter.teamId : undefined,
           teamCategory: filter.categoryCode ? { code: filter.categoryCode } : undefined,

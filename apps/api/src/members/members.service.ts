@@ -61,8 +61,9 @@ export class MembersService {
     status?: string;
     role?: string; // filter podľa funkcie: PLAYER | PARENT | COACH | MANAGER | ADMIN
     hideInactive?: boolean; // skryť neaktívnych (ponechá ACTIVE + GUEST)
+    isDemo?: boolean; // demo konto vidí len demo členov; ostatní len ostrých
   }) {
-    const and: Array<Record<string, unknown>> = [];
+    const and: Array<Record<string, unknown>> = [{ isDemo: params.isDemo ?? false }];
     if (params.status) and.push({ status: params.status as MemberStatus });
     else if (params.hideInactive) and.push({ status: { not: 'INACTIVE' as MemberStatus } });
 
@@ -302,9 +303,9 @@ export class MembersService {
   }
 
   /** Zoznam rodičov (členovia s kontom a rolou PARENT) na priradenie k dieťaťu. */
-  async listParents() {
+  async listParents(isDemo = false) {
     const parents = await this.prisma.member.findMany({
-      where: { userId: { not: null }, user: { roles: { some: { role: 'PARENT' } } } },
+      where: { isDemo, userId: { not: null }, user: { roles: { some: { role: 'PARENT' } } } },
       select: { id: true, firstName: true, lastName: true, user: { select: { email: true } } },
     });
     return parents.sort(bySlovakName);
@@ -351,10 +352,11 @@ export class MembersService {
     }
   }
 
-  async create(input: CreateMemberInput, actorRoles: Role[]) {
+  async create(input: CreateMemberInput, actorRoles: Role[], isDemo = false) {
     if (input.roles?.length) this.assertGrant(actorRoles, input.roles);
     const member = await this.prisma.member.create({
       data: {
+        isDemo,
         firstName: input.firstName,
         lastName: input.lastName,
         birthDate: input.birthDate,
@@ -418,7 +420,7 @@ export class MembersService {
   }
 
   private assertGrant(actorRoles: Role[], roles: Role[]) {
-    this.accounts.assertCanGrant({ id: '', email: '', roles: actorRoles.map((role) => ({ role, teamId: null })) }, roles);
+    this.accounts.assertCanGrant({ id: '', email: '', isDemo: false, roles: actorRoles.map((role) => ({ role, teamId: null })) }, roles);
   }
 
   /** Uloží/nahradí fotku hráča (data URL) a nastaví jeho photoUrl. */
@@ -653,7 +655,7 @@ export class MembersService {
     const staff = user.roles.some((r) => r.role === 'ADMIN' || r.role === 'MANAGER');
     const teamIds = user.roles.filter((r) => r.role === 'COACH' && r.teamId).map((r) => r.teamId as string);
 
-    let where: Record<string, unknown> = { registrationValidUntil: { not: null } };
+    let where: Record<string, unknown> = { isDemo: user.isDemo, registrationValidUntil: { not: null } };
     if (!staff) {
       const or: Array<Record<string, unknown>> = [];
       if (teamIds.length) {
@@ -662,7 +664,7 @@ export class MembersService {
       // vlastný člen + deti (rodič)
       or.push({ user: { id: user.id } });
       or.push({ guardians: { some: { userId: user.id } } });
-      where = { AND: [{ registrationValidUntil: { not: null } }, { OR: or }] };
+      where = { AND: [{ isDemo: user.isDemo }, { registrationValidUntil: { not: null } }, { OR: or }] };
     }
 
     const members = await this.prisma.member.findMany({
