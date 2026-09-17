@@ -69,6 +69,9 @@ async function main() {
   for (let i = 0; i < players.length; i++) {
     const p = players[i]!;
     const reg = `DEMO-P${String(i + 1).padStart(2, '0')}`;
+    // platnosť preukazu: 1. hráč po platnosti, 2. čoskoro (do 30 dní), ostatní OK —
+    // aby bolo na dashboarde vidieť aj farebné stavy registračných preukazov
+    const validUntil = i === 0 ? wall(-12, 0) : i === 1 ? wall(20, 0) : wall(320, 0);
     const member = await prisma.member.upsert({
       where: { registrationNumber: reg },
       create: {
@@ -78,8 +81,9 @@ async function main() {
         birthDate: new Date(Date.UTC(p.year, 4, 10)),
         status: 'ACTIVE',
         registrationNumber: reg,
+        registrationValidUntil: validUntil,
       },
-      update: { isDemo: true, firstName: p.firstName, lastName: p.lastName },
+      update: { isDemo: true, firstName: p.firstName, lastName: p.lastName, registrationValidUntil: validUntil },
     });
     await prisma.teamMembership.upsert({
       where: { memberId_seasonId_teamId: { memberId: member.id, seasonId: season.id, teamId: team.id } },
