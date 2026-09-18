@@ -151,6 +151,26 @@ export default function EventsPage() {
     return teams.filter((t) => coachIds.has(t.id));
   }, [teams, me]);
 
+  // zapamätané zobrazenie kalendára (Najbližšie/Mesiac) pre daného používateľa
+  const viewKey = me ? `fkknv:cal-view:${me.id}` : null;
+  useEffect(() => {
+    if (!viewKey) return;
+    try {
+      const v = localStorage.getItem(viewKey);
+      if (v === 'list' || v === 'month') setView(v);
+    } catch {
+      /* localStorage nedostupný — ignoruj */
+    }
+  }, [viewKey]);
+  function changeView(v: 'list' | 'month') {
+    setView(v);
+    try {
+      if (viewKey) localStorage.setItem(viewKey, v);
+    } catch {
+      /* ignoruj */
+    }
+  }
+
   const load = useCallback(async () => {
     try {
       const q = teamFilter ? `&team=${teamFilter}` : '';
@@ -234,7 +254,7 @@ export default function EventsPage() {
             <label className="text-sm text-gray-600">Družstvo:</label>
             <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-sm">
               <option value="">Všetky</option>
-              {teams.map((t) => (
+              {availableTeams.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
                 </option>
@@ -242,16 +262,16 @@ export default function EventsPage() {
             </select>
           </div>
         )}
-        {/* prepínač zobrazenia */}
+        {/* prepínač zobrazenia — voľba sa pamätá pre daného používateľa */}
         <div className="ml-auto inline-flex overflow-hidden rounded-md border border-club-200">
           <button
-            onClick={() => setView('list')}
+            onClick={() => changeView('list')}
             className={`px-3 py-1 text-sm ${view === 'list' ? 'bg-club-600 text-white' : 'bg-white text-club-700'}`}
           >
             Najbližšie
           </button>
           <button
-            onClick={() => setView('month')}
+            onClick={() => changeView('month')}
             className={`px-3 py-1 text-sm ${view === 'month' ? 'bg-club-600 text-white' : 'bg-white text-club-700'}`}
           >
             Mesiac

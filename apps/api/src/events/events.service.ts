@@ -83,6 +83,31 @@ export class EventsService {
     });
   }
 
+  /**
+   * Kalendár trénera: vidí LEN svoje pridelené družstvá. Bez konkrétneho výberu
+   * („Všetky") = všetky jeho družstvá + celoklubové udalosti; s výberom teamId =
+   * len to družstvo (musí byť jeho, inak prázdne). Žiadne iné družstvá.
+   */
+  async listForCoach(params: { teamId?: string; from?: Date; to?: Date; type?: string }, user: AuthUser) {
+    const coachIds = coachTeamIds(user);
+    const teamFilter =
+      params.teamId
+        ? coachIds.includes(params.teamId)
+          ? { teamId: params.teamId }
+          : { teamId: '__none__' } // cudzie družstvo → nič
+        : { OR: [{ teamId: { in: coachIds } }, { teamId: null }] }; // všetky jeho + celoklubové
+    return this.prisma.event.findMany({
+      where: {
+        isDemo: isDemoScope(user),
+        ...teamFilter,
+        type: params.type ? (params.type as never) : undefined,
+        startAt: { gte: params.from, lte: params.to },
+      },
+      include: EVENT_INCLUDE,
+      orderBy: { startAt: 'asc' },
+    });
+  }
+
   /** Zoznam doteraz použitých miest (ihrísk) pre našepkávač — bez duplicít. */
   async locations(): Promise<string[]> {
     const rows = await this.prisma.event.findMany({
