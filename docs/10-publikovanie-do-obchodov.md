@@ -270,9 +270,78 @@ adresu, telefón a e-mail**. Pri firemnom účte je to adresa firmy; pri súkrom
 
 ### 6.6 Čo ešte treba dotiahnuť v repozitári
 
-- [ ] `apps/mobile/app.json`: `version` je `0.1.0` → pre prvé store vydanie zvýš
-      na `1.0.0` (`runtimeVersion` nechaj `1.0.0`, je to natívna kompatibilita).
+- [ ] Verziu v obchode rieši EAS (`appVersionSource: "remote"` v `eas.json`) —
+      pole `version` v `app.json` nie je pre store zdrojom pravdy.
 - [ ] `eas.json` → `submit.production` je prázdny; po založení appky doplň
       `ascAppId` (a `appleTeamId`, ak ho budeš fixovať).
 - [ ] Veľkosti iOS screenshotov ber podľa toho, čo aktuálne žiada App Store
       Connect (požiadavky Apple sa menili, sada v sekcii 1 je orientačná).
+
+---
+
+## 7. Zamietnutie z App Store review (18. 9. 2026) a čo sa opravilo
+
+Prvé odoslanie (verzia 1.0 build 2) bolo zamietnuté z dvoch dôvodov. Oba sú
+vyriešené v kóde; nižšie je aj to, čo treba prekliknúť v App Store Connect.
+
+### 7.1 Guideline 4 (Design) — presmerovanie do prehliadača pri prihlásení
+
+**Čo Apple vytkol:** používateľ bol presmerovaný do predvoleného prehliadača,
+aby sa prihlásil alebo zaregistroval.
+
+**Čo to reálne bolo:** samotné prihlásenie je natívne (`POST /auth/login`
+priamo z appky). Problém robilo jedno tlačidlo „Registrácia do klubu“ na
+prihlasovacej obrazovke, ktoré cez `Linking.openURL` otváralo
+`fkknv.sk/registracia` v Safari.
+
+**Oprava:** tlačidlo je odstránené a nahradené informačným textom (bez odkazu,
+bez otvárania prehliadača). Appka je čítačkou klubových údajov a **neumožňuje
+vytvorenie konta** — prihlášku podáva rodič na webe a konto zakladá vedenie
+klubu po jej schválení. Tým zároveň na appku nedopadá požiadavka *Guideline
+5.1.1(v)* na mazanie konta v aplikácii, keďže appka konto nevytvára.
+
+> Alternatíva, ktorú Apple v zamietnutí sám ponúkol, bolo otvoriť registráciu
+> cez **Safari View Controller** (`expo-web-browser`). Nešli sme do nej zámerne:
+> ponechať v appke cestu k vytvoreniu konta by aktivovalo požiadavku na mazanie
+> konta v appke a hrozilo ďalším kolom review.
+
+### 7.2 Guideline 1.5 (Safety) — nefunkčná Support URL
+
+**Čo Apple vytkol:** ako Support URL bolo uvedené `https://fkknv.sk`, čo je
+rozcestník bez informácií o podpore.
+
+**Oprava:** pridaná verejná stránka podpory **`/podpora`**
+(`apps/web/src/app/podpora/page.tsx`) — kontaktný e-mail, čo priložiť do
+požiadavky, najčastejšie problémy (prístup, heslo, notifikácie, oprava údajov)
+a odkazy na prihlásenie a zásady ochrany údajov. Je dostupná **bez prihlásenia**
+(na rozdiel od `/portal/pomoc`, ktorá je za loginom a na Support URL sa
+nehodí). Odkazuje sa na ňu päta hlavnej stránky a prihlasovacia stránka.
+
+⚠️ **Musíš dokončiť:** e-mail `podpora@fkknv.sk` musí reálne fungovať a niekto
+ho musí čítať. Ak použijete inú adresu, zmeňte ju na dvoch miestach:
+`apps/web/src/app/podpora/page.tsx` a `apps/mobile/app/index.tsx`
+(konštanta `SUPPORT_EMAIL`).
+
+### 7.3 Čo prekliknúť v App Store Connect
+
+- [ ] **Support URL** → `https://fkknv.sk/podpora` (App Information).
+- [ ] **Marketing URL** (nepovinné) → `https://fkknv.sk`.
+- [ ] **Privacy Policy URL** → `https://fkknv.sk/dokumenty/ochrana-osobnych-udajov`.
+- [ ] **App Review Information** → demo konto (login je povinný) + poznámka, že
+      appka konto nevytvára a prístup zakladá vedenie klubu.
+- [ ] Nasadiť web (`/podpora` musí byť online **pred** odoslaním) a až potom
+      poslať nový build.
+
+### 7.4 Poradie krokov pri resubmite
+
+1. Nasaď web s novou stránkou podpory a over ju v prehliadači na mobile.
+2. `eas build --profile production --platform ios` (buildNumber narastie sám —
+   `autoIncrement` v `eas.json`).
+3. `eas submit --profile production --platform ios`.
+4. V App Store Connect uprav Support URL a doplň odpoveď recenzentovi do
+   *Resolution Center* (vysvetli obe opravy).
+5. Submit for Review.
+
+> Pozn.: `eas.json` má `appVersionSource: "remote"`, takže marketingovú verziu
+> (1.0) aj buildNumber spravuje EAS — pole `version` v `app.json` nie je pre
+> store zdrojom pravdy a netreba ho meniť.

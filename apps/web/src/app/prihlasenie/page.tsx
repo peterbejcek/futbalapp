@@ -86,6 +86,12 @@ export default function LoginPage() {
             >
               Zabudli ste heslo?
             </button>
+            <p className="mt-6 border-t border-club-100 pt-4 text-xs text-gray-500">
+              Nedostali ste prihlasovacie údaje alebo potrebujete pomoc?{' '}
+              <Link href="/podpora" className="text-club-600 hover:underline">
+                Podpora
+              </Link>
+            </p>
           </>
         ) : (
           <>
