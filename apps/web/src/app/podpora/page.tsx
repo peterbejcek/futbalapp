@@ -13,7 +13,9 @@ export const metadata: Metadata = {
  * a v Google Play (Guideline 1.5 — musí byť dostupná bez prihlásenia
  * a obsahovať funkčný kontakt na podporu).
  */
-const SUPPORT_EMAIL = 'podpora@fkknv.sk';
+const SUPPORT_EMAIL = 'support@fkknv.sk';
+const SUPPORT_PHONE = '+421 944 566 226';
+const SUPPORT_PHONE_HREF = '+421944566226';
 
 const TOPICS: Array<{ q: string; a: ReactNode }> = [
   {
@@ -94,8 +96,15 @@ export default function SupportPage() {
               {SUPPORT_EMAIL}
             </a>
           </p>
+          <p className="mt-1">
+            Telefón:{' '}
+            <a href={`tel:${SUPPORT_PHONE_HREF}`} className="font-semibold text-club-700 hover:underline">
+              {SUPPORT_PHONE}
+            </a>
+          </p>
           <p className="mt-2 text-gray-600">
-            Odpovedáme obvykle do 2 pracovných dní. Podporu zabezpečuje vedenie FK Košická Nová Ves.
+            Na e-mail odpovedáme obvykle do 2 pracovných dní. Podporu zabezpečuje vedenie
+            FK Košická Nová Ves.
           </p>
           <p className="mt-3 text-gray-600">
             Aby sme vám pomohli rýchlo, uveďte prosím: <strong>e-mail konta</strong>, či ide o{' '}

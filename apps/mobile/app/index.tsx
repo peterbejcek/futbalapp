@@ -7,7 +7,8 @@ import { colors } from '@/theme';
 const logo = require('../assets/logo.png');
 
 /** Kontakt na klubovú podporu (zhodný so stránkou fkknv.sk/podpora). */
-const SUPPORT_EMAIL = 'podpora@fkknv.sk';
+const SUPPORT_EMAIL = 'support@fkknv.sk';
+const SUPPORT_PHONE = '+421 944 566 226';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -97,7 +98,9 @@ export default function LoginScreen() {
           konta — prihlášku nového hráča podáva rodič na klubovej stránke fkknv.sk a po jej schválení
           mu prihlasovacie údaje prídu e-mailom.
         </Text>
-        <Text style={styles.infoText}>S prihlásením pomôže klubová podpora: {SUPPORT_EMAIL}</Text>
+        <Text style={styles.infoText}>
+          S prihlásením pomôže klubová podpora: {SUPPORT_EMAIL}, {SUPPORT_PHONE}
+        </Text>
       </View>
     </View>
   );

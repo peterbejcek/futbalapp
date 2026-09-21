@@ -317,8 +317,9 @@ a odkazy na prihlásenie a zásady ochrany údajov. Je dostupná **bez prihláse
 (na rozdiel od `/portal/pomoc`, ktorá je za loginom a na Support URL sa
 nehodí). Odkazuje sa na ňu päta hlavnej stránky a prihlasovacia stránka.
 
-⚠️ **Musíš dokončiť:** e-mail `podpora@fkknv.sk` musí reálne fungovať a niekto
-ho musí čítať. Ak použijete inú adresu, zmeňte ju na dvoch miestach:
+⚠️ **Musíš dokončiť:** e-mail `support@fkknv.sk` musí reálne fungovať a niekto
+ho musí čítať (Apple stránku otvorí). Ak použijete inú adresu, zmeňte ju na
+dvoch miestach:
 `apps/web/src/app/podpora/page.tsx` a `apps/mobile/app/index.tsx`
 (konštanta `SUPPORT_EMAIL`).
 
