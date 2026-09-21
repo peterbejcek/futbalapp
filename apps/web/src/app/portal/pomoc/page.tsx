@@ -314,8 +314,15 @@ export default function HelpPage() {
       ))}
 
       <Card className="text-sm text-gray-600">
-        Nenašli ste odpoveď? Napíšte vedeniu klubu cez <Link href="/portal/chat" className="text-club-600 underline">Komunikáciu</Link> alebo
-        na klubový e-mail.
+        Nenašli ste odpoveď? Napíšte vedeniu klubu cez{' '}
+        <Link href="/portal/chat" className="text-club-600 underline">
+          Komunikáciu
+        </Link>{' '}
+        alebo na{' '}
+        <a href="mailto:support@fkknv.sk" className="text-club-600 underline">
+          support@fkknv.sk
+        </a>
+        .
       </Card>
     </div>
   );

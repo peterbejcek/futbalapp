@@ -48,6 +48,7 @@ export class MembersController {
       status,
       role,
       hideInactive: hideInactive === 'true',
+      isDemo: user.isDemo,
     });
   }
 
@@ -61,8 +62,8 @@ export class MembersController {
   /** Zoznam rodičov na priradenie k dieťaťu. */
   @Get('parents')
   @Roles('ADMIN', 'MANAGER', 'COACH')
-  parents() {
-    return this.membersService.listParents();
+  parents(@CurrentUser() user: AuthUser) {
+    return this.membersService.listParents(user.isDemo);
   }
 
   /** Import hráčov z Excelu (idempotentný upsert podľa reg. čísla / mena+dátumu). */
@@ -109,7 +110,10 @@ export class MembersController {
     if (!isStaff(user) && !(await this.membersService.memberInTeams(id, coachTeamIds(user)))) {
       throw new ForbiddenException('Hráč nie je vo vašom družstve');
     }
-    return this.membersService.get(id);
+    const member = await this.membersService.get(id);
+    // demo izolácia: demo konto vidí len demo členov a naopak
+    if (member.isDemo !== user.isDemo) throw new ForbiddenException('Člen neexistuje');
+    return member;
   }
 
   @Post()
@@ -118,7 +122,7 @@ export class MembersController {
     @Body(new ZodValidationPipe(createMemberSchema)) body: CreateMemberInput,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.membersService.create(body, user.roles.map((r) => r.role));
+    return this.membersService.create(body, user.roles.map((r) => r.role), user.isDemo);
   }
 
   /** Úprava člena — len vedenie. Tréner hráča needituje (okrem presunu cez /transfers). */

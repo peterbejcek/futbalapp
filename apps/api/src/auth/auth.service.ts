@@ -23,6 +23,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       roles,
+      isDemo: user.isDemo,
     });
     return {
       accessToken,

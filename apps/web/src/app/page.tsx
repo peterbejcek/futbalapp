@@ -171,6 +171,12 @@ export default function HomePage() {
             fkkosickanovaves.sk ↗
           </a>
         </p>
+        <p className="mt-1">
+          Podpora:{' '}
+          <a href="mailto:support@fkknv.sk" className="text-club-700 hover:underline">
+            support@fkknv.sk
+          </a>
+        </p>
       </footer>
     </main>
   );

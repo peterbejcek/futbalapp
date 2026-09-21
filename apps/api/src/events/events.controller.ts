@@ -28,12 +28,15 @@ export class EventsController {
     @Query('mine') mine?: string,
   ) {
     const range = { from: from ? new Date(from) : undefined, to: to ? new Date(to) : undefined };
-    // hráč/rodič vidí len udalosti družstiev, kde je on/jeho deti (+ celoklubové);
-    // vedenie a tréner vidia celý kalendár. mine=true vynúti scope aj pre trénera.
+    // hráč/rodič (alebo mine=true): len družstvá, kde je on/jeho deti + celoklubové.
+    // tréner: len jeho pridelené družstvá (+ celoklubové). vedenie: celý kalendár.
     if (mine === 'true' || (!isStaff(user) && !isCoach(user))) {
       return this.eventsService.listForUser({ ...range, type }, user);
     }
-    return this.eventsService.list({ categoryCode, teamId, type, ...range });
+    if (!isStaff(user) && isCoach(user)) {
+      return this.eventsService.listForCoach({ teamId, type, ...range }, user);
+    }
+    return this.eventsService.list({ categoryCode, teamId, type, ...range, isDemo: user.isDemo });
   }
 
   @Get('locations')
@@ -57,7 +60,7 @@ export class EventsController {
     } else if (body.type === 'PARENT_MEETING' && !body.teamId && !isStaff(user)) {
       throw new ForbiddenException('Celoklubovú udalosť môže vytvoriť len vedenie klubu');
     }
-    return this.eventsService.create(body, user.id);
+    return this.eventsService.create(body, user.id, user.isDemo);
   }
 
   @Post('recurring')
@@ -69,7 +72,7 @@ export class EventsController {
     if (!canManageTeam(user, body.teamId)) {
       throw new ForbiddenException('Nemôžete vytvárať tréningy pre iné družstvo');
     }
-    return this.eventsService.createRecurring(body, user.id);
+    return this.eventsService.createRecurring(body, user.id, user.isDemo);
   }
 
   @Patch(':id')

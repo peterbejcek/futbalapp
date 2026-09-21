@@ -52,9 +52,27 @@ doplniť dodatočne (Apple konverziou účtu, Google prenosom appky).
 - [ ] **Kategória:** Šport.
 - [ ] **Kontaktný e-mail podpory:** `<doplň klubový e-mail>`.
 - [ ] **Privacy policy URL:** https://fkknv.sk/dokumenty/ochrana-osobnych-udajov
-- [ ] **Demo účet pre review** (appka je za loginom!): priprav testovacie konto s
-      ukážkovými dátami (napr. rodič `review@fkknv.sk`) a uveď ho do poznámok pre
+- [ ] **Demo účet pre review** (appka je za loginom!): konto **`review@fkknv.sk`**
+      s izolovanými testovacími dátami (viď nižšie). Uveď ho do poznámok pre
       recenzenta v oboch obchodoch. Bez neho appku zamietnu.
+
+### Demo konto a testovacie dáta (izolované od ostrých)
+Konto `review@fkknv.sk` je **demo konto**: vidí **iba** testovacie dáta (jeden
+demo tím, jeho hráči, tréningy, zápas, komunikácia, úloha) a **nevidí žiadne
+ostré dáta** klubu. Naopak, **ostatní členovia demo dáta nevidia** — izolácia je
+zabezpečená na serveri príznakom `isDemo` na úrovni používateľov, členov,
+družstiev, udalostí, kanálov a úloh.
+
+Vytvorenie/obnova testovacích dát (jednorazovo na VPS, v kontajneri API):
+```bash
+cd /opt/fkknv/app/infra
+docker compose exec api npx ts-node prisma/seed-demo.ts
+# heslo sa dá zvoliť:  docker compose exec -e REVIEW_PASSWORD='...' api npx ts-node prisma/seed-demo.ts
+```
+Skript je idempotentný (dá sa spustiť opakovane), vypíše e-mail aj heslo demo
+konta — tie uveď recenzentovi. Demo tím je pomenovaný „Demo tím" a review konto
+doň vstupuje ako tréner (vidí kalendár, dochádzku, nomináciu, komunikáciu, úlohy —
+všetko len v rámci demo dát).
 
 ### ⚠️ Citlivé údaje a deti — dôležité pre schválenie
 Appka spracúva **osobné a citlivé údaje** (mená a rodné čísla hráčov, e-maily,

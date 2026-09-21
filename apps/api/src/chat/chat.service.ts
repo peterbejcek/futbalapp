@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../notifications/push.service';
 import { ChatGateway } from './chat.gateway';
 import type { AuthUser } from '../auth/current-user.decorator';
-import { isStaff } from '../auth/scope';
+import { isDemoScope, isStaff } from '../auth/scope';
 
 /** Do týchto kanálov píše iba vedenie / tréner (moderátor); ostatní len čítajú. */
 const READ_ONLY_FOR_MEMBERS = new Set(['TEAM_ANNOUNCEMENTS', 'CLUB_ANNOUNCEMENT']);
@@ -44,10 +44,12 @@ export class ChatService {
     const coach = user.roles.some((r) => r.role === 'COACH');
     // hráč/rodič: len kanály svojich družstiev (a detí); tréner: všetky
     const relevant = !staff && !coach ? await this.relevantTeamIds(user.id) : [];
+    const demo = isDemoScope(user); // demo konto: len demo kanály; ostatní: bez demo
     const channels = await this.prisma.channel.findMany({
       where: staff
-        ? {}
+        ? { isDemo: demo }
         : {
+            isDemo: demo,
             OR: [
               { kind: 'CLUB_ANNOUNCEMENT' }, // celoklubové oznamy číta každý prihlásený
               { members: { some: { userId: user.id } } },
@@ -107,6 +109,8 @@ export class ChatService {
       include: { members: { where: { userId: user.id } } },
     });
     if (!channel) throw new NotFoundException('Kanál neexistuje');
+    // demo izolácia: demo konto len demo kanály a naopak
+    if (channel.isDemo !== isDemoScope(user)) throw new ForbiddenException('Nemáte prístup k tomuto kanálu');
 
     const membership = channel.members[0];
     const staff = isStaff(user);

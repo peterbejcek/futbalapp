@@ -131,7 +131,27 @@ Aspoň raz otestujte obnovu: `pg_restore -U fkknv -d fkknv --clean <dump>`.
 
 ---
 
-## Krok 7 — Aktualizácia na novú verziu
+## Krok 7 — Demo konto pre app-store review
+
+Pre schvaľovanie aplikácie v Google Play / App Store treba prihlasovacie konto s
+ukážkovými dátami, ktoré **nevidí žiadne ostré dáta** klubu (a ostatní členovia
+nevidia jeho testovacie dáta). Vytvorí ho idempotentný skript:
+
+```bash
+cd /opt/fkknv/app/infra
+docker compose exec api npx ts-node prisma/seed-demo.ts
+# voliteľne vlastné heslo:
+# docker compose exec -e REVIEW_PASSWORD='...' api npx ts-node prisma/seed-demo.ts
+```
+
+Skript vytvorí konto **`review@fkknv.sk`** (tréner „Demo tímu") a testovacie dáta:
+hráči s registračnými preukazmi, tréningy, zápas s nomináciou, komunikáciu a úlohu.
+Na konci vypíše **e-mail a heslo** — tie uveď recenzentom (viď `docs/10-publikovanie-do-obchodov.md`).
+Izolácia demo dát je zabezpečená na serveri (príznak `isDemo`), platí pre web aj mobil.
+
+---
+
+## Krok 8 — Aktualizácia na novú verziu
 
 ```bash
 ssh root@<IP-VPS>
