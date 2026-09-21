@@ -172,7 +172,7 @@ export default function HomePage() {
           </a>
         </p>
         <p className="mt-1">
-          Podpora:{' '}
+          Kontakt:{' '}
           <a href="mailto:support@fkknv.sk" className="text-club-700 hover:underline">
             support@fkknv.sk
           </a>

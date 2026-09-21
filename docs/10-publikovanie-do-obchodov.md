@@ -50,7 +50,7 @@ doplniť dodatočne (Apple konverziou účtu, Google prenosom appky).
   > • push upozornenia na novinky.
   > Aplikácia je určená členom klubu; prístup je po prihlásení.
 - [ ] **Kategória:** Šport.
-- [ ] **Kontaktný e-mail podpory:** `<doplň klubový e-mail>`.
+- [ ] **Kontaktný e-mail podpory:** `support@fkknv.sk` (+ tel. `+421 944 566 226`).
 - [ ] **Privacy policy URL:** https://fkknv.sk/dokumenty/ochrana-osobnych-udajov
 - [ ] **Demo účet pre review** (appka je za loginom!): konto **`review@fkknv.sk`**
       s izolovanými testovacími dátami (viď nižšie). Uveď ho do poznámok pre
@@ -346,8 +346,10 @@ dvoch miestach:
 - [ ] **Support URL** → `https://fkknv.sk/podpora` (App Information).
 - [ ] **Marketing URL** (nepovinné) → `https://fkknv.sk`.
 - [ ] **Privacy Policy URL** → `https://fkknv.sk/dokumenty/ochrana-osobnych-udajov`.
-- [ ] **App Review Information** → demo konto (login je povinný) + poznámka, že
-      appka konto nevytvára a prístup zakladá vedenie klubu.
+- [ ] **App Review Information** → demo konto `review@fkknv.sk` (login je
+      povinný; izolované demo dáta — viď sekcia 1) + poznámka, že appka konto
+      nevytvára a prístup zakladá vedenie klubu. Konto sa medzi buildmi tej istej
+      verzie neprepisuje — stačí overiť, že sa ním dá prihlásiť.
 - [ ] Nasadiť web (`/podpora` musí byť online **pred** odoslaním) a až potom
       poslať nový build.
 
