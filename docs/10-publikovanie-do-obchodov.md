@@ -288,10 +288,14 @@ adresu, telefón a e-mail**. Pri firemnom účte je to adresa firmy; pri súkrom
 
 ### 6.6 Čo ešte treba dotiahnuť v repozitári
 
-- [ ] Verziu v obchode rieši EAS (`appVersionSource: "remote"` v `eas.json`) —
-      pole `version` v `app.json` nie je pre store zdrojom pravdy.
-- [ ] `eas.json` → `submit.production` je prázdny; po založení appky doplň
-      `ascAppId` (a `appleTeamId`, ak ho budeš fixovať).
+- [x] `app.json` → `version` je `1.0.0`. Verziu v obchode však riadi EAS
+      (`appVersionSource: "remote"`), takže toto pole je len pre poriadok v repe.
+- [x] `eas.json` → `submit.production.ios.ascAppId` je doplnené (`6805670800`),
+      takže `eas submit` už nie je interaktívny. `appleTeamId` sa bude musieť
+      doplniť/zmeniť, ak pôjdeme cestou prenosu appky (sekcia 6.2) — pri
+      konverzii účtu zostáva rovnaké.
+- [x] `app.json` → `ios.infoPlist.ITSAppUsesNonExemptEncryption: false`, čím sa
+      pri každom builde preskočí otázka na export compliance v App Store Connect.
 - [ ] Veľkosti iOS screenshotov ber podľa toho, čo aktuálne žiada App Store
       Connect (požiadavky Apple sa menili, sada v sekcii 1 je orientačná).
 
@@ -364,5 +368,7 @@ dvoch miestach:
 5. Submit for Review.
 
 > Pozn.: `eas.json` má `appVersionSource: "remote"`, takže marketingovú verziu
-> (1.0) aj buildNumber spravuje EAS — pole `version` v `app.json` nie je pre
-> store zdrojom pravdy a netreba ho meniť.
+> (1.0) aj buildNumber spravuje EAS — `version` v `app.json` (`1.0.0`) je len
+> pre poriadok v repe a pri resubmite ho netreba meniť. Export compliance sa už
+> nepýta (`ITSAppUsesNonExemptEncryption: false`) a `eas submit` má `ascAppId`,
+> takže beží bez interaktívnych otázok.
