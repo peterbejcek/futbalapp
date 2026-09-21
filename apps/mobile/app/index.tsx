@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { api, getToken, setToken } from '@/api';
 import { colors } from '@/theme';
 
 const logo = require('../assets/logo.png');
+
+/** Kontakt na klubovú podporu (zhodný so stránkou fkknv.sk/podpora). */
+const SUPPORT_EMAIL = 'support@fkknv.sk';
+const SUPPORT_PHONE = '+421 944 566 226';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -87,12 +91,17 @@ export default function LoginScreen() {
       <Pressable style={styles.forgotBtn} onPress={onForgot}>
         <Text style={styles.forgotText}>Zabudli ste heslo?</Text>
       </Pressable>
-      <Pressable
-        style={styles.registerBtn}
-        onPress={() => Linking.openURL('https://fkknv.sk/registracia')}
-      >
-        <Text style={styles.registerText}>Registrácia do klubu</Text>
-      </Pressable>
+      <View style={styles.infoBox}>
+        <Text style={styles.infoTitle}>Nemáte prihlasovacie údaje?</Text>
+        <Text style={styles.infoText}>
+          Prístup do aplikácie vytvára vedenie klubu svojim členom. Aplikácia neumožňuje vytvorenie
+          konta — prihlášku nového hráča podáva rodič na klubovej stránke fkknv.sk a po jej schválení
+          mu prihlasovacie údaje prídu e-mailom.
+        </Text>
+        <Text style={styles.infoText}>
+          S prihlásením pomôže klubová podpora: {SUPPORT_EMAIL}, {SUPPORT_PHONE}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -116,6 +125,15 @@ const styles = StyleSheet.create({
   buttonText: { color: colors.white, fontWeight: '700', fontSize: 16 },
   forgotBtn: { marginTop: 12, alignItems: 'center' },
   forgotText: { color: colors.club600, fontSize: 14 },
-  registerBtn: { marginTop: 10, padding: 12, alignItems: 'center' },
-  registerText: { color: colors.club700, fontWeight: '600', fontSize: 15, textDecorationLine: 'underline' },
+  infoBox: {
+    marginTop: 20,
+    padding: 14,
+    borderRadius: 8,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.club100,
+    gap: 6,
+  },
+  infoTitle: { color: colors.club900, fontWeight: '700', fontSize: 14 },
+  infoText: { color: colors.club700, fontSize: 13, lineHeight: 19 },
 });

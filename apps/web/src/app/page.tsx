@@ -159,12 +159,20 @@ export default function HomePage() {
       <footer className="border-t border-club-100 py-8 text-center text-sm text-gray-500">
         <p>
           © {new Date().getFullYear()} FK Košická Nová Ves · fkknv.sk ·{' '}
+          <Link href="/podpora" className="text-club-700 hover:underline">
+            Podpora
+          </Link>{' '}
+          ·{' '}
+          <Link href="/dokumenty/ochrana-osobnych-udajov" className="text-club-700 hover:underline">
+            Ochrana osobných údajov
+          </Link>{' '}
+          ·{' '}
           <a href={CLUB_WEB} target="_blank" rel="noopener noreferrer" className="text-club-700 hover:underline">
             fkkosickanovaves.sk ↗
           </a>
         </p>
         <p className="mt-1">
-          Podpora:{' '}
+          Kontakt:{' '}
           <a href="mailto:support@fkknv.sk" className="text-club-700 hover:underline">
             support@fkknv.sk
           </a>
