@@ -3,7 +3,7 @@
     "name": "FK KNV",
     "slug": "fkknv",
     "scheme": "fkknv",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "runtimeVersion": "1.0.0",
@@ -19,7 +19,10 @@
     },
     "ios": {
       "bundleIdentifier": "sk.fkknv.app",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "sk.fkknv.app",
