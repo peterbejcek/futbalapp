@@ -23,7 +23,7 @@ Identifikátory aplikácie (už nastavené v `app.json` / `eas.json`):
 môže trvať aj niekoľko dní až týždňov — založ ho čo najskôr. Ako jednotlivec je to
 rýchlejšie. Review appky potom trvá typicky 1–3 dni.
 
-👉 Ak má byť vydavateľom **MS ART Design s.r.o.**, ale appku chceš v obchodoch čo
+👉 Ak má byť vydavateľom **MS Art Designe s. r. o.**, ale appku chceš v obchodoch čo
 najskôr, čítaj **sekciu 6** — dá sa vydať pod súkromným účtom a firemný subjekt
 doplniť dodatočne (Apple konverziou účtu, Google prenosom appky).
 
@@ -158,10 +158,10 @@ telefóny, fotky, zdravotné poznámky) vrátane **údajov maloletých**. Preto:
 
 ---
 
-## 6. Vydavateľ: súkromná osoba teraz, MS ART Design s.r.o. potom
+## 6. Vydavateľ: súkromná osoba teraz, MS Art Designe s. r. o. potom
 
 Cieľ: **appka v obchodoch čo najskôr**, vydavateľ (názov pod menom appky)
-nakoniec **MS ART Design s.r.o.** Oboje sa dá — netreba čakať na firemný účet.
+nakoniec **MS Art Designe s. r. o.** Oboje sa dá — netreba čakať na firemný účet.
 
 ### 6.1 Apple — odporúčaná cesta: vydaj teraz, účet potom *prekonvertuj*
 
@@ -170,7 +170,7 @@ v App Store Connect.
 
 1. **Vydaj appku pod súkromným účtom.** Review typicky 1–3 dni. Appka pôjde von
    s vydavateľom „Peter Bejček“.
-2. **Paralelne vyrieš D-U-N-S číslo pre MS ART Design s.r.o.**
+2. **Paralelne vyrieš D-U-N-S číslo pre MS Art Designe s. r. o.**
    Najprv over, či firma už jedno má (D&B ich prideľuje aj bez žiadosti) —
    Apple má na to bezplatný nástroj: <https://developer.apple.com/enroll/duns-lookup/>.
    Ak existuje, nečakáš ani deň; ak nie, vyžiadanie je zdarma a trvá rádovo
@@ -229,7 +229,7 @@ identity, pri ktorom Google páruje názov firmy, adresu a telefón s D&B zázna
 
 - **D-U-N-S už existuje (alebo príde do ~týždňa)** → zakladaj **len firemný účet**.
   Je to rýchlejšie aj čistejšie: bez osobného účtu, bez prenosu appky, bez
-  duplicitných 25 $, a vydavateľom je hneď MS ART Design s.r.o.
+  duplicitných 25 $, a vydavateľom je hneď MS Art Designe s. r. o.
 - **D-U-N-S neexistuje a D&B sa vlečie** (až 30 dní) → až vtedy sa vyplatí hedge
   nižšie, aby 14-dňový odpočet bežal počas čakania.
 
@@ -249,7 +249,7 @@ zanedbateľné oproti týždňom):
    **12+ testerov** (tréneri, vedenie, rodičia — klub ich má dosť). Tým sa hneď
    rozbehne 14-dňový odpočet. Testeri musia pozvánku *prijať a appku nainštalovať*
    pod pozvaným Google kontom, inak sa nepočítajú.
-2. **Paralelne** s D-U-N-S číslom založ firemný účet pre MS ART Design s.r.o.
+2. **Paralelne** s D-U-N-S číslom založ firemný účet pre MS Art Designe s. r. o.
    Ak je overený skôr, publikuj priamo z neho a osobný účet zahoď.
 3. Ak vyhrá osobný účet, publikuj z neho a appku neskôr **prenes** do firemného
    (Play Console → *Transfer app*; treba transaction ID z platby 25 $ cieľového
@@ -284,7 +284,7 @@ adresu, telefón a e-mail**. Pri firemnom účte je to adresa firmy; pri súkrom
 | Deň 0 | submit pod súkromným účtom; D-U-N-S lookup | osobný účet + closed testing s 12 testermi; D-U-N-S lookup |
 | Deň 1–4 | **appka live v App Store** | beží 14-dňový test |
 | Deň ~7–30 | žiadosť o konverziu na s.r.o. → verifikačný telefonát | firemný účet po D-U-N-S; alebo production access po teste |
-| Potom | vydavateľ = MS ART Design s.r.o. (bez prenosu, bez ďalších 99 $) | publikácia; prípadný *Transfer app* na s.r.o. |
+| Potom | vydavateľ = MS Art Designe s. r. o. (bez prenosu, bez ďalších 99 $) | publikácia; prípadný *Transfer app* na s.r.o. |
 
 ### 6.6 Čo ešte treba dotiahnuť v repozitári
 

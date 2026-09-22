@@ -17,7 +17,7 @@ const SUPPORT_EMAIL = 'support@fkknv.sk';
 const SUPPORT_PHONE = '+421 944 566 226';
 const SUPPORT_PHONE_HREF = '+421944566226';
 
-const TOPICS: Array<{ q: string; a: ReactNode }> = [
+const TOPICS: Array<{ q: string; a: ReactNode; id?: string }> = [
   {
     q: 'Ako získam prístup do portálu a aplikácie?',
     a: (
@@ -58,11 +58,17 @@ const TOPICS: Array<{ q: string; a: ReactNode }> = [
     ),
   },
   {
-    q: 'Chcem opraviť alebo vymazať svoje údaje',
+    id: 'vymazanie-udajov',
+    q: 'Chcem opraviť alebo vymazať svoje údaje (vrátane konta)',
     a: (
       <>
-        Napíšte nám na {SUPPORT_EMAIL} — údaje opravíme, prípadne konto a osobné údaje vymažeme v rozsahu,
-        v akom nám ich nemusíme uchovávať zo zákona. Podrobnosti sú v{' '}
+        Napíšte nám na{' '}
+        <a href={`mailto:${SUPPORT_EMAIL}`} className="text-club-700 hover:underline">
+          {SUPPORT_EMAIL}
+        </a>{' '}
+        a uveďte e-mail konta a čo si prejete opraviť alebo vymazať. Žiadosť vyriešime do 30 dní. Na požiadanie
+        zrušíme konto a vymažeme osobné údaje — okrem tých, ktoré je klub povinný uchovať zo zákona (napríklad
+        účtovné doklady k členským príspevkom); o rozsahu vás vždy informujeme. Podrobnosti sú v{' '}
         <Link href="/dokumenty/ochrana-osobnych-udajov" className="text-club-700 hover:underline">
           zásadách ochrany osobných údajov
         </Link>
@@ -115,7 +121,7 @@ export default function SupportPage() {
         <section className="space-y-4">
           <h2 className="text-lg font-semibold text-club-800">Najčastejšie otázky</h2>
           {TOPICS.map((t) => (
-            <div key={t.q} className="rounded-md border border-club-100 p-4">
+            <div key={t.q} id={t.id} className="scroll-mt-6 rounded-md border border-club-100 p-4">
               <h3 className="font-semibold text-club-800">{t.q}</h3>
               <p className="mt-1">{t.a}</p>
             </div>

@@ -15,6 +15,16 @@ build/
 .env.*
 !.env.example
 
+# servisné kľúče a podpisovacie certifikáty — nikdy do repozitára
+# (google-services.json je verejný klientsky config a je commitnutý zámerne,
+#  build ho potrebuje; tieto vzory ho nezachytávajú)
+*firebase-adminsdk*.json
+*service-account*.json
+*.p8
+*.p12
+*.keystore
+*.jks
+
 # prisma
 apps/api/prisma/*.db
 
