@@ -6,8 +6,13 @@ export const metadata: Metadata = {
 };
 
 /**
- * VZOR dokumentu — pracovná verzia. Pred zverejnením ho nahradí právne
- * overená verzia od advokáta. Text je len orientačný.
+ * Zásady ochrany osobných údajov FK Košická Nová Ves.
+ *
+ * Dokument je doplnený o reálne údaje prevádzkovateľa (klub, sídlo, IČO,
+ * kontakt) a je uvedený ako Privacy policy URL v App Store aj Google Play.
+ * Pri zmene sprostredkovateľov (bod 5) alebo rozsahu spracúvaných údajov
+ * (bod 2) treba text zosúladiť aj s deklaráciou v Google Data safety.
+ * Právnu kontrolu textu odporúčame ponechať na advokáta klubu.
  */
 export default function PrivacyPage() {
   return (
@@ -16,11 +21,6 @@ export default function PrivacyPage() {
         <Link href="/registracia" className="text-sm text-club-600 hover:underline">
           ← Späť na registráciu
         </Link>
-
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-          Toto je <strong>vzorový (pracovný) dokument</strong>. Bude nahradený právne overenou verziou. Slúži len na
-          účely spustenia portálu.
-        </div>
 
         <h1 className="text-2xl font-bold text-club-900">Zásady ochrany osobných údajov a informácie o spracúvaní (GDPR)</h1>
         <p className="text-gray-500">
@@ -116,7 +116,7 @@ export default function PrivacyPage() {
         </section>
 
         <p className="pt-4 text-xs text-gray-400">
-          Vzor pripravený pre potreby portálu fkknv.sk. Finálne znenie potvrdí právnik klubu.
+          Posledná aktualizácia: 1. 9. 2026 · FK Košická Nová Ves, Agátová 1, 040 14 Košice, IČO 31 942 059
         </p>
       </article>
     </main>
