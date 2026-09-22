@@ -23,13 +23,24 @@ export default function PrivacyPage() {
         </div>
 
         <h1 className="text-2xl font-bold text-club-900">Zásady ochrany osobných údajov a informácie o spracúvaní (GDPR)</h1>
-        <p className="text-gray-500">Účinné od: [dátum] · Prevádzkovateľ: FK Košická Nová Ves, [adresa], IČO: [IČO]</p>
+        <p className="text-gray-500">
+          Účinné od: 1. 9. 2026 · Prevádzkovateľ: FK Košická Nová Ves, Agátová 1, 040 14 Košice,
+          IČO: 31 942 059
+        </p>
 
         <section className="space-y-2">
           <h2 className="font-semibold text-club-800">1. Kto sme (prevádzkovateľ)</h2>
           <p>
-            Prevádzkovateľom osobných údajov je futbalový klub FK Košická Nová Ves so sídlom [adresa], IČO [IČO]
-            (ďalej len „klub"). Kontakt vo veciach ochrany údajov: [e-mail], [telefón].
+            Prevádzkovateľom osobných údajov je futbalový klub <strong>FK Košická Nová Ves</strong> so sídlom
+            Agátová 1, 040 14 Košice, IČO 31 942 059 (ďalej len „klub"). Klub určuje, aké údaje sa spracúvajú
+            a na aký účel.
+          </p>
+          <p>
+            Kontakt vo veciach ochrany osobných údajov (manažér klubu):{' '}
+            <a href="mailto:fkknv1935@gmail.com" className="text-club-700 hover:underline">
+              fkknv1935@gmail.com
+            </a>
+            , +421 903 903 936.
           </p>
         </section>
 
@@ -63,9 +74,19 @@ export default function PrivacyPage() {
 
         <section className="space-y-2">
           <h2 className="font-semibold text-club-800">5. Komu údaje sprístupňujeme</h2>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>príslušnému športovému zväzu — registrácia hráča,</li>
+            <li>
+              <strong>MS Art Designe s. r. o.</strong> — vývoj, prevádzka a technická správa portálu
+              a mobilnej aplikácie (sprostredkovateľ),
+            </li>
+            <li>Resend — doručovanie e-mailov z portálu (sprostredkovateľ),</li>
+            <li>Expo — doručovanie push notifikácií do mobilnej aplikácie (sprostredkovateľ),</li>
+            <li>orgánom verejnej moci, ak to vyžaduje zákon.</li>
+          </ul>
           <p>
-            Príslušnému športovému zväzu (registrácia hráča), poskytovateľom IT služieb (prevádzka portálu) a
-            orgánom verejnej moci, ak to vyžaduje zákon. Údaje neposkytujeme na reklamné účely.
+            Sprostredkovatelia spracúvajú údaje výlučne na pokyn klubu a na uvedený účel.{' '}
+            <strong>Údaje neposkytujeme na reklamné účely a nepredávame ich.</strong>
           </p>
         </section>
 
@@ -75,6 +96,14 @@ export default function PrivacyPage() {
             Máte právo na prístup k údajom, ich opravu, výmaz, obmedzenie spracúvania, prenosnosť, namietať proti
             spracúvaniu a kedykoľvek odvolať udelený súhlas. Máte tiež právo podať sťažnosť dozornému orgánu (Úrad na
             ochranu osobných údajov SR).
+          </p>
+          <p>
+            Žiadosť o opravu alebo vymazanie údajov podáte na kontakte uvedenom v bode 1, prípadne cez{' '}
+            <Link href="/podpora#vymazanie-udajov" className="text-club-700 hover:underline">
+              stránku podpory
+            </Link>
+            . Časť údajov môžeme byť povinní uchovať aj po vymazaní konta, ak to vyžadujú právne predpisy
+            (napríklad účtovné doklady) — v takom prípade vás o rozsahu informujeme.
           </p>
         </section>
 
