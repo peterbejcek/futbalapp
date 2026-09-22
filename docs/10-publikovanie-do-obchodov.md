@@ -31,6 +31,12 @@ doplniť dodatočne (Apple konverziou účtu, Google prenosom appky).
 
 ## 1. Spoločná príprava (obe platformy)
 
+👉 Hotové vizuály (ikona 512×512, feature graphic 1024×500, screenshoty
+upravené na pomer, ktorý Play akceptuje) aj finálne texty záznamu sú
+v **`docs/store/`** — viď `docs/store/README.md`. Dajú sa regenerovať skriptom
+`docs/store/pripravit-vizualy.py`. Texty nižšie sú pracovné znenie, z ktorého
+tie finálne vznikli.
+
 - [ ] **Ikona 1024×1024** bez priehľadnosti (`assets/icon.png`) — už je, over kvalitu.
 - [ ] **Screenshoty** z reálnej appky (fyzický telefón alebo emulátor):
   - Android: min. 2 (telefón), odporúčane 4–8. Pomer 16:9 alebo 9:16.
