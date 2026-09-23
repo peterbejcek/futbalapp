@@ -40,9 +40,21 @@ export class SeasonsService {
     const category = await this.prisma.teamCategory.findUnique({ where: { code: teamCategoryCode } });
     if (!category) throw new NotFoundException(`Kategória ${teamCategoryCode} neexistuje`);
     const count = await this.prisma.team.count({ where: { teamCategoryId: category.id } });
-    return this.prisma.team.create({
+    const team = await this.prisma.team.create({
       data: { teamCategoryId: category.id, name, sortOrder: count },
     });
+    // nové družstvo dostane vlastné komunikačné podkanály (Oznamy/Tréningy/Všeobecné)
+    const subchannels: Array<{ kind: 'TEAM_ANNOUNCEMENTS' | 'TEAM_TRAINING' | 'TEAM_GENERAL'; suffix: string }> = [
+      { kind: 'TEAM_ANNOUNCEMENTS', suffix: ' · Oznamy' },
+      { kind: 'TEAM_TRAINING', suffix: ' · Tréningy' },
+      { kind: 'TEAM_GENERAL', suffix: ' · Všeobecné' },
+    ];
+    for (const sc of subchannels) {
+      await this.prisma.channel.create({
+        data: { kind: sc.kind, teamId: team.id, name: `${team.name}${sc.suffix}`, isDemo: team.isDemo },
+      });
+    }
+    return team;
   }
 
   /** Premenuje družstvo. */

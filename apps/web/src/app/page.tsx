@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 const CLUB_WEB = 'https://www.fkkosickanovaves.sk/';
 const ANDROID_APP_URL = 'https://fkknv.sk/stiahnut/fkknv.apk';
+const IOS_APP_URL = 'https://apps.apple.com/sk/app/fk-knv/id6805670800';
 
 const features = [
   { title: 'Stav klubu na pár klikov', text: 'Platby, členovia aj kalendár tréningov a podujatí. Vždy prehľadne, vždy aktuálne.' },
@@ -129,15 +130,31 @@ export default function HomePage() {
               <path d="M16.365 1.43c0 1.14-.417 2.2-1.11 2.98-.84.95-2.2 1.68-3.34 1.59-.14-1.13.42-2.32 1.06-3.06.84-.95 2.3-1.66 3.39-1.51zM20.9 17.02c-.55 1.27-.82 1.84-1.53 2.96-.99 1.56-2.39 3.5-4.12 3.51-1.54.02-1.93-1-4.02-.99-2.09.01-2.52 1.01-4.06.98-1.73-.02-3.05-1.77-4.04-3.33C.32 15.86-.16 11.28 1.71 8.85c.99-1.29 2.56-2.11 4.24-2.13 1.6-.02 3.11 1.08 4.02 1.08.9 0 2.71-1.34 4.56-1.14.78.03 2.96.31 4.36 2.37-3.7 2.02-3.1 6.66.01 7.99z" />
             </svg>
             <h3 className="mt-3 font-semibold text-club-800">iOS (iPhone)</h3>
-            <p className="mt-2 text-sm font-medium text-gray-700">Na aplikácii sa pracuje.</p>
+            <p className="mt-1 text-sm text-gray-600">Aplikáciu pre iPhone stiahnite z App Store:</p>
+            <a href={IOS_APP_URL} target="_blank" rel="noopener noreferrer" className="mt-4 inline-block">
+              <Image
+                src="/app-ios-qr.png"
+                alt="QR kód na stiahnutie aplikácie z App Store"
+                width={180}
+                height={180}
+                className="rounded-md border border-club-100"
+              />
+            </a>
+            <a
+              href={IOS_APP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-block rounded-md bg-club-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-club-900"
+            >
+              Stiahnuť z App Store
+            </a>
             <div className="mt-4 w-full rounded-md bg-club-50 p-3 text-left text-xs text-gray-600">
-              <p className="font-semibold text-club-800">Postup inštalácie (po spustení)</p>
+              <p className="font-semibold text-club-800">Postup inštalácie</p>
               <ol className="mt-1 list-decimal space-y-0.5 pl-4">
-                <li>Nainštalujte si z App Store bezplatnú aplikáciu <span className="font-medium">TestFlight</span>.</li>
-                <li>Otvorte pozývací odkaz, ktorý sa objaví tu (klepnutím alebo naskenovaním QR).</li>
-                <li>V TestFlighte klepnite na <span className="font-medium">Install / Accept</span> a appku otvorte.</li>
+                <li>Naskenujte QR kód alebo klepnite na „Stiahnuť z App Store".</li>
+                <li>V App Store klepnite na <span className="font-medium">Získať / Inštalovať</span>.</li>
+                <li>Otvorte appku a prihláste sa svojimi údajmi.</li>
               </ol>
-              <p className="mt-2 text-gray-400">Odkaz doplníme, keď bude iOS verzia pripravená.</p>
             </div>
           </div>
         </div>

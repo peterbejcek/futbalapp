@@ -2,11 +2,11 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { eventTypeColor, formatEventDateTimeSk, formatEventTimeSk } from '@fkknv/shared';
+import { eventTypeColor, formatEventDateSk, formatEventDateTimeSk, formatEventTimeSk } from '@fkknv/shared';
 import { api, setToken } from '@/api';
 import { flush } from '@/offline';
 import { registerForPushNotifications } from '@/notifications';
-import { canManage, canManageTeam, fetchMe, type Me } from '@/auth';
+import { canManage, canManageTeam, fetchMe, isParent, type Me } from '@/auth';
 import { colors } from '@/theme';
 
 interface EventItem {
@@ -30,9 +30,9 @@ interface RegCard {
   id: string;
   firstName: string;
   lastName: string;
-  registrationValidUntil: string;
+  registrationValidUntil: string | null;
   team: string | null;
-  daysLeft: number;
+  daysLeft: number | null;
   expired: boolean;
 }
 
@@ -225,7 +225,11 @@ export default function DashboardScreen() {
             cards.length > 0 ? (
               <View style={styles.cardsBlock}>
                 <Text style={styles.heading}>
-                  {canManage(me) ? 'Platnosť registračných preukazov' : 'Registračný preukaz'}
+                  {canManage(me)
+                    ? 'Platnosť registračných preukazov'
+                    : isParent(me)
+                      ? 'Vaši hráči'
+                      : 'Registračný preukaz'}
                 </Text>
                 {cards.slice(0, canManage(me) ? 15 : cards.length).map((c) => (
                   <View key={c.id} style={styles.regRow}>
@@ -236,12 +240,20 @@ export default function DashboardScreen() {
                     <Text
                       style={[
                         styles.regBadge,
-                        c.expired ? styles.regExpired : c.daysLeft <= 30 ? styles.regSoon : styles.regOk,
+                        c.registrationValidUntil == null
+                          ? styles.regNone
+                          : c.expired
+                            ? styles.regExpired
+                            : (c.daysLeft ?? 0) <= 30
+                              ? styles.regSoon
+                              : styles.regOk,
                       ]}
                     >
-                      {c.expired
-                        ? `po platnosti (${new Date(c.registrationValidUntil).toLocaleDateString('sk-SK')})`
-                        : `do ${new Date(c.registrationValidUntil).toLocaleDateString('sk-SK')}`}
+                      {c.registrationValidUntil == null
+                        ? 'preukaz bez dátumu platnosti'
+                        : c.expired
+                          ? `po platnosti (${formatEventDateSk(c.registrationValidUntil)})`
+                          : `do ${formatEventDateSk(c.registrationValidUntil)}`}
                     </Text>
                   </View>
                 ))}
@@ -502,6 +514,7 @@ const styles = StyleSheet.create({
   regExpired: { backgroundColor: '#fee2e2', color: '#b91c1c' },
   regSoon: { backgroundColor: '#fef3c7', color: '#b45309' },
   regOk: { backgroundColor: '#f3f4f6', color: '#4b5563' },
+  regNone: { backgroundColor: '#e0e7ff', color: '#3730a3' },
   logout: { padding: 14, alignItems: 'center' },
   logoutText: { color: colors.club600, fontWeight: '600' },
   // mesačný prehľad

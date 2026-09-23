@@ -659,12 +659,18 @@ export class MembersService {
     if (!staff) {
       const or: Array<Record<string, unknown>> = [];
       if (teamIds.length) {
-        or.push({ memberships: { some: { leftAt: null, season: { isActive: true }, teamId: { in: teamIds } } } });
+        // tréner sleduje platnosť preukazov – iba hráči s vyplneným dátumom
+        or.push({
+          AND: [
+            { registrationValidUntil: { not: null } },
+            { memberships: { some: { leftAt: null, season: { isActive: true }, teamId: { in: teamIds } } } },
+          ],
+        });
       }
-      // vlastný člen + deti (rodič)
+      // vlastný člen + deti (rodič) – zobrazíme aj bez vyplneného dátumu platnosti
       or.push({ user: { id: user.id } });
       or.push({ guardians: { some: { userId: user.id } } });
-      where = { AND: [{ isDemo: user.isDemo }, { registrationValidUntil: { not: null } }, { OR: or }] };
+      where = { AND: [{ isDemo: user.isDemo }, { OR: or }] };
     }
 
     const members = await this.prisma.member.findMany({
@@ -687,8 +693,8 @@ export class MembersService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return members.map((m) => {
-      const until = m.registrationValidUntil as Date;
-      const daysLeft = Math.ceil((until.getTime() - today.getTime()) / 86400000);
+      const until = m.registrationValidUntil as Date | null;
+      const daysLeft = until ? Math.ceil((until.getTime() - today.getTime()) / 86400000) : null;
       return {
         id: m.id,
         firstName: m.firstName,
@@ -697,7 +703,7 @@ export class MembersService {
         registrationValidUntil: until,
         team: m.memberships[0]?.team.name ?? null,
         daysLeft,
-        expired: daysLeft < 0,
+        expired: daysLeft != null && daysLeft < 0,
       };
     });
   }

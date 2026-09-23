@@ -1,5 +1,17 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { api, getToken, setToken } from '@/api';
 import { colors } from '@/theme';
@@ -66,48 +78,60 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <Image source={logo} style={styles.logo} resizeMode="contain" />
-      <Text style={styles.title}>Prihlásenie do portálu</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="E-mail"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Heslo"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-      {error && <Text style={styles.error}>{error}</Text>}
-      <Pressable style={styles.button} onPress={onLogin} disabled={loading}>
-        <Text style={styles.buttonText}>{loading ? 'Prihlasujem…' : 'Prihlásiť sa'}</Text>
-      </Pressable>
-      <Pressable style={styles.forgotBtn} onPress={onForgot}>
-        <Text style={styles.forgotText}>Zabudli ste heslo?</Text>
-      </Pressable>
-      <View style={styles.infoBox}>
-        <Text style={styles.infoTitle}>Nemáte prihlasovacie údaje?</Text>
-        <Text style={styles.infoText}>
-          Prístup do aplikácie vytvára vedenie klubu svojim členom. Aplikácia neumožňuje vytvorenie
-          konta — prihlášku nového hráča podáva rodič na klubovej stránke fkknv.sk a po jej schválení
-          mu prihlasovacie údaje prídu e-mailom.
-        </Text>
-        <Text style={styles.infoText}>
-          S prihlásením pomôže klubová podpora: {SUPPORT_EMAIL}, {SUPPORT_PHONE}
-        </Text>
-      </View>
-    </View>
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+      >
+        <Image source={logo} style={styles.logo} resizeMode="contain" />
+        <Text style={styles.title}>Prihlásenie do portálu</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="E-mail"
+          placeholderTextColor={colors.club600}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={setEmail}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Heslo"
+          placeholderTextColor={colors.club600}
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
+        {error && <Text style={styles.error}>{error}</Text>}
+        <Pressable style={styles.button} onPress={onLogin} disabled={loading}>
+          <Text style={styles.buttonText}>{loading ? 'Prihlasujem…' : 'Prihlásiť sa'}</Text>
+        </Pressable>
+        <Pressable style={styles.forgotBtn} onPress={onForgot}>
+          <Text style={styles.forgotText}>Zabudli ste heslo?</Text>
+        </Pressable>
+        <View style={styles.infoBox}>
+          <Text style={styles.infoTitle}>Nemáte prihlasovacie údaje?</Text>
+          <Text style={styles.infoText}>
+            Prístup do aplikácie vytvára vedenie klubu svojim členom. Aplikácia neumožňuje vytvorenie
+            konta — prihlášku nového hráča podáva rodič na klubovej stránke fkknv.sk a po jej schválení
+            mu prihlasovacie údaje prídu e-mailom.
+          </Text>
+          <Text style={styles.infoText}>
+            S prihlásením pomôže klubová podpora: {SUPPORT_EMAIL}, {SUPPORT_PHONE}
+          </Text>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.club50, padding: 24, justifyContent: 'center' },
+  flex: { flex: 1, backgroundColor: colors.club50 },
+  container: { flexGrow: 1, backgroundColor: colors.club50, padding: 24, justifyContent: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   logo: { width: 110, height: 176, alignSelf: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: '700', color: colors.club900, marginBottom: 24, textAlign: 'center' },
@@ -119,6 +143,7 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 12,
     fontSize: 16,
+    color: colors.club900,
   },
   error: { color: colors.danger, marginBottom: 12, textAlign: 'center' },
   button: { backgroundColor: colors.club600, borderRadius: 8, padding: 16, alignItems: 'center' },

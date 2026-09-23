@@ -233,6 +233,25 @@ export class ChatService {
     const season = await this.prisma.season.findFirst({ where: { isActive: true } });
     if (!season) return { synced: 0 };
 
+    // Doplň chýbajúce podkanály pre všetky družstvá (napr. nové družstvo pridané
+    // v Nastaveniach, ktorému kanály ešte nevznikli).
+    const teams = await this.prisma.team.findMany();
+    const subKinds: Array<{ kind: 'TEAM_ANNOUNCEMENTS' | 'TEAM_TRAINING' | 'TEAM_GENERAL'; suffix: string }> = [
+      { kind: 'TEAM_ANNOUNCEMENTS', suffix: ' · Oznamy' },
+      { kind: 'TEAM_TRAINING', suffix: ' · Tréningy' },
+      { kind: 'TEAM_GENERAL', suffix: ' · Všeobecné' },
+    ];
+    for (const team of teams) {
+      for (const sc of subKinds) {
+        const exists = await this.prisma.channel.findFirst({ where: { teamId: team.id, kind: sc.kind } });
+        if (!exists) {
+          await this.prisma.channel.create({
+            data: { kind: sc.kind, teamId: team.id, name: `${team.name}${sc.suffix}`, isDemo: team.isDemo },
+          });
+        }
+      }
+    }
+
     const channels = await this.prisma.channel.findMany({
       where: { teamId: { not: null } },
     });

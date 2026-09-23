@@ -15,6 +15,9 @@ export function isStaff(me: Me | null): boolean {
 export function isCoach(me: Me | null): boolean {
   return !!me?.roles.some((r) => r.role === 'COACH');
 }
+export function isParent(me: Me | null): boolean {
+  return !!me?.roles.some((r) => r.role === 'PARENT');
+}
 export function canManage(me: Me | null): boolean {
   return isStaff(me) || isCoach(me);
 }
