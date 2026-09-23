@@ -182,6 +182,9 @@ export default function MatchLiveScreen() {
   }
 
   const recording = match.state === 'LIVE' || match.state === 'FINISHED';
+  // len vedenie a tréner daného družstva môžu zápas riadiť; rodič/hráč má náhľad
+  const canControl = canManageTeam(me, match.event.team?.id);
+  const myChildren = me?.children ?? [];
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
@@ -237,7 +240,7 @@ export default function MatchLiveScreen() {
       )}
 
       {/* editovateľný výsledok */}
-      {recording && (
+      {recording && canControl && (
         <View style={styles.scoreEditRow}>
           <View style={styles.scoreEditCol}>
             <Text style={styles.scoreEditLabel}>Domáci</Text>
@@ -264,30 +267,68 @@ export default function MatchLiveScreen() {
         </View>
       )}
 
-      <View style={styles.buttonRow}>
-        {match.state === 'PLANNED' && (
-          <Pressable style={styles.primaryBtn} onPress={() => setState('LIVE')}>
-            <Text style={styles.primaryBtnText}>Začať zápas</Text>
-          </Pressable>
-        )}
-        {match.state === 'LIVE' && (
-          <Pressable style={[styles.primaryBtn, { backgroundColor: colors.danger }]} onPress={() => setState('FINISHED')}>
-            <Text style={styles.primaryBtnText}>Ukončiť zápas</Text>
-          </Pressable>
-        )}
-        {match.state === 'FINISHED' && (
-          <Pressable style={styles.secondaryBtn} onPress={() => setState('LIVE')}>
-            <Text style={styles.secondaryBtnText}>Znovu otvoriť</Text>
-          </Pressable>
-        )}
-        <Link href={`/match/${id}/nomination`} asChild>
-          <Pressable style={styles.secondaryBtn}>
-            <Text style={styles.secondaryBtnText}>Nominácia</Text>
-          </Pressable>
-        </Link>
-      </View>
+      {canControl && (
+        <View style={styles.buttonRow}>
+          {match.state === 'PLANNED' && (
+            <Pressable style={styles.primaryBtn} onPress={() => setState('LIVE')}>
+              <Text style={styles.primaryBtnText}>Začať zápas</Text>
+            </Pressable>
+          )}
+          {match.state === 'LIVE' && (
+            <Pressable style={[styles.primaryBtn, { backgroundColor: colors.danger }]} onPress={() => setState('FINISHED')}>
+              <Text style={styles.primaryBtnText}>Ukončiť zápas</Text>
+            </Pressable>
+          )}
+          {match.state === 'FINISHED' && (
+            <Pressable style={styles.secondaryBtn} onPress={() => setState('LIVE')}>
+              <Text style={styles.secondaryBtnText}>Znovu otvoriť</Text>
+            </Pressable>
+          )}
+          <Link href={`/match/${id}/nomination`} asChild>
+            <Pressable style={styles.secondaryBtn}>
+              <Text style={styles.secondaryBtnText}>Nominácia</Text>
+            </Pressable>
+          </Link>
+        </View>
+      )}
 
-      {recording && (
+      {/* Náhľad nominácie pre rodiča/hráča (bez riadenia zápasu) */}
+      {!canControl && (
+        <View style={styles.nomBox}>
+          <Text style={styles.sectionTitle}>Nominácia</Text>
+          {myChildren.length > 0 &&
+            myChildren.map((c) => {
+              const nominated = match.nominations.some((n) => n.member.id === c.id);
+              return (
+                <View key={c.id} style={styles.nomChildRow}>
+                  <Text style={styles.playerName}>
+                    {c.lastName} {c.firstName}
+                  </Text>
+                  <Text style={[styles.nomBadge, nominated ? styles.nomYes : styles.nomNo]}>
+                    {nominated ? 'V nominácii ✓' : 'Nie je v nominácii'}
+                  </Text>
+                </View>
+              );
+            })}
+          {match.nominations.length === 0 ? (
+            <Text style={styles.empty}>Nominácia zatiaľ nebola zverejnená.</Text>
+          ) : (
+            match.nominations.map((n) => {
+              const mine = myChildren.some((c) => c.id === n.member.id);
+              return (
+                <View key={n.id} style={[styles.playerRow, mine && styles.playerRowSelected]}>
+                  <Text style={styles.playerName}>
+                    {n.member.lastName} {n.member.firstName}
+                  </Text>
+                  {mine && <Text style={styles.check}>✓</Text>}
+                </View>
+              );
+            })
+          )}
+        </View>
+      )}
+
+      {recording && canControl && (
         <>
           {/* minúta + nadstavenie */}
           <View style={styles.minuteRow}>
@@ -465,6 +506,21 @@ const styles = StyleSheet.create({
   playerRowSelected: { borderColor: colors.club600, backgroundColor: colors.club100 },
   playerName: { fontWeight: '600', color: colors.club900 },
   check: { color: colors.club600, fontWeight: '800' },
+  nomBox: { marginBottom: 8 },
+  nomChildRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.club600,
+    padding: 12,
+    marginBottom: 8,
+  },
+  nomBadge: { fontSize: 12, fontWeight: '700', borderRadius: 6, paddingVertical: 3, paddingHorizontal: 8, overflow: 'hidden' },
+  nomYes: { backgroundColor: '#dcfce7', color: '#166534' },
+  nomNo: { backgroundColor: '#f3f4f6', color: '#6b7280' },
   logRow: { flexDirection: 'row', gap: 12, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.club100 },
   logMinute: { width: 44, fontWeight: '700', color: colors.club600 },
   logText: { color: colors.club900 },

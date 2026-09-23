@@ -670,7 +670,14 @@ export class MembersService {
       // vlastný člen + deti (rodič) – zobrazíme aj bez vyplneného dátumu platnosti
       or.push({ user: { id: user.id } });
       or.push({ guardians: { some: { userId: user.id } } });
-      where = { AND: [{ isDemo: user.isDemo }, { OR: or }] };
+      // zobrazujeme len hráčov – rodič nevidí seba ani iné funkcie (vedenie/tréner/rodič)
+      where = {
+        AND: [
+          { isDemo: user.isDemo },
+          { OR: or },
+          { NOT: { user: { roles: { some: { role: { in: ['ADMIN', 'MANAGER', 'COACH', 'PARENT'] as never } } } } } },
+        ],
+      };
     }
 
     const members = await this.prisma.member.findMany({
