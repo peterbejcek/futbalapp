@@ -126,6 +126,8 @@ export const createEventSchema = z.object({
   surface: z.enum(SURFACE_CODES).optional(),
   opponent: z.string().max(120).optional(),
   isHome: z.boolean().optional(),
+  /// farba dresu pri zápase: tmavý / svetlý
+  jerseyColor: z.enum(['DARK', 'LIGHT']).optional(),
 });
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 

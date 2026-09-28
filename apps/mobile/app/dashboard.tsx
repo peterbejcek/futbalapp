@@ -8,6 +8,7 @@ import { flush } from '@/offline';
 import { registerForPushNotifications } from '@/notifications';
 import { canManage, canManageTeam, fetchMe, isParent, type Me } from '@/auth';
 import { colors } from '@/theme';
+import { JerseySwatch } from '@/JerseySwatch';
 
 interface EventItem {
   id: string;
@@ -17,7 +18,14 @@ interface EventItem {
   location: string | null;
   team: { id: string; name: string } | null;
   audienceTeams?: Array<{ id: string; name: string }>;
-  match: { id: string; opponent: string; isHome: boolean; opponentLogo: string | null; meetAt: string | null } | null;
+  match: {
+    id: string;
+    opponent: string;
+    isHome: boolean;
+    opponentLogo: string | null;
+    meetAt: string | null;
+    jerseyColor: 'DARK' | 'LIGHT' | null;
+  } | null;
 }
 
 // logo nášho klubu (FK Košická Nová Ves) z futbalnetu
@@ -165,9 +173,12 @@ export default function DashboardScreen() {
         </Text>
         {item.match ? <MatchTeams item={item} /> : <Text style={styles.cardTitle}>{item.title}</Text>}
         {item.match && (
-          <Text style={styles.meetLine}>
-            Zraz: {formatEventTimeSk(item.match.meetAt ?? new Date(new Date(item.startAt).getTime() - 3_600_000))}
-          </Text>
+          <View style={styles.meetRow}>
+            {item.match.jerseyColor && <JerseySwatch color={item.match.jerseyColor} size={13} />}
+            <Text style={styles.meetLine}>
+              Zraz: {formatEventTimeSk(item.match.meetAt ?? new Date(new Date(item.startAt).getTime() - 3_600_000))}
+            </Text>
+          </View>
         )}
         {audience && <Text style={styles.audience}>Pre: {audience}</Text>}
         {openable && (
@@ -491,7 +502,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   audience: { color: colors.club700, fontSize: 12, marginTop: 4 },
-  meetLine: { color: colors.club800, fontSize: 13, marginTop: 4 },
+  meetRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  meetLine: { color: colors.club800, fontSize: 13 },
   cardTitle: { fontSize: 16, fontWeight: '600', color: colors.club900 },
   cardMeta: { color: colors.gray, fontSize: 13, marginTop: 4 },
   cardAction: { color: colors.club600, fontSize: 13, fontWeight: '600', marginTop: 6 },

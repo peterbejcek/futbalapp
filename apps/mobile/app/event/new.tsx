@@ -5,6 +5,7 @@ import { WEEKDAY_SHORT_SK } from '@fkknv/shared';
 import { api } from '@/api';
 import { coachTeams, fetchMe, isStaff, type Me } from '@/auth';
 import { colors } from '@/theme';
+import { JerseySwatch } from '@/JerseySwatch';
 
 interface Team {
   id: string;
@@ -31,6 +32,7 @@ export default function NewEventScreen() {
   const [date, setDate] = useState('');
   const [opponent, setOpponent] = useState('');
   const [isHome, setIsHome] = useState(true);
+  const [jerseyColor, setJerseyColor] = useState<'' | 'DARK' | 'LIGHT'>('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -77,6 +79,7 @@ export default function NewEventScreen() {
             location: location || undefined,
             opponent,
             isHome,
+            jerseyColor: jerseyColor || undefined,
           }),
         });
       }
@@ -168,6 +171,27 @@ export default function NewEventScreen() {
           </View>
           <Text style={styles.label}>Súper</Text>
           <TextInput style={styles.input} value={opponent} onChangeText={setOpponent} />
+          <Text style={styles.label}>Dres</Text>
+          <View style={styles.row}>
+            <Pressable
+              style={chip(jerseyColor === 'DARK')}
+              onPress={() => setJerseyColor(jerseyColor === 'DARK' ? '' : 'DARK')}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <JerseySwatch color="DARK" />
+                <Text style={chipTxt(jerseyColor === 'DARK')}>Tmavý</Text>
+              </View>
+            </Pressable>
+            <Pressable
+              style={chip(jerseyColor === 'LIGHT')}
+              onPress={() => setJerseyColor(jerseyColor === 'LIGHT' ? '' : 'LIGHT')}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <JerseySwatch color="LIGHT" />
+                <Text style={chipTxt(jerseyColor === 'LIGHT')}>Svetlý</Text>
+              </View>
+            </Pressable>
+          </View>
           <Text style={styles.label}>Dátum (RRRR-MM-DD)</Text>
           <TextInput style={styles.input} value={date} onChangeText={setDate} placeholder="2026-09-12" />
           <Text style={styles.label}>Čas</Text>

@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, FlatList, Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Link, useLocalSearchParams } from 'expo-router';
 import * as Crypto from 'expo-crypto';
+import * as ImagePicker from 'expo-image-picker';
 import { MATCH_EVENT_LABELS_SK, formatEventTimeSk, type MatchEventType } from '@fkknv/shared';
-import { api } from '@/api';
+import { API_URL, api, getToken } from '@/api';
 import { canManageTeam, fetchMe, type Me } from '@/auth';
 import { enqueue, flush } from '@/offline';
 import { colors } from '@/theme';
+import { JerseySwatch } from '@/JerseySwatch';
 
 interface Nomination {
   id: string;
@@ -30,9 +32,12 @@ interface MatchDetail {
   state: string;
   meetAt: string | null;
   notes: string | null;
+  jerseyColor: 'DARK' | 'LIGHT' | null;
+  videoUrl: string | null;
   event: { title: string; startAt: string; team: { id: string; name: string } | null };
   nominations: Nomination[];
   events: MatchEventRow[];
+  photos: Array<{ id: string; mimeType: string; size: number; createdAt: string }>;
 }
 
 const eventLabels: Record<string, string> = MATCH_EVENT_LABELS_SK;
@@ -58,6 +63,10 @@ export default function MatchLiveScreen() {
   const [meetDraft, setMeetDraft] = useState('');
   const [notesDraft, setNotesDraft] = useState('');
   const [detailsBusy, setDetailsBusy] = useState(false);
+  const [videoDraft, setVideoDraft] = useState('');
+  const [videoBusy, setVideoBusy] = useState(false);
+  const [veoBusy, setVeoBusy] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
 
   const load = useCallback(async () => {
     const { pending: p } = await flush();
@@ -90,8 +99,9 @@ export default function MatchLiveScreen() {
     if (match) {
       setMeetDraft(formatEventTimeSk(match.meetAt ?? new Date(new Date(match.event.startAt).getTime() - 3_600_000)));
       setNotesDraft(match.notes ?? '');
+      setVideoDraft(match.videoUrl ?? '');
     }
-  }, [match?.meetAt, match?.notes, match?.event.startAt]);
+  }, [match?.meetAt, match?.notes, match?.videoUrl, match?.event.startAt]);
 
   async function saveDetails() {
     if (!match) return;
@@ -110,6 +120,114 @@ export default function MatchLiveScreen() {
     } finally {
       setDetailsBusy(false);
     }
+  }
+
+  async function setJersey(color: 'DARK' | 'LIGHT' | null) {
+    try {
+      await api(`/matches/${id}/details`, { method: 'POST', body: JSON.stringify({ jerseyColor: color }) });
+      await load();
+    } catch (e) {
+      Alert.alert('Chyba', e instanceof Error ? e.message : 'Uloženie zlyhalo');
+    }
+  }
+
+  async function saveVideo(url: string | null) {
+    setVideoBusy(true);
+    try {
+      await api(`/matches/${id}/video`, { method: 'POST', body: JSON.stringify({ url }) });
+      await load();
+    } catch (e) {
+      Alert.alert('Chyba', e instanceof Error ? e.message : 'Uloženie videa zlyhalo');
+    } finally {
+      setVideoBusy(false);
+    }
+  }
+
+  async function findVeoVideo() {
+    setVeoBusy(true);
+    try {
+      const res = await api<{ candidates: Array<{ url: string; title: string; recordedAt: string | null }> }>(
+        `/matches/${id}/video/candidates`,
+      );
+      if (!res.candidates.length) {
+        Alert.alert('Veo', 'Nenašlo sa zodpovedajúce video. Skontrolujte dátum/tímy alebo vložte odkaz ručne.');
+        return;
+      }
+      if (res.candidates.length === 1) {
+        await saveVideo(res.candidates[0].url);
+        Alert.alert('Veo', 'Video bolo pridané.');
+        return;
+      }
+      Alert.alert(
+        'Vyberte video',
+        'Nájdených viac videí:',
+        [
+          ...res.candidates.slice(0, 3).map((c) => ({
+            text: c.title.slice(0, 40),
+            onPress: () => saveVideo(c.url),
+          })),
+          { text: 'Zrušiť', style: 'cancel' as const },
+        ],
+      );
+    } catch (e) {
+      Alert.alert('Chyba', e instanceof Error ? e.message : 'Hľadanie Veo videa zlyhalo');
+    } finally {
+      setVeoBusy(false);
+    }
+  }
+
+  async function addPhoto() {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Prístup k fotkám', 'Povoľte prístup k fotkám v nastaveniach.');
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+    if (res.canceled || !res.assets?.length) return;
+    setPhotoBusy(true);
+    try {
+      const token = await getToken();
+      for (const a of res.assets) {
+        const form = new FormData();
+        form.append('file', {
+          uri: a.uri,
+          name: a.fileName ?? `foto-${Date.now()}.jpg`,
+          type: a.mimeType ?? 'image/jpeg',
+        } as unknown as Blob);
+        const resp = await fetch(`${API_URL}/matches/${id}/photos`, {
+          method: 'POST',
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          body: form,
+        });
+        if (!resp.ok) {
+          const body = (await resp.json().catch(() => ({}))) as { message?: string };
+          throw new Error(body.message ?? 'Nahratie zlyhalo');
+        }
+      }
+      await load();
+    } catch (e) {
+      Alert.alert('Chyba', e instanceof Error ? e.message : 'Nahratie fotky zlyhalo');
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  function confirmDeletePhoto(photoId: string) {
+    Alert.alert('Zmazať fotku?', 'Fotku natrvalo odstrániť?', [
+      { text: 'Zrušiť', style: 'cancel' },
+      {
+        text: 'Zmazať',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await api(`/matches/${id}/photos/${photoId}`, { method: 'DELETE' });
+            await load();
+          } catch (e) {
+            Alert.alert('Chyba', e instanceof Error ? e.message : 'Zmazanie zlyhalo');
+          }
+        },
+      },
+    ]);
   }
 
   async function setState(state: string) {
@@ -216,6 +334,23 @@ export default function MatchLiveScreen() {
             placeholder="výstroj, doprava, zraz pri klubovni…"
             multiline
           />
+          <Text style={[styles.meetLabel, { marginTop: 8 }]}>Dres</Text>
+          <View style={styles.jerseyRow}>
+            <Pressable
+              style={[styles.jerseyChip, match.jerseyColor === 'DARK' && styles.jerseyChipActive]}
+              onPress={() => setJersey(match.jerseyColor === 'DARK' ? null : 'DARK')}
+            >
+              <JerseySwatch color="DARK" />
+              <Text style={styles.jerseyChipText}>Tmavý</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.jerseyChip, match.jerseyColor === 'LIGHT' && styles.jerseyChipActive]}
+              onPress={() => setJersey(match.jerseyColor === 'LIGHT' ? null : 'LIGHT')}
+            >
+              <JerseySwatch color="LIGHT" />
+              <Text style={styles.jerseyChipText}>Svetlý</Text>
+            </Pressable>
+          </View>
           <Pressable
             style={[styles.saveScoreBtn, detailsBusy && { opacity: 0.5 }, { alignSelf: 'flex-end', marginTop: 8 }]}
             onPress={saveDetails}
@@ -230,12 +365,90 @@ export default function MatchLiveScreen() {
             <Text style={styles.meetLabel}>Zraz: </Text>
             {formatEventTimeSk(match.meetAt ?? new Date(new Date(match.event.startAt).getTime() - 3_600_000))}
           </Text>
+          {match.jerseyColor ? (
+            <View style={styles.jerseyLine}>
+              <Text style={styles.meetLabel}>Dres: </Text>
+              <JerseySwatch color={match.jerseyColor} />
+              <Text style={styles.meetNotes}>{match.jerseyColor === 'DARK' ? 'tmavý' : 'svetlý'}</Text>
+            </View>
+          ) : null}
           {match.notes ? (
             <Text style={styles.meetNotes}>
               <Text style={styles.meetLabel}>Poznámky: </Text>
               {match.notes}
             </Text>
           ) : null}
+        </View>
+      )}
+
+      {/* Video a fotky zo zápasu — po spustení/ukončení */}
+      {(match.state === 'LIVE' || match.state === 'FINISHED') && (
+        <View style={styles.meetBox}>
+          <Text style={styles.sectionTitle}>Video a fotky zo zápasu</Text>
+          {canControl ? (
+            <>
+              <Text style={styles.meetLabel}>Odkaz na video (napr. Veo)</Text>
+              <TextInput
+                style={styles.meetInput}
+                value={videoDraft}
+                onChangeText={setVideoDraft}
+                placeholder="https://app.veo.co/matches/…"
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+              <View style={styles.videoBtnRow}>
+                <Pressable
+                  style={[styles.saveScoreBtn, videoBusy && { opacity: 0.5 }]}
+                  onPress={() => saveVideo(videoDraft.trim() || null)}
+                  disabled={videoBusy}
+                >
+                  <Text style={styles.saveScoreText}>{videoBusy ? 'Ukladám…' : 'Uložiť odkaz'}</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.primaryBtnSmall, veoBusy && { opacity: 0.5 }]}
+                  onPress={findVeoVideo}
+                  disabled={veoBusy}
+                >
+                  <Text style={styles.primaryBtnText}>{veoBusy ? 'Hľadám…' : 'Nájsť video (Veo)'}</Text>
+                </Pressable>
+              </View>
+            </>
+          ) : null}
+
+          {match.videoUrl ? (
+            <Pressable onPress={() => Linking.openURL(match.videoUrl!)}>
+              <Text style={styles.videoLink}>▶ Pozrieť video zo zápasu</Text>
+            </Pressable>
+          ) : !canControl ? (
+            <Text style={styles.empty}>Video zatiaľ nie je pridané.</Text>
+          ) : null}
+
+          <View style={styles.photosHeader}>
+            <Text style={styles.meetLabel}>Fotky ({match.photos.length})</Text>
+            {canControl && (
+              <Pressable onPress={addPhoto} disabled={photoBusy}>
+                <Text style={styles.videoLink}>{photoBusy ? 'Nahrávam…' : '+ Pridať fotku'}</Text>
+              </Pressable>
+            )}
+          </View>
+          {match.photos.length ? (
+            <View style={styles.photoGrid}>
+              {match.photos.map((p) => (
+                <Pressable
+                  key={p.id}
+                  onPress={() => Linking.openURL(`${API_URL}/matches/photos/${p.id}`)}
+                  onLongPress={canControl ? () => confirmDeletePhoto(p.id) : undefined}
+                >
+                  <Image source={{ uri: `${API_URL}/matches/photos/${p.id}` }} style={styles.photoThumb} />
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.empty}>Zatiaľ žiadne fotky.</Text>
+          )}
+          {canControl && match.photos.length > 0 && (
+            <Text style={styles.photoHint}>Podržaním fotky ju zmažete.</Text>
+          )}
         </View>
       )}
 
@@ -438,6 +651,27 @@ const styles = StyleSheet.create({
     backgroundColor: colors.club50,
   },
   meetNotesInput: { minHeight: 64, textAlignVertical: 'top' },
+  jerseyRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  jerseyLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  jerseyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.club100,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  jerseyChipActive: { borderColor: colors.club600, backgroundColor: colors.club50 },
+  jerseyChipText: { color: colors.club900, fontWeight: '600', fontSize: 13 },
+  videoBtnRow: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
+  primaryBtnSmall: { backgroundColor: colors.club600, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
+  videoLink: { color: colors.club600, fontWeight: '700', marginTop: 8 },
+  photosHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
+  photoThumb: { width: 72, height: 72, borderRadius: 6, backgroundColor: colors.club100 },
+  photoHint: { color: colors.gray, fontSize: 11, marginTop: 6 },
   scoreEditRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 8, marginBottom: 14 },
   scoreEditCol: { alignItems: 'center' },
   scoreEditLabel: { fontSize: 11, color: colors.gray, marginBottom: 2 },

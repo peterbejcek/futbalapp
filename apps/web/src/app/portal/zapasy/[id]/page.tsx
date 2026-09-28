@@ -10,7 +10,7 @@ import {
   type MatchEventType,
   type SurfaceCode,
 } from '@fkknv/shared';
-import { api } from '@/lib/api';
+import { api, apiUpload, API_URL } from '@/lib/api';
 import { coachTeams, isStaff, useMe } from '@/lib/auth';
 import { Button, Card } from '@/components/ui';
 import { EventAdminActions } from '@/components/event-admin-actions';
@@ -41,6 +41,8 @@ interface MatchDetail {
   state: string;
   meetAt: string | null;
   notes: string | null;
+  jerseyColor: 'DARK' | 'LIGHT' | null;
+  videoUrl: string | null;
   event: {
     id: string;
     title: string;
@@ -52,10 +54,28 @@ interface MatchDetail {
   };
   nominations: Nomination[];
   events: MatchEventRow[];
+  photos: Array<{ id: string; mimeType: string; size: number; createdAt: string }>;
 }
 
 // logo nášho klubu (FK Košická Nová Ves) z futbalnetu
 const OUR_LOGO = 'https://api.sportnet.online/data/ppo/fk-kosicka-nova-ves.futbalnet.sk/logo';
+
+/** Ikonka dresu — tmavý (tmavomodrý) alebo svetlý (biely). */
+function JerseyIcon({ color, size = 18 }: { color: 'DARK' | 'LIGHT'; size?: number }) {
+  const fill = color === 'DARK' ? '#16223c' : '#ffffff';
+  const stroke = color === 'DARK' ? '#16223c' : '#9ca3af';
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} role="img" aria-hidden>
+      <path
+        d="M8.5 3 4 5.5 5.5 9l1.7-.8V20a1 1 0 0 0 1 1h7.6a1 1 0 0 0 1-1V8.2L18.5 9 20 5.5 15.5 3a3.5 3.5 0 0 1-7 0Z"
+        fill={fill}
+        stroke={stroke}
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 // akcie viazané na hráča vs tímové
 const PLAYER_ACTIONS: MatchEventType[] = ['GOAL', 'ASSIST', 'PENALTY_SCORED', 'PENALTY_MISSED', 'YELLOW', 'RED', 'FOUL', 'SHOT'];
@@ -87,6 +107,11 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   const [meetDraft, setMeetDraft] = useState('');
   const [notesDraft, setNotesDraft] = useState('');
   const [detailsBusy, setDetailsBusy] = useState(false);
+  const [videoDraft, setVideoDraft] = useState('');
+  const [videoBusy, setVideoBusy] = useState(false);
+  const [veoBusy, setVeoBusy] = useState(false);
+  const [veoCandidates, setVeoCandidates] = useState<Array<{ url: string; title: string; recordedAt: string | null }> | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
 
   // spravovať zápas/nomináciu môže vedenie, alebo tréner tohto družstva
   const manage = isStaff(me) || (!!match?.event.team && coachTeams(me).some((t) => t.id === match.event.team!.id));
@@ -118,8 +143,9 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
     if (match) {
       setMeetDraft(formatEventTimeSk(meetTimeOf(match)));
       setNotesDraft(match.notes ?? '');
+      setVideoDraft(match.videoUrl ?? '');
     }
-  }, [match?.meetAt, match?.notes, match?.event.startAt]);
+  }, [match?.meetAt, match?.notes, match?.videoUrl, match?.event.startAt]);
 
   async function saveDetails() {
     if (!match) return;
@@ -140,6 +166,80 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       setError(e instanceof Error ? e.message : 'Uloženie zlyhalo');
     } finally {
       setDetailsBusy(false);
+    }
+  }
+
+  async function setJersey(color: 'DARK' | 'LIGHT' | null) {
+    setError(null);
+    try {
+      await api(`/matches/${id}/details`, { method: 'POST', body: JSON.stringify({ jerseyColor: color }) });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Uloženie zlyhalo');
+    }
+  }
+
+  async function saveVideo(url: string | null) {
+    setVideoBusy(true);
+    setError(null);
+    try {
+      await api(`/matches/${id}/video`, { method: 'POST', body: JSON.stringify({ url }) });
+      setVeoCandidates(null);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Uloženie videa zlyhalo');
+    } finally {
+      setVideoBusy(false);
+    }
+  }
+
+  async function findVeoVideo() {
+    setVeoBusy(true);
+    setError(null);
+    setVeoCandidates(null);
+    try {
+      const res = await api<{ candidates: Array<{ url: string; title: string; recordedAt: string | null }> }>(
+        `/matches/${id}/video/candidates`,
+      );
+      if (!res.candidates.length) {
+        setError('Nenašlo sa žiadne zodpovedajúce Veo video. Skontrolujte dátum/tímy alebo vložte odkaz ručne.');
+        return;
+      }
+      if (res.candidates.length === 1) {
+        await saveVideo(res.candidates[0].url);
+      } else {
+        setVeoCandidates(res.candidates);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Hľadanie Veo videa zlyhalo');
+    } finally {
+      setVeoBusy(false);
+    }
+  }
+
+  async function uploadPhotos(files: FileList | null) {
+    if (!files || !files.length) return;
+    setPhotoBusy(true);
+    setError(null);
+    try {
+      for (const file of Array.from(files)) {
+        await apiUpload(`/matches/${id}/photos`, file);
+      }
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Nahratie fotky zlyhalo');
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  async function deletePhoto(photoId: string) {
+    setError(null);
+    try {
+      await api(`/matches/${id}/photos/${photoId}`, { method: 'DELETE' });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Zmazanie fotky zlyhalo');
     }
   }
 
@@ -331,6 +431,29 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                 />
                 <p className="mt-1 text-xs text-gray-400">Predvolene hodina pred začiatkom zápasu.</p>
               </div>
+              <div>
+                <label className="block text-xs text-gray-500">Dres</label>
+                <div className="mt-1 flex gap-2">
+                  {([
+                    { val: 'DARK', label: 'Tmavý' },
+                    { val: 'LIGHT', label: 'Svetlý' },
+                  ] as const).map((o) => (
+                    <button
+                      key={o.val}
+                      type="button"
+                      onClick={() => setJersey(match.jerseyColor === o.val ? null : o.val)}
+                      className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm ${
+                        match.jerseyColor === o.val
+                          ? 'border-club-600 bg-club-50 font-medium text-club-900'
+                          : 'border-gray-300 text-gray-600'
+                      }`}
+                    >
+                      <JerseyIcon color={o.val} size={16} />
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
             <div>
               <label className="block text-xs text-gray-500">Poznámky k zápasu</label>
@@ -354,6 +477,13 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
               <span className="text-gray-500">Zraz: </span>
               <strong>{formatEventTimeSk(meetTimeOf(match))}</strong>
             </p>
+            {match.jerseyColor ? (
+              <p className="flex items-center gap-1.5">
+                <span className="text-gray-500">Dres: </span>
+                <JerseyIcon color={match.jerseyColor} size={16} />
+                <span>{match.jerseyColor === 'DARK' ? 'tmavý' : 'svetlý'}</span>
+              </p>
+            ) : null}
             {match.notes ? (
               <p className="whitespace-pre-wrap">
                 <span className="text-gray-500">Poznámky: </span>
@@ -363,6 +493,115 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           </div>
         )}
       </Card>
+
+      {/* Video a fotky zo zápasu — po spustení/ukončení */}
+      {(match.state === 'LIVE' || match.state === 'FINISHED') && (
+        <Card>
+          <h2 className="mb-3 font-semibold text-club-800">Video a fotky zo zápasu</h2>
+
+          {/* Video */}
+          {manage ? (
+            <div className="space-y-2">
+              <label className="block text-xs text-gray-500">Odkaz na video (napr. Veo)</label>
+              <div className="flex flex-wrap gap-2">
+                <input
+                  value={videoDraft}
+                  onChange={(e) => setVideoDraft(e.target.value)}
+                  placeholder="https://app.veo.co/matches/…"
+                  className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
+                <Button variant="ghost" onClick={() => saveVideo(videoDraft || null)} disabled={videoBusy}>
+                  {videoBusy ? 'Ukladám…' : 'Uložiť odkaz'}
+                </Button>
+                <Button onClick={findVeoVideo} disabled={veoBusy}>
+                  {veoBusy ? 'Hľadám…' : 'Nájsť video (Veo)'}
+                </Button>
+              </div>
+              {veoCandidates && (
+                <div className="rounded-md border border-club-100 bg-club-50 p-2">
+                  <p className="mb-1 text-xs text-gray-600">Nájdených viac videí — vyberte správne:</p>
+                  <ul className="space-y-1">
+                    {veoCandidates.map((c) => (
+                      <li key={c.url} className="flex items-center justify-between gap-2 text-sm">
+                        <span className="truncate">
+                          {c.title}
+                          {c.recordedAt ? ` · ${formatEventDateTimeSk(c.recordedAt)}` : ''}
+                        </span>
+                        <Button variant="ghost" onClick={() => saveVideo(c.url)}>
+                          Vybrať
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {match.videoUrl && (
+                <div className="flex items-center gap-2 text-sm">
+                  <a href={match.videoUrl} target="_blank" rel="noopener noreferrer" className="text-club-700 underline">
+                    ▶ Otvoriť video
+                  </a>
+                  <button onClick={() => saveVideo(null)} className="text-xs text-red-600 hover:underline">
+                    odstrániť
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : match.videoUrl ? (
+            <a href={match.videoUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-club-700 underline">
+              ▶ Pozrieť video zo zápasu
+            </a>
+          ) : (
+            <p className="text-sm text-gray-500">Video zatiaľ nie je pridané.</p>
+          )}
+
+          {/* Fotky */}
+          <div className="mt-4">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-medium text-gray-700">Fotky ({match.photos.length})</h3>
+              {manage && (
+                <label className="cursor-pointer text-sm text-club-700 hover:underline">
+                  {photoBusy ? 'Nahrávam…' : '+ Pridať fotky'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    disabled={photoBusy}
+                    onChange={(e) => uploadPhotos(e.target.files)}
+                  />
+                </label>
+              )}
+            </div>
+            {match.photos.length ? (
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                {match.photos.map((p) => (
+                  <div key={p.id} className="group relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <a href={`${API_URL}/matches/photos/${p.id}`} target="_blank" rel="noopener noreferrer">
+                      <img
+                        src={`${API_URL}/matches/photos/${p.id}`}
+                        alt="Fotka zo zápasu"
+                        className="aspect-square w-full rounded-md object-cover"
+                      />
+                    </a>
+                    {manage && (
+                      <button
+                        onClick={() => deletePhoto(p.id)}
+                        className="absolute right-1 top-1 hidden rounded bg-black/60 px-1.5 text-xs text-white group-hover:block"
+                        title="Zmazať fotku"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">Zatiaľ žiadne fotky.</p>
+            )}
+          </div>
+        </Card>
+      )}
 
       <div className="grid gap-5 lg:grid-cols-2">
         {/* Nominácia */}

@@ -176,7 +176,14 @@ export class EventsService {
         surface: input.surface,
         createdById,
         match: isMatch
-          ? { create: { opponent: input.opponent ?? 'Neznámy súper', isHome: input.isHome ?? true, opponentLogo } }
+          ? {
+              create: {
+                opponent: input.opponent ?? 'Neznámy súper',
+                isHome: input.isHome ?? true,
+                jerseyColor: input.jerseyColor ?? null,
+                opponentLogo,
+              },
+            }
           : undefined,
         audienceTeams: audienceTeamIds.length ? { connect: audienceTeamIds.map((id) => ({ id })) } : undefined,
       },

@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../notifications/push.service';
 import { EmailService } from '../notifications/email.service';
 import { coachBlockedFromTeam } from '../auth/scope';
+import { VeoService } from '../veo/veo.service';
 import type { AuthUser } from '../auth/current-user.decorator';
 
 /** Kategórie, kde hráč potvrdzuje účasť na zápase. */
@@ -15,6 +16,7 @@ export class MatchesService {
     private readonly prisma: PrismaService,
     private readonly pushService: PushService,
     private readonly email: EmailService,
+    private readonly veo: VeoService,
   ) {}
 
   /** Tréner smie spravovať zápas len svojho družstva. */
@@ -45,6 +47,7 @@ export class MatchesService {
           },
           orderBy: [{ minute: 'asc' }, { createdAt: 'asc' }],
         },
+        photos: { select: { id: true, mimeType: true, size: true, createdAt: true }, orderBy: { createdAt: 'asc' } },
       },
     });
     if (!match) throw new NotFoundException('Zápas neexistuje');
@@ -287,12 +290,88 @@ export class MatchesService {
    * alebo vedenie. `meetAt`/`notes` null vymaže hodnotu (pri čase sa vráti k
    * predvolenému — hodina pred začiatkom).
    */
-  async setDetails(matchId: string, input: { meetAt?: string | null; notes?: string | null }, user: AuthUser) {
+  async setDetails(
+    matchId: string,
+    input: { meetAt?: string | null; notes?: string | null; jerseyColor?: 'DARK' | 'LIGHT' | null },
+    user: AuthUser,
+  ) {
     await this.assertMatchTeam(matchId, user);
-    const data: { meetAt?: Date | null; notes?: string | null } = {};
+    const data: { meetAt?: Date | null; notes?: string | null; jerseyColor?: 'DARK' | 'LIGHT' | null } = {};
     if (input.meetAt !== undefined) data.meetAt = input.meetAt ? new Date(input.meetAt) : null;
     if (input.notes !== undefined) data.notes = input.notes?.trim() ? input.notes.trim() : null;
+    if (input.jerseyColor !== undefined) data.jerseyColor = input.jerseyColor ?? null;
     return this.prisma.match.update({ where: { id: matchId }, data });
+  }
+
+  /** Nastaví/odstráni odkaz na video zo zápasu (napr. Veo). */
+  async setVideo(matchId: string, url: string | null, user: AuthUser) {
+    await this.assertMatchTeam(matchId, user);
+    const clean = url?.trim() || null;
+    if (clean && !/^https?:\/\//i.test(clean)) {
+      throw new BadRequestException('Odkaz na video musí začínať http(s)://');
+    }
+    return this.prisma.match.update({ where: { id: matchId }, data: { videoUrl: clean } });
+  }
+
+  /**
+   * Automaticky nájde kandidátov na Veo video podľa dátumu zápasu a názvov
+   * tímov (náš klub, súper, kategória). Nič neukladá — vráti zoznam na výber.
+   */
+  async findVideoCandidates(matchId: string, user: AuthUser) {
+    await this.assertMatchTeam(matchId, user);
+    const match = await this.prisma.match.findUnique({
+      where: { id: matchId },
+      include: { event: { include: { team: { include: { teamCategory: true } } } } },
+    });
+    if (!match) throw new NotFoundException('Zápas neexistuje');
+    const terms = [
+      'FK Košická Nová Ves',
+      match.opponent,
+      match.event.team?.name ?? '',
+      match.event.team?.teamCategory?.code ?? '',
+    ].filter(Boolean);
+    const candidates = await this.veo.findCandidates(match.event.startAt, terms);
+    return { candidates };
+  }
+
+  /** Nahrá fotku zo zápasu (obrázok, max 15 MB). */
+  async addPhoto(
+    matchId: string,
+    file: { buffer: Buffer; mimetype: string; size: number },
+    user: AuthUser,
+  ) {
+    await this.assertMatchTeam(matchId, user);
+    if (!file?.buffer) throw new BadRequestException('Chýba súbor');
+    if (!file.mimetype?.startsWith('image/')) throw new BadRequestException('Nahrať možno len obrázok');
+    const count = await this.prisma.matchPhoto.count({ where: { matchId } });
+    if (count >= 60) throw new BadRequestException('Dosiahnutý limit 60 fotiek na zápas');
+    const photo = await this.prisma.matchPhoto.create({
+      data: {
+        matchId,
+        mimeType: file.mimetype,
+        size: file.size,
+        data: file.buffer,
+        uploadedById: user.id,
+      },
+      select: { id: true, mimeType: true, size: true, createdAt: true },
+    });
+    return photo;
+  }
+
+  /** Servírovanie fotky (neuhádnuteľné ID). */
+  async getPhoto(photoId: string) {
+    return this.prisma.matchPhoto.findUnique({
+      where: { id: photoId },
+      select: { mimeType: true, data: true },
+    });
+  }
+
+  async deletePhoto(matchId: string, photoId: string, user: AuthUser) {
+    await this.assertMatchTeam(matchId, user);
+    const photo = await this.prisma.matchPhoto.findUnique({ where: { id: photoId } });
+    if (!photo || photo.matchId !== matchId) throw new NotFoundException('Fotka neexistuje');
+    await this.prisma.matchPhoto.delete({ where: { id: photoId } });
+    return { deleted: true };
   }
 
   /**

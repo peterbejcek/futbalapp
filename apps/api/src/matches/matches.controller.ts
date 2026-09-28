@@ -1,7 +1,23 @@
-import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  NotFoundException,
+  Param,
+  Post,
+  Query,
+  Res,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { matchEventSchema, type MatchEventInput } from '@fkknv/shared';
 import { MatchesService } from './matches.service';
 import { Roles } from '../auth/roles.decorator';
+import { Public } from '../auth/public.decorator';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { ZodValidationPipe } from '../common/zod.pipe';
 
@@ -81,7 +97,7 @@ export class MatchesController {
   @Roles('ADMIN', 'MANAGER', 'COACH')
   setDetails(
     @Param('id') matchId: string,
-    @Body() body: { meetAt?: string | null; notes?: string | null },
+    @Body() body: { meetAt?: string | null; notes?: string | null; jerseyColor?: 'DARK' | 'LIGHT' | null },
     @CurrentUser() user: AuthUser,
   ) {
     return this.matchesService.setDetails(matchId, body, user);
@@ -111,5 +127,49 @@ export class MatchesController {
   @Roles('ADMIN', 'MANAGER', 'COACH')
   deleteEvent(@Param('id') matchId: string, @Param('eventId') eventId: string, @CurrentUser() user: AuthUser) {
     return this.matchesService.deleteMatchEvent(matchId, eventId, user);
+  }
+
+  /** Nastaviť/odstrániť odkaz na video zo zápasu. */
+  @Post(':id/video')
+  @Roles('ADMIN', 'MANAGER', 'COACH')
+  setVideo(@Param('id') matchId: string, @Body() body: { url: string | null }, @CurrentUser() user: AuthUser) {
+    return this.matchesService.setVideo(matchId, body.url, user);
+  }
+
+  /** Automaticky nájsť kandidátov na Veo video podľa dátumu a tímov. */
+  @Get(':id/video/candidates')
+  @Roles('ADMIN', 'MANAGER', 'COACH')
+  videoCandidates(@Param('id') matchId: string, @CurrentUser() user: AuthUser) {
+    return this.matchesService.findVideoCandidates(matchId, user);
+  }
+
+  /** Nahrať fotku zo zápasu. */
+  @Post(':id/photos')
+  @Roles('ADMIN', 'MANAGER', 'COACH')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 15 * 1024 * 1024 } }))
+  addPhoto(
+    @Param('id') matchId: string,
+    @CurrentUser() user: AuthUser,
+    @UploadedFile() file?: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+  ) {
+    if (!file?.buffer) throw new BadRequestException('Chýba súbor (pole "file")');
+    return this.matchesService.addPhoto(matchId, file, user);
+  }
+
+  /** Servírovanie fotky zo zápasu (neuhádnuteľné ID). */
+  @Public()
+  @Get('photos/:photoId')
+  async photo(@Param('photoId') photoId: string, @Res() res: Response) {
+    const photo = await this.matchesService.getPhoto(photoId);
+    if (!photo) throw new NotFoundException('Fotka neexistuje');
+    res.setHeader('Content-Type', photo.mimeType);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.end(Buffer.from(photo.data));
+  }
+
+  @Delete(':id/photos/:photoId')
+  @Roles('ADMIN', 'MANAGER', 'COACH')
+  deletePhoto(@Param('id') matchId: string, @Param('photoId') photoId: string, @CurrentUser() user: AuthUser) {
+    return this.matchesService.deletePhoto(matchId, photoId, user);
   }
 }

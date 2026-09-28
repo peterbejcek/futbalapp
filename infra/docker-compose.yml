@@ -37,6 +37,10 @@ services:
       CORS_ORIGIN: https://fkknv.sk
       EMAIL_FROM: ${EMAIL_FROM:-FK Košická Nová Ves <noreply@fkknv.sk>}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
+      # Veo (automatické hľadanie videa zo zápasu) — voliteľné
+      VEO_CLIENT_ID: ${VEO_CLIENT_ID:-}
+      VEO_USERNAME: ${VEO_USERNAME:-}
+      VEO_PASSWORD: ${VEO_PASSWORD:-}
       PORT: 3001
     # migrácie prebehnú automaticky pri štarte (viď Dockerfile.api CMD)
 

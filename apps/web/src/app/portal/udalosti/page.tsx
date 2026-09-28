@@ -42,6 +42,7 @@ interface EventItem {
     opponentLogo: string | null;
     meetAt: string | null;
     notes: string | null;
+    jerseyColor: 'DARK' | 'LIGHT' | null;
   } | null;
 }
 
@@ -75,6 +76,24 @@ function audienceLabel(e: EventItem): string | null {
   if (e.type !== 'PARENT_MEETING') return null;
   if (e.audienceTeams && e.audienceTeams.length > 0) return e.audienceTeams.map((t) => compactTeam(t.name)).join(', ');
   return 'celý klub';
+}
+
+/** Ikonka dresu — tmavý (tmavomodrý) alebo svetlý (biely). */
+function JerseyIcon({ color, size = 18, title }: { color: 'DARK' | 'LIGHT'; size?: number; title?: string }) {
+  const fill = color === 'DARK' ? '#16223c' : '#ffffff';
+  const stroke = color === 'DARK' ? '#16223c' : '#9ca3af';
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-label={title} role="img">
+      {title ? <title>{title}</title> : null}
+      <path
+        d="M8.5 3 4 5.5 5.5 9l1.7-.8V20a1 1 0 0 0 1 1h7.6a1 1 0 0 0 1-1V8.2L18.5 9 20 5.5 15.5 3a3.5 3.5 0 0 1-7 0Z"
+        fill={fill}
+        stroke={stroke}
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
 /** Čas zrazu zápasu: explicitný meetAt, inak hodina pred začiatkom. */
@@ -390,9 +409,18 @@ function EventList({
                 </div>
                 {e.match ? <MatchTeams e={e} /> : <div className="mt-1 font-medium">{e.title}</div>}
                 {e.match && (
-                  <div className="mt-1 text-xs text-gray-500">
-                    Zraz: {formatEventTimeSk(matchMeetTime(e)!)}
-                    {e.match.notes ? ` · ${e.match.notes}` : ''}
+                  <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
+                    {e.match.jerseyColor && (
+                      <JerseyIcon
+                        color={e.match.jerseyColor}
+                        size={14}
+                        title={e.match.jerseyColor === 'DARK' ? 'Tmavý dres' : 'Svetlý dres'}
+                      />
+                    )}
+                    <span>
+                      Zraz: {formatEventTimeSk(matchMeetTime(e)!)}
+                      {e.match.notes ? ` · ${e.match.notes}` : ''}
+                    </span>
                   </div>
                 )}
                 {audience && <div className="mt-1 text-xs text-club-700">Pre: {audience}</div>}
@@ -494,24 +522,34 @@ function MonthView({
                             ? `${e.team ? `${compactTeam(e.team.name)} ` : ''}⚽ ${e.match.opponent}`
                             : `${e.team ? `${compactTeam(e.team.name)} ` : ''}${typeLabels[e.type] ?? e.type}`
                         }${isNominated ? ' ✓' : ''}`;
+                        const jersey =
+                          e.match?.jerseyColor ? (
+                            <JerseyIcon
+                              color={e.match.jerseyColor}
+                              size={11}
+                              title={e.match.jerseyColor === 'DARK' ? 'Tmavý dres' : 'Svetlý dres'}
+                            />
+                          ) : null;
                         return href ? (
                           <Link
                             key={e.id}
                             href={href}
                             title={`${time} · ${label}`}
-                            className="block truncate rounded px-1 py-0.5 text-[11px]"
+                            className="flex items-center gap-0.5 truncate rounded px-1 py-0.5 text-[11px]"
                             style={{ backgroundColor: c.bg, color: c.text }}
                           >
-                            {time} {label}
+                            {jersey}
+                            <span className="truncate">{time} {label}</span>
                           </Link>
                         ) : (
                           <div
                             key={e.id}
                             title={`${time} · ${label}`}
-                            className="block truncate rounded px-1 py-0.5 text-[11px]"
+                            className="flex items-center gap-0.5 truncate rounded px-1 py-0.5 text-[11px]"
                             style={{ backgroundColor: c.bg, color: c.text }}
                           >
-                            {time} {label}
+                            {jersey}
+                            <span className="truncate">{time} {label}</span>
                           </div>
                         );
                       })}
@@ -699,6 +737,7 @@ function MatchModal({
   const [type, setType] = useState<'MATCH' | 'TOURNAMENT'>('MATCH');
   const [opponent, setOpponent] = useState('');
   const [isHome, setIsHome] = useState(true);
+  const [jerseyColor, setJerseyColor] = useState<'' | 'DARK' | 'LIGHT'>('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('10:00');
   const [location, setLocation] = useState('');
@@ -726,6 +765,7 @@ function MatchModal({
           surface: surface || undefined,
           opponent,
           isHome,
+          jerseyColor: jerseyColor || undefined,
         }),
       });
       onDone();
@@ -768,6 +808,27 @@ function MatchModal({
         <div>
           <label className={labelCls}>Súper</label>
           <input value={opponent} onChange={(e) => setOpponent(e.target.value)} className={inputCls} list="opponent-list" />
+        </div>
+        <div>
+          <label className={labelCls}>Dres</label>
+          <div className="flex gap-2">
+            {([
+              { val: 'DARK', label: 'Tmavý' },
+              { val: 'LIGHT', label: 'Svetlý' },
+            ] as const).map((o) => (
+              <button
+                key={o.val}
+                type="button"
+                onClick={() => setJerseyColor(jerseyColor === o.val ? '' : o.val)}
+                className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
+                  jerseyColor === o.val ? 'border-club-600 bg-club-50 font-medium text-club-900' : 'border-gray-300 text-gray-600'
+                }`}
+              >
+                <JerseyIcon color={o.val} />
+                {o.label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
