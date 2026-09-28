@@ -58,6 +58,12 @@ export class MatchesController {
     return this.matchesService.opponents();
   }
 
+  /** Odohrané zápasy (archív s videom a fotkami), od najnovšieho. */
+  @Get('played')
+  played(@CurrentUser() user: AuthUser) {
+    return this.matchesService.playedMatches(user);
+  }
+
   @Get(':id')
   get(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.matchesService.get(id, user);

@@ -56,6 +56,27 @@ export class MatchesService {
     return match;
   }
 
+  /** Odohrané (ukončené) zápasy — archív s videom a fotkami, od najnovšieho. */
+  async playedMatches(user: AuthUser) {
+    return this.prisma.match.findMany({
+      where: { state: 'FINISHED', event: { isDemo: !!user.isDemo } },
+      select: {
+        id: true,
+        opponent: true,
+        opponentLogo: true,
+        isHome: true,
+        scoreUs: true,
+        scoreThem: true,
+        jerseyColor: true,
+        videoUrl: true,
+        event: { select: { title: true, startAt: true, team: { select: { name: true } } } },
+        photos: { select: { id: true }, orderBy: { createdAt: 'asc' } },
+      },
+      orderBy: { event: { startAt: 'desc' } },
+      take: 200,
+    });
+  }
+
   /** Doteraz zadaní súperi (bez duplicít) pre našepkávač pri tvorbe zápasu. */
   async opponents(): Promise<string[]> {
     const rows = await this.prisma.match.findMany({
