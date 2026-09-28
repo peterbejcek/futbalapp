@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { eventTypeColor, formatEventDateSk, formatEventDateTimeSk, formatEventTimeSk } from '@fkknv/shared';
@@ -9,6 +9,7 @@ import { registerForPushNotifications } from '@/notifications';
 import { canManage, canManageTeam, fetchMe, isParent, type Me } from '@/auth';
 import { colors } from '@/theme';
 import { JerseySwatch } from '@/JerseySwatch';
+import { checkForUpdateNow, runningBundleLabel } from '@/updates';
 
 interface EventItem {
   id: string;
@@ -68,6 +69,7 @@ export default function DashboardScreen() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [cards, setCards] = useState<RegCard[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [updChecking, setUpdChecking] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
   const [nominated, setNominated] = useState<Set<string>>(new Set());
   const [view, setView] = useState<ViewMode>('upcoming');
@@ -301,6 +303,24 @@ export default function DashboardScreen() {
       >
         <Text style={styles.logoutText}>Odhlásiť sa</Text>
       </Pressable>
+
+      <Pressable
+        style={styles.updateRow}
+        disabled={updChecking}
+        onPress={async () => {
+          setUpdChecking(true);
+          const res = await checkForUpdateNow();
+          setUpdChecking(false);
+          if (res === 'current') Alert.alert('Aktualizácia', 'Máte najnovšiu verziu.');
+          else if (res === 'unavailable') Alert.alert('Aktualizácia', 'Kontrola je dostupná len v nainštalovanej aplikácii.');
+          else if (res === 'error') Alert.alert('Aktualizácia', 'Kontrolu sa nepodarilo dokončiť (skontrolujte pripojenie).');
+          // 'updated' → appka sa reštartuje do novej verzie
+        }}
+      >
+        <Text style={styles.updateText}>
+          {updChecking ? 'Kontrolujem…' : 'Skontrolovať aktualizáciu'} · {runningBundleLabel()}
+        </Text>
+      </Pressable>
     </View>
   );
 }
@@ -532,6 +552,8 @@ const styles = StyleSheet.create({
   regNone: { backgroundColor: '#e0e7ff', color: '#3730a3' },
   logout: { padding: 14, alignItems: 'center' },
   logoutText: { color: colors.club600, fontWeight: '600' },
+  updateRow: { paddingBottom: 8, alignItems: 'center' },
+  updateText: { color: colors.gray, fontSize: 11 },
   // mesačný prehľad
   monthScroll: { flex: 1 },
   monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },

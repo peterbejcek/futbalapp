@@ -3,9 +3,15 @@ import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import { colors } from '@/theme';
+import { applyUpdatesOnLaunch } from '@/updates';
 
 export default function RootLayout() {
   const router = useRouter();
+
+  // pri štarte skontroluj a aplikuj OTA aktualizáciu (ak je dostupná)
+  useEffect(() => {
+    void applyUpdatesOnLaunch();
+  }, []);
 
   // otvorenie príslušnej obrazovky po klepnutí na notifikáciu
   useEffect(() => {
