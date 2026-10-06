@@ -94,6 +94,16 @@ export default function AttendancePage({ params }: { params: Promise<{ id: strin
               {event.surface ? ` · ${SURFACE_LABELS_SK[event.surface]}` : ''} · Prítomní: {present}/
               {event.attendances.length}
             </p>
+            {canEdit && event.team && (
+              <div className="mt-3">
+                <Link
+                  href={`/portal/prehlady/previerky/nova?team=${event.team.id}`}
+                  className="inline-block rounded-md border border-club-300 px-3 py-1.5 text-sm font-semibold text-club-700 hover:bg-club-50"
+                >
+                  ⏱️ Vytvoriť previerku
+                </Link>
+              </div>
+            )}
             {canEdit && (
               <div className="mt-3 flex gap-2">
                 <EventAdminActions
