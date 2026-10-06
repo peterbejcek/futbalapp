@@ -442,6 +442,27 @@ export class MembersService {
     return p?.dataUrl ?? null;
   }
 
+  /** Dochádzka hráča na tréningoch a zápasoch (najnovšie prvé) + súhrn podľa stavu. */
+  async attendanceOf(memberId: string) {
+    const rows = await this.prisma.attendance.findMany({
+      where: { memberId, event: { type: { in: ['TRAINING', 'MATCH'] } } },
+      include: { event: { select: { id: true, type: true, title: true, startAt: true, team: { select: { name: true } } } } },
+      orderBy: { event: { startAt: 'desc' } },
+      take: 300,
+    });
+    const items = rows.map((a) => ({
+      eventId: a.event.id,
+      type: a.event.type,
+      title: a.event.title,
+      team: a.event.team?.name ?? null,
+      startAt: a.event.startAt.toISOString(),
+      status: a.status,
+    }));
+    const summary: Record<string, number> = {};
+    for (const i of items) if (i.status !== 'UNKNOWN') summary[i.status] = (summary[i.status] ?? 0) + 1;
+    return { items, summary };
+  }
+
   /** Je člen v niektorom z uvedených družstiev v aktívnej sezóne? (scope trénera) */
   async memberInTeams(memberId: string, teamIds: string[]): Promise<boolean> {
     if (teamIds.length === 0) return false;

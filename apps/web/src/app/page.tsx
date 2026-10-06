@@ -2,7 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 
 const CLUB_WEB = 'https://www.fkkosickanovaves.sk/';
-const ANDROID_APP_URL = 'https://fkknv.sk/stiahnut/fkknv.apk';
+const ANDROID_APP_URL = 'https://play.google.com/store/apps/details?id=sk.fkknv.app';
 const IOS_APP_URL = 'https://apps.apple.com/sk/app/fk-knv/id6805670800';
 
 const features = [
@@ -95,11 +95,11 @@ export default function HomePage() {
               />
             </svg>
             <h3 className="mt-3 font-semibold text-club-800">Android</h3>
-            <p className="mt-1 text-sm text-gray-600">Aplikáciu pre Android stiahnite tu:</p>
+            <p className="mt-1 text-sm text-gray-600">Aplikáciu pre Android nainštalujte z Google Play:</p>
             <a href={ANDROID_APP_URL} target="_blank" rel="noopener noreferrer" className="mt-4 inline-block">
               <Image
                 src="/app-android-qr.png"
-                alt="QR kód na stiahnutie aplikácie pre Android"
+                alt="QR kód na otvorenie aplikácie v Google Play"
                 width={180}
                 height={180}
                 className="rounded-md border border-club-100"
@@ -109,18 +109,17 @@ export default function HomePage() {
               href={ANDROID_APP_URL}
               className="mt-4 inline-block rounded-md bg-club-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-club-800"
             >
-              Stiahnuť pre Android
+              Otvoriť v Google Play
             </a>
             <div className="mt-4 w-full rounded-md bg-club-50 p-3 text-left text-xs text-gray-600">
               <p className="font-semibold text-club-800">Postup inštalácie</p>
               <ol className="mt-1 list-decimal space-y-0.5 pl-4">
-                <li>Naskenujte QR kód alebo klepnite na „Stiahnuť pre Android".</li>
-                <li>Otvorte stiahnutý súbor <span className="font-medium">fkknv.apk</span>.</li>
+                <li>Naskenujte QR kód alebo klepnite na „Otvoriť v Google Play".</li>
                 <li>
-                  Ak sa objaví upozornenie, povoľte <span className="font-medium">inštaláciu z neznámych zdrojov</span>{' '}
-                  (Nastavenia → Aplikácie → povoliť pre prehliadač/Súbory).
+                  V obchode Google Play klepnite na <span className="font-medium">Inštalovať</span> (alebo vyhľadajte
+                  „FK KNV").
                 </li>
-                <li>Potvrďte inštaláciu a appku otvorte.</li>
+                <li>Po dokončení inštalácie aplikáciu otvorte a prihláste sa svojím e-mailom a heslom z portálu.</li>
               </ol>
             </div>
           </div>

@@ -116,6 +116,18 @@ export class MembersController {
     return member;
   }
 
+  /** Dochádzka hráča (karta hráča) — vedenie, tréner družstva hráča. */
+  @Get(':id/attendance')
+  @Roles('ADMIN', 'MANAGER', 'COACH')
+  async attendance(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    if (!isStaff(user) && !(await this.membersService.memberInTeams(id, coachTeamIds(user)))) {
+      throw new ForbiddenException('Hráč nie je vo vašom družstve');
+    }
+    const member = await this.membersService.get(id);
+    if (member.isDemo !== user.isDemo) throw new ForbiddenException('Člen neexistuje');
+    return this.membersService.attendanceOf(id);
+  }
+
   @Post()
   @Roles('ADMIN', 'MANAGER')
   create(
