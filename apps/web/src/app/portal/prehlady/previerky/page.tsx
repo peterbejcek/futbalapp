@@ -176,7 +176,15 @@ export default function FitnessTestsPage() {
       <Link href="/portal/prehlady" className="text-sm text-club-600 hover:underline">
         ← Štatistiky
       </Link>
-      <h1 className="text-2xl font-bold text-club-900">Previerky</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold text-club-900">Previerky</h1>
+        <Link
+          href="/portal/prehlady/previerky/nova"
+          className="rounded-md bg-club-600 px-4 py-2 text-sm font-semibold text-white hover:bg-club-700"
+        >
+          + Nová previerka
+        </Link>
+      </div>
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="inline-flex overflow-hidden rounded-md border border-club-300 text-sm">
@@ -217,7 +225,7 @@ export default function FitnessTestsPage() {
         <Card className="text-sm text-gray-500">Načítavam…</Card>
       ) : (mode === 'players' ? players.length : dates.length) === 0 ? (
         <Card className="text-sm text-gray-500">
-          Žiadne previerky. Pridáte ich v karte hráča (Členovia → hráč → Previerky).
+          Žiadne previerky. Vytvoríte ich tlačidlom „Nová previerka“, z tréningu alebo v karte hráča.
         </Card>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-club-100 bg-white">
