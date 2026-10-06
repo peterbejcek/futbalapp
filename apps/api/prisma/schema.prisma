@@ -150,6 +150,7 @@ model Member {
   suggestedTxns      BankTransaction[]   @relation("TxSuggestedMember")
   matchedTxns        BankTransaction[]   @relation("TxMatchedMember")
   photo              MemberPhoto?
+  fitnessTests       FitnessTest[]
 }
 
 /// Fotka hráča uložená ako data URL (mimo zoznamu členov, aby ho nezaťažovala).
@@ -345,6 +346,7 @@ model Team {
   events       Event[]
   audienceEvents Event[]        @relation("EventAudience")
   channels     Channel[]
+  fitnessTests FitnessTest[]
 
   @@unique([teamCategoryId, name])
 }
@@ -826,4 +828,28 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([entity, entityId])
+}
+
+/// Previerka výkonnosti hráča (behy, člnkový beh, skok z miesta) — hráč ich absolvuje niekoľkokrát ročne.
+model FitnessTest {
+  id            String   @id @default(cuid())
+  memberId      String
+  /// Družstvo hráča v čase previerky
+  teamId        String?
+  testedAt      DateTime @db.Date
+  /// Časy v sekundách
+  run10m        Float?
+  run20m        Float?
+  run30m        Float?
+  shuttleRun    Float?
+  /// Skok do diaľky z miesta v cm
+  standingJump  Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  team   Team?  @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@index([memberId, testedAt])
+  @@index([testedAt])
 }
