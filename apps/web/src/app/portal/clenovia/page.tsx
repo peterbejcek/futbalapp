@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { api, apiUpload, API_URL } from '@/lib/api';
 import { categoryColor } from '@fkknv/shared';
 import { isAdmin, isStaff, useMe } from '@/lib/auth';
+import { PlayerFitnessPanel } from '@/components/fitness';
 import { Button, Card, ErrorText, Modal, inputCls, labelCls } from '@/components/ui';
 
 interface Guardian {
@@ -704,6 +705,9 @@ function MemberModal({
           </div>
 
           {member.memberships.length > 0 && <GuardiansEditor childId={member.id} />}
+          {member.memberships.length > 0 && (
+            <PlayerFitnessPanel memberId={member.id} teams={member.memberships.map((m) => m.team)} />
+          )}
 
           <p className="text-xs text-gray-500">
             Ako tréner môžete priradiť rodiča; o presun hráča požiadate v menu <strong>Presuny</strong>. Údaje hráča
@@ -980,6 +984,11 @@ function MemberModal({
         {/* Rodičia — priradenie k dieťaťu (vedenie alebo tréner družstva dieťaťa) */}
         {member && !isParent && (member.memberships.length > 0 || roles.includes('PLAYER')) && (
           <GuardiansEditor childId={member.id} />
+        )}
+
+        {/* Previerky výkonnosti hráča */}
+        {member && !isParent && (member.memberships.length > 0 || roles.includes('PLAYER')) && (
+          <PlayerFitnessPanel memberId={member.id} teams={member.memberships.map((m) => m.team)} />
         )}
 
         <div>

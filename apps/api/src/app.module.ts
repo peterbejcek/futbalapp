@@ -19,6 +19,7 @@ import { ChatModule } from './chat/chat.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
 import { FutbalnetModule } from './integrations/futbalnet/futbalnet.module';
+import { FitnessTestsModule } from './fitness-tests/fitness-tests.module';
 import { CaptchaModule } from './captcha/captcha.module';
 import { HealthController } from './health.controller';
 
@@ -42,6 +43,7 @@ import { HealthController } from './health.controller';
     ReportsModule,
     FutbalnetModule,
     CaptchaModule,
+    FitnessTestsModule,
   ],
   controllers: [HealthController],
   providers: [
