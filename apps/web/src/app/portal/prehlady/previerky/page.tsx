@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { Card, ErrorText, inputCls } from '@/components/ui';
@@ -27,13 +27,41 @@ export default function FitnessTestsPage() {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'team' | 'date'>('name');
   const [sel, setSel] = useState<Sel>(null);
+  const [teamFilter, setTeamFilter] = useState('');
+  const [busyKey, setBusyKey] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     api<FitnessTest[]>('/fitness-tests')
       .then(setTests)
       .catch((e) => setError(e instanceof Error ? e.message : 'Načítanie zlyhalo'))
       .finally(() => setLoading(false));
   }, []);
+  useEffect(load, [load]);
+
+  // družstvá, v ktorých existujú previerky (na filter)
+  const teamOptions = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const t of tests) if (t.team) m.set(t.team.id, t.team.name);
+    return [...m.entries()].sort((a, b) => collator.compare(a[1], b[1]));
+  }, [tests]);
+
+  async function removeGroup(date: string, teamId: string | null, label: string) {
+    if (!window.confirm(`Vymazať previerku ${label}? Zmažú sa výsledky všetkých hráčov z tohto dňa.`)) return;
+    const key = `${date}|${teamId ?? ''}`;
+    setBusyKey(key);
+    setError(null);
+    try {
+      for (const t of tests.filter((x) => x.testedAt === date && x.teamId === teamId)) {
+        await api(`/fitness-tests/${t.id}`, { method: 'DELETE' });
+      }
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Vymazanie zlyhalo');
+      load();
+    } finally {
+      setBusyKey(null);
+    }
+  }
 
   const q = search.trim().toLowerCase();
 
@@ -41,6 +69,7 @@ export default function FitnessTestsPage() {
   const players = useMemo(() => {
     const map = new Map<string, { member: FitnessTest['member']; team: string; count: number; last: string }>();
     for (const t of tests) {
+      if (teamFilter && t.teamId !== teamFilter) continue;
       const cur = map.get(t.memberId);
       if (!cur) map.set(t.memberId, { member: t.member, team: t.team?.name ?? '', count: 1, last: t.testedAt });
       else {
@@ -60,12 +89,13 @@ export default function FitnessTestsPage() {
             ? b.last.localeCompare(a.last)
             : collator.compare(fullName(a.member), fullName(b.member)),
       );
-  }, [tests, q, sortBy]);
+  }, [tests, q, sortBy, teamFilter]);
 
   // zoznam previerok: dátum + družstvo
   const dates = useMemo(() => {
     const map = new Map<string, { date: string; teamId: string | null; team: string; count: number }>();
     for (const t of tests) {
+      if (teamFilter && t.teamId !== teamFilter) continue;
       const key = `${t.testedAt}|${t.teamId ?? ''}`;
       const cur = map.get(key);
       if (cur) cur.count++;
@@ -78,7 +108,7 @@ export default function FitnessTestsPage() {
           ? collator.compare(a.team, b.team) || b.date.localeCompare(a.date)
           : b.date.localeCompare(a.date) || collator.compare(a.team, b.team),
       );
-  }, [tests, q, sortBy]);
+  }, [tests, q, sortBy, teamFilter]);
 
   const thCls = 'whitespace-nowrap px-3 py-2 text-left font-medium';
   const rowCls = 'cursor-pointer hover:bg-club-50';
@@ -212,6 +242,14 @@ export default function FitnessTestsPage() {
           placeholder={mode === 'players' ? 'Hľadať priezvisko / družstvo…' : 'Hľadať družstvo / dátum…'}
           className={`${inputCls} !mt-0 max-w-xs`}
         />
+        <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1.5 text-sm">
+          <option value="">Všetky družstvá</option>
+          {teamOptions.map(([id, name]) => (
+            <option key={id} value={id}>
+              {name}
+            </option>
+          ))}
+        </select>
         <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className="rounded-md border border-gray-300 px-2 py-1.5 text-sm">
           {mode === 'players' ? <option value="name">Triediť: priezvisko</option> : null}
           <option value="team">Triediť: družstvo</option>
@@ -243,6 +281,7 @@ export default function FitnessTestsPage() {
                   <th className={thCls}>Dátum</th>
                   <th className={thCls}>Družstvo</th>
                   <th className={thCls}>Počet hráčov</th>
+                  <th />
                 </tr>
               )}
             </thead>
@@ -261,6 +300,23 @@ export default function FitnessTestsPage() {
                       <td className="px-3 py-2 font-medium text-club-800">{formatDate(d.date)}</td>
                       <td className="px-3 py-2">{d.team}</td>
                       <td className="px-3 py-2">{d.count}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                        {d.teamId && (
+                          <Link
+                            href={`/portal/prehlady/previerky/nova?team=${d.teamId}&date=${d.date}`}
+                            className="text-club-600 hover:underline"
+                          >
+                            Upraviť
+                          </Link>
+                        )}{' '}
+                        <button
+                          onClick={() => removeGroup(d.date, d.teamId, `${formatDate(d.date)} — ${d.team}`)}
+                          disabled={busyKey === `${d.date}|${d.teamId ?? ''}`}
+                          className="text-red-600 hover:underline disabled:opacity-50"
+                        >
+                          Vymazať
+                        </button>
+                      </td>
                     </tr>
                   ))}
             </tbody>

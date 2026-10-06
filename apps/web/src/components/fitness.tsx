@@ -1,6 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import {
+  FITNESS_DISCIPLINES,
+  fitnessDelta,
+  formatFitnessDate,
+  previousFitnessValue,
+  type FitnessDiscipline,
+  type FitnessDisciplineKey,
+} from '@fkknv/shared';
+
 import { api } from '@/lib/api';
 import { Button, ErrorText, inputCls, labelCls } from '@/components/ui';
 
@@ -18,39 +27,13 @@ export interface FitnessTest {
   team: { id: string; name: string } | null;
 }
 
-export type DisciplineKey = 'run10m' | 'run20m' | 'run30m' | 'shuttleRun' | 'standingJump';
-
-export const DISCIPLINES: Array<{
-  key: DisciplineKey;
-  label: string;
-  unit: string;
-  /** čím nižšia hodnota, tým lepšie (časy); skok je opačne */
-  lowerIsBetter: boolean;
-  step: string;
-  decimals: number;
-}> = [
-  { key: 'run10m', label: 'Beh 10 m', unit: 's', lowerIsBetter: true, step: '0.01', decimals: 2 },
-  { key: 'run20m', label: 'Beh 20 m', unit: 's', lowerIsBetter: true, step: '0.01', decimals: 2 },
-  { key: 'run30m', label: 'Beh 30 m', unit: 's', lowerIsBetter: true, step: '0.01', decimals: 2 },
-  { key: 'shuttleRun', label: 'Člnkový beh', unit: 's', lowerIsBetter: true, step: '0.01', decimals: 2 },
-  { key: 'standingJump', label: 'Skok do diaľky z miesta', unit: 'cm', lowerIsBetter: false, step: '1', decimals: 0 },
-];
-
-export function formatDate(iso: string): string {
-  const [y, m, d] = iso.split('-');
-  return `${Number(d)}.${Number(m)}.${y}`;
-}
+export type DisciplineKey = FitnessDisciplineKey;
+export const DISCIPLINES = FITNESS_DISCIPLINES;
+export const formatDate = formatFitnessDate;
 
 /** Porovnanie s predchádzajúcou previerkou hráča (ktorá mala v danej disciplíne hodnotu). */
-export function previousOf(all: FitnessTest[], test: FitnessTest, key: DisciplineKey): number | null {
-  let prev: FitnessTest | null = null;
-  for (const t of all) {
-    if (t.memberId !== test.memberId || t.id === test.id || t[key] == null) continue;
-    const before = t.testedAt < test.testedAt || (t.testedAt === test.testedAt && t.id < test.id);
-    if (before && (!prev || t.testedAt > prev.testedAt || (t.testedAt === prev.testedAt && t.id > prev.id))) prev = t;
-  }
-  return prev ? (prev[key] as number) : null;
-}
+export const previousOf = (all: FitnessTest[], test: FitnessTest, key: DisciplineKey) =>
+  previousFitnessValue(all, test, key);
 
 /** Hodnota farebne: zlepšenie zelená, zhoršenie červená, rovnaká čierna; v zátvorke rozdiel. */
 export function ValueCell({
@@ -60,20 +43,13 @@ export function ValueCell({
 }: {
   value: number | null;
   previous: number | null;
-  discipline: (typeof DISCIPLINES)[number];
+  discipline: FitnessDiscipline;
 }) {
-  if (value == null) return <span className="text-gray-300">–</span>;
-  const shown = value.toFixed(discipline.decimals);
-  if (previous == null) return <span>{shown}</span>;
-  const diff = Math.round((value - previous) * 100) / 100;
-  const better = discipline.lowerIsBetter ? diff < 0 : diff > 0;
-  const cls = diff === 0 ? 'text-black' : better ? 'font-semibold text-green-600' : 'font-semibold text-red-600';
-  const sign = diff > 0 ? '+' : diff < 0 ? '−' : '';
-  return (
-    <span className={cls}>
-      {shown} ({diff === 0 ? '0' : `${sign}${Math.abs(diff).toFixed(discipline.decimals)}`})
-    </span>
-  );
+  const { text, trend } = fitnessDelta(value, previous, discipline);
+  if (trend === 'none' && value == null) return <span className="text-gray-300">–</span>;
+  const cls =
+    trend === 'better' ? 'font-semibold text-green-600' : trend === 'worse' ? 'font-semibold text-red-600' : trend === 'same' ? 'text-black' : '';
+  return <span className={cls}>{text}</span>;
 }
 
 export const LEGEND = (
