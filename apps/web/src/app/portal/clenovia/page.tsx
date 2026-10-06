@@ -6,6 +6,7 @@ import { api, apiUpload, API_URL } from '@/lib/api';
 import { categoryColor } from '@fkknv/shared';
 import { isAdmin, isStaff, useMe } from '@/lib/auth';
 import { PlayerFitnessPanel } from '@/components/fitness';
+import { MemberAttendancePanel } from '@/components/member-attendance';
 import { Button, Card, ErrorText, Modal, inputCls, labelCls } from '@/components/ui';
 
 interface Guardian {
@@ -470,6 +471,33 @@ const ROLE_OPTIONS: Array<{ value: string; label: string; adminOnly?: boolean }>
   { value: 'ADMIN', label: 'Admin', adminOnly: true },
 ];
 
+function ModalTabs<T extends string>({
+  tabs,
+  value,
+  onChange,
+}: {
+  tabs: Array<{ key: T; label: string }>;
+  value: T;
+  onChange: (t: T) => void;
+}) {
+  return (
+    <div className="flex gap-1 border-b border-club-100">
+      {tabs.map((t) => (
+        <button
+          key={t.key}
+          type="button"
+          onClick={() => onChange(t.key)}
+          className={`-mb-px border-b-2 px-3 py-1.5 text-sm ${
+            value === t.key ? 'border-club-600 font-semibold text-club-800' : 'border-transparent text-gray-500 hover:text-club-700'
+          }`}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function MemberModal({
   member,
   teams,
@@ -524,6 +552,7 @@ function MemberModal({
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [photoVer, setPhotoVer] = useState(0);
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [tab, setTab] = useState<'info' | 'parents' | 'attendance' | 'tests'>('info');
 
   const hasAccount = !!member?.user;
   const isParent = roles.includes('PARENT');
@@ -675,12 +704,29 @@ function MemberModal({
     );
   }
 
+  const isPlayerLike = !!member && !isParent && (member.memberships.length > 0 || roles.includes('PLAYER'));
+
   // Tréner: hráča needituje — len náhľad + priradenie rodiča a žiadosť o presun
   if (member && !staff) {
     const clubs = [member.homeClub, member.guestClub, member.clubAffiliation].filter(Boolean);
     return (
-      <Modal open onClose={onClose} title={`${member.lastName} ${member.firstName}`}>
+      <Modal open onClose={onClose} title={`${member.lastName} ${member.firstName}`} wide>
         <div className="space-y-3 text-sm">
+          <ModalTabs
+            tabs={[
+              { key: 'info', label: 'Údaje' },
+              { key: 'attendance', label: 'Dochádzka' },
+              { key: 'tests', label: 'Previerky' },
+            ]}
+            value={tab === 'info' || tab === 'attendance' || tab === 'tests' ? tab : 'info'}
+            onChange={setTab}
+          />
+          {tab === 'attendance' && <MemberAttendancePanel memberId={member.id} />}
+          {tab === 'tests' && (
+            <PlayerFitnessPanel memberId={member.id} teams={member.memberships.map((m) => m.team)} />
+          )}
+          {(tab === 'info' || tab === 'parents') && (
+            <>
           <div className="space-y-1 rounded-md bg-club-50 p-3 text-gray-700">
             <p>
               <span className="text-gray-500">Družstvo: </span>
@@ -705,10 +751,9 @@ function MemberModal({
           </div>
 
           {member.memberships.length > 0 && <GuardiansEditor childId={member.id} />}
-          {member.memberships.length > 0 && (
-            <PlayerFitnessPanel memberId={member.id} teams={member.memberships.map((m) => m.team)} />
-          )}
 
+            </>
+          )}
           <p className="text-xs text-gray-500">
             Ako tréner môžete priradiť rodiča; o presun hráča požiadate v menu <strong>Presuny</strong>. Údaje hráča
             upravuje vedenie klubu.
@@ -724,8 +769,27 @@ function MemberModal({
   }
 
   return (
-    <Modal open onClose={onClose} title={member ? 'Upraviť člena' : 'Nový člen'}>
+    <Modal open onClose={onClose} title={member ? 'Upraviť člena' : 'Nový člen'} wide={!!member}>
       <div className="space-y-3">
+        {isPlayerLike && (
+          <ModalTabs
+            tabs={[
+              { key: 'info', label: 'Údaje' },
+              { key: 'parents', label: 'Rodičia' },
+              { key: 'attendance', label: 'Dochádzka' },
+              { key: 'tests', label: 'Previerky' },
+            ]}
+            value={tab}
+            onChange={setTab}
+          />
+        )}
+        {isPlayerLike && tab === 'parents' && member && <GuardiansEditor childId={member.id} />}
+        {isPlayerLike && tab === 'attendance' && member && <MemberAttendancePanel memberId={member.id} />}
+        {isPlayerLike && tab === 'tests' && member && (
+          <PlayerFitnessPanel memberId={member.id} teams={member.memberships.map((m) => m.team)} />
+        )}
+        {(!isPlayerLike || tab === 'info') && (
+          <>
         {/* Fotka hráča (na karte) */}
         <div className="flex items-center gap-4">
           {member?.photoUrl ? (
@@ -981,16 +1045,6 @@ function MemberModal({
           </div>
         )}
 
-        {/* Rodičia — priradenie k dieťaťu (vedenie alebo tréner družstva dieťaťa) */}
-        {member && !isParent && (member.memberships.length > 0 || roles.includes('PLAYER')) && (
-          <GuardiansEditor childId={member.id} />
-        )}
-
-        {/* Previerky výkonnosti hráča */}
-        {member && !isParent && (member.memberships.length > 0 || roles.includes('PLAYER')) && (
-          <PlayerFitnessPanel memberId={member.id} teams={member.memberships.map((m) => m.team)} />
-        )}
-
         <div>
           <label className={labelCls}>
             {isCoach ? 'Platnosť licencie do' : 'Platnosť registračného preukazu do'}
@@ -1035,6 +1089,17 @@ function MemberModal({
           <textarea value={healthNotes} onChange={(e) => setHealthNotes(e.target.value)} rows={2} className={inputCls} />
         </div>
 
+          </>
+        )}
+
+        {isPlayerLike && tab !== 'info' ? (
+          <div className="flex justify-end">
+            <Button variant="ghost" onClick={onClose}>
+              Zavrieť
+            </Button>
+          </div>
+        ) : (
+          <>
         <ErrorText>{error}</ErrorText>
         {staff && member && confirmDelete ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-red-50 p-3">
@@ -1068,6 +1133,8 @@ function MemberModal({
               </Button>
             </div>
           </div>
+        )}
+          </>
         )}
       </div>
     </Modal>
