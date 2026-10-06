@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { formatEventDateSk } from '@fkknv/shared';
 import { api } from '@/api';
 import { enqueue, flush } from '@/offline';
@@ -16,6 +16,7 @@ interface EventDetail {
   id: string;
   title: string;
   startAt: string;
+  team?: { id: string; name: string } | null;
   attendances: AttendanceRow[];
 }
 
@@ -42,6 +43,7 @@ const statusColors: Record<string, string> = {
 
 export default function AttendanceScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [pending, setPending] = useState(0);
 
@@ -90,6 +92,14 @@ export default function AttendanceScreen() {
       {pending > 0 && (
         <Text style={styles.offline}>Offline — {pending} zmien čaká na odoslanie. Odošlú sa automaticky.</Text>
       )}
+      {event?.team && (
+        <Pressable
+          style={styles.testBtn}
+          onPress={() => router.push({ pathname: '/previerky/nova', params: { team: event.team!.id } })}
+        >
+          <Text style={styles.testBtnText}>⏱️ Vytvoriť previerku</Text>
+        </Pressable>
+      )}
       <FlatList
         data={event?.attendances ?? []}
         keyExtractor={(item) => item.id}
@@ -128,5 +138,7 @@ const styles = StyleSheet.create({
   },
   name: { fontSize: 16, fontWeight: '600', color: colors.club900 },
   status: { fontSize: 14, fontWeight: '700' },
+  testBtn: { borderWidth: 1, borderColor: colors.club600, borderRadius: 8, padding: 10, alignItems: 'center', marginBottom: 10 },
+  testBtnText: { color: colors.club700, fontWeight: '700', fontSize: 14 },
   hint: { color: colors.gray, fontSize: 12, textAlign: 'center', paddingVertical: 8 },
 });

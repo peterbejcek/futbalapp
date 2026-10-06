@@ -67,7 +67,7 @@ function NewTestForm() {
     setError(null);
     try {
       const [members, tests] = await Promise.all([
-        api<Player[]>(`/members?team=${teamId}&hideInactive=true`),
+        api<Player[]>(`/members?team=${teamId}&hideInactive=true&role=PLAYER`),
         api<FitnessTest[]>('/fitness-tests'),
       ]);
       const sorted = [...members].sort((a, b) =>

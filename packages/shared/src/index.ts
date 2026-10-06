@@ -7,3 +7,4 @@ export * from './rodne-cislo';
 export * from './psc';
 export * from './colors';
 export * from './datetime';
+export * from './fitness';

@@ -1,20 +1,53 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { canManage, fetchMe, type Me } from '@/auth';
 import { colors } from '@/theme';
 
-/** Štatistiky — zatiaľ prázdny obsah (pripravuje sa). */
+/** Štatistiky — rozcestník (Previerky pre vedenie a trénerov). */
 export default function StatisticsScreen() {
+  const router = useRouter();
+  const [me, setMe] = useState<Me | null>(null);
+  useEffect(() => {
+    fetchMe().then(setMe).catch(() => {});
+  }, []);
+
   return (
     <View style={styles.container}>
-      <Text style={styles.emoji}>📊</Text>
-      <Text style={styles.title}>Štatistiky</Text>
-      <Text style={styles.subtitle}>Pripravujeme.</Text>
+      {canManage(me) && (
+        <Pressable style={styles.tile} onPress={() => router.push('/previerky')}>
+          <Text style={styles.emoji}>⏱️</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Previerky</Text>
+            <Text style={styles.subtitle}>Behy, člnkový beh, skok z miesta — výsledky hráčov, zadanie a úprava.</Text>
+          </View>
+        </Pressable>
+      )}
+      <View style={[styles.tile, { opacity: 0.6 }]}>
+        <Text style={styles.emoji}>📊</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Ďalšie štatistiky</Text>
+          <Text style={styles.subtitle}>Pripravujeme.</Text>
+        </View>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.club50, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  emoji: { fontSize: 48, marginBottom: 12 },
-  title: { fontSize: 22, fontWeight: '700', color: colors.club900, marginBottom: 6 },
-  subtitle: { fontSize: 15, color: colors.gray },
+  container: { flex: 1, backgroundColor: colors.club50, padding: 16 },
+  tile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.white,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.club100,
+    padding: 16,
+    marginBottom: 10,
+  },
+  emoji: { fontSize: 32 },
+  title: { fontSize: 17, fontWeight: '700', color: colors.club900 },
+  subtitle: { fontSize: 13, color: colors.gray, marginTop: 2 },
 });
