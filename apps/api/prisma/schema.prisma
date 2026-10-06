@@ -793,10 +793,15 @@ model Message {
   body      String
   createdAt DateTime @default(now())
   editedAt  DateTime?
+  replyToId String?
 
   channel    Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
   sender     User            @relation(fields: [senderId], references: [id])
   attachment ChatAttachment?
+  replyTo    Message?        @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies    Message[]       @relation("MessageReplies")
+
+  @@index([replyToId])
 
   @@index([channelId, createdAt])
 }

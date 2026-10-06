@@ -11,6 +11,14 @@ const READ_ONLY_FOR_MEMBERS = new Set(['TEAM_ANNOUNCEMENTS', 'CLUB_ANNOUNCEMENT'
 const MESSAGE_INCLUDE = {
   sender: { select: { id: true, firstName: true, lastName: true } },
   attachment: { select: { id: true, filename: true, mimeType: true, size: true } },
+  replyTo: {
+    select: {
+      id: true,
+      body: true,
+      sender: { select: { id: true, firstName: true, lastName: true } },
+      attachment: { select: { filename: true } },
+    },
+  },
 } as const;
 /** Interné kanály len pre daný okruh. */
 const STAFF_ONLY = new Set(['COACHES', 'BOARD']);
@@ -169,10 +177,19 @@ export class ChatService {
     return { ok: true };
   }
 
-  async post(channelId: string, user: AuthUser, body: string) {
+  /** Overí, že správa, na ktorú sa odpovedá, patrí do rovnakého kanála. */
+  private async validReplyTo(channelId: string, replyToId?: string | null) {
+    if (!replyToId) return null;
+    const target = await this.prisma.message.findFirst({ where: { id: replyToId, channelId }, select: { id: true } });
+    if (!target) throw new NotFoundException('Správa, na ktorú odpovedáte, neexistuje');
+    return target.id;
+  }
+
+  async post(channelId: string, user: AuthUser, body: string, replyToId?: string) {
     const channel = await this.assertAccess(channelId, user, true);
+    const replyTo = await this.validReplyTo(channelId, replyToId);
     const message = await this.prisma.message.create({
-      data: { channelId, senderId: user.id, body },
+      data: { channelId, senderId: user.id, body, replyToId: replyTo },
       include: MESSAGE_INCLUDE,
     });
 
@@ -197,11 +214,13 @@ export class ChatService {
     channelId: string,
     user: AuthUser,
     body: string,
+    replyToId: string | undefined,
     file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
   ) {
     const channel = await this.assertAccess(channelId, user, true);
+    const replyTo = await this.validReplyTo(channelId, replyToId);
     const message = await this.prisma.message.create({
-      data: { channelId, senderId: user.id, body: body?.trim() ?? '' },
+      data: { channelId, senderId: user.id, body: body?.trim() ?? '', replyToId: replyTo },
     });
     await this.prisma.chatAttachment.create({
       data: {
@@ -217,6 +236,16 @@ export class ChatService {
     this.chatGateway.broadcastMessage(channelId, full);
     await this.notifyMembers(channel, user.id, `${full.sender.firstName} ${full.sender.lastName}: 📎 ${full.attachment?.filename ?? 'príloha'}`);
     return full;
+  }
+
+  /** Vymaže správu — iba jej autor. */
+  async deleteMessage(messageId: string, user: AuthUser) {
+    const message = await this.prisma.message.findUnique({ where: { id: messageId } });
+    if (!message) throw new NotFoundException('Správa neexistuje');
+    if (message.senderId !== user.id) throw new ForbiddenException('Vymazať môžete iba vlastnú správu');
+    await this.prisma.message.delete({ where: { id: messageId } });
+    this.chatGateway.broadcastDeleted(message.channelId, messageId);
+    return { ok: true };
   }
 
   /** Bajty prílohy na servírovanie (obrázok inline / dokument na stiahnutie). */

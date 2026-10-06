@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   NotFoundException,
   Param,
@@ -20,7 +21,7 @@ import { Public } from '../auth/public.decorator';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 import { ZodValidationPipe } from '../common/zod.pipe';
 
-const postMessageSchema = z.object({ body: z.string().min(1).max(4000) });
+const postMessageSchema = z.object({ body: z.string().min(1).max(4000), replyToId: z.string().optional() });
 
 @Controller('chat')
 export class ChatController {
@@ -40,9 +41,9 @@ export class ChatController {
   post(
     @Param('id') channelId: string,
     @CurrentUser() user: AuthUser,
-    @Body(new ZodValidationPipe(postMessageSchema)) body: { body: string },
+    @Body(new ZodValidationPipe(postMessageSchema)) body: { body: string; replyToId?: string },
   ) {
-    return this.chatService.post(channelId, user, body.body);
+    return this.chatService.post(channelId, user, body.body, body.replyToId);
   }
 
   /** Odoslanie správy s prílohou (obrázok / dokument), voliteľne s popisom. */
@@ -52,10 +53,16 @@ export class ChatController {
     @Param('id') channelId: string,
     @CurrentUser() user: AuthUser,
     @Body('body') body?: string,
+    @Body('replyToId') replyToId?: string,
     @UploadedFile() file?: { buffer: Buffer; originalname: string; mimetype: string; size: number },
   ) {
     if (!file?.buffer) throw new BadRequestException('Chýba súbor (pole "file")');
-    return this.chatService.postAttachment(channelId, user, body ?? '', file);
+    return this.chatService.postAttachment(channelId, user, body ?? '', replyToId || undefined, file);
+  }
+
+  @Delete('messages/:id')
+  deleteMessage(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.chatService.deleteMessage(id, user);
   }
 
   /** Servírovanie prílohy (neuhádnuteľné ID) — obrázok inline, dokument na stiahnutie. */

@@ -65,6 +65,15 @@ export class ChatGateway implements OnGatewayConnection {
     return { ok: true };
   }
 
+  /** Volané z ChatService po vymazaní správy. */
+  broadcastDeleted(channelId: string, messageId: string) {
+    try {
+      this.server.to(`channel:${channelId}`).emit('messageDeleted', { channelId, messageId });
+    } catch (error) {
+      this.logger.warn(`WS broadcast zlyhal: ${error instanceof Error ? error.message : error}`);
+    }
+  }
+
   /** Volané z ChatService po uložení správy. */
   broadcastMessage(channelId: string, message: unknown) {
     try {

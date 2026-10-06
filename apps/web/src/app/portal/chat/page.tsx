@@ -78,6 +78,16 @@ interface Message {
   createdAt: string;
   sender: { id: string; firstName: string; lastName: string };
   attachment?: Attachment | null;
+  replyTo?: {
+    id: string;
+    body: string;
+    sender: { id: string; firstName: string; lastName: string };
+    attachment?: { filename: string } | null;
+  } | null;
+}
+
+function quoteText(r: { body: string; attachment?: { filename: string } | null }) {
+  return r.body || (r.attachment ? `📎 ${r.attachment.filename}` : '');
 }
 
 export default function ChatPage() {
@@ -85,6 +95,9 @@ export default function ChatPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [meId, setMeId] = useState<string | null>(null);
+  const textRef = useRef<HTMLTextAreaElement>(null);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -114,6 +127,12 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
+    api<{ id: string }>('/auth/me')
+      .then((me) => setMeId(me.id))
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     void reloadChannels().then((list) => {
       if (list.length > 0) setActiveId((current) => current ?? list[0]!.id);
     });
@@ -122,6 +141,7 @@ export default function ChatPage() {
   // otvorenie kanála: hneď vynuluj neprečítané (na serveri sa označí pri načítaní správ)
   function openChannel(id: string) {
     setActiveId(id);
+    setReplyTo(null);
     setChannels((prev) => prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c)));
   }
 
@@ -160,9 +180,15 @@ export default function ChatPage() {
     const onMessage = (message: Message & { channelId: string }) => {
       appendMessage(message, message.channelId);
     };
+    const onDeleted = (p: { channelId: string; messageId: string }) => {
+      if (activeIdRef.current !== p.channelId) return;
+      setMessages((prev) => prev.filter((m) => m.id !== p.messageId));
+    };
     socket.on('message', onMessage);
+    socket.on('messageDeleted', onDeleted);
     return () => {
       socket.off('message', onMessage);
+      socket.off('messageDeleted', onDeleted);
       socket.emit('leave', { channelId: activeId });
     };
   }, [loadMessages, activeId, appendMessage, reloadChannels]);
@@ -171,22 +197,45 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
 
-  async function send(e: React.FormEvent) {
-    e.preventDefault();
+  // textarea sa podľa obsahu zväčšuje (max ~8 riadkov, potom scrolluje)
+  useEffect(() => {
+    const el = textRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }, [text]);
+
+  async function deleteMessage(id: string) {
+    if (!window.confirm('Vymazať túto správu?')) return;
+    try {
+      await api(`/chat/messages/${id}`, { method: 'DELETE' });
+      setMessages((prev) => prev.filter((m) => m.id !== id));
+      if (replyTo?.id === id) setReplyTo(null);
+      void reloadChannels();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Vymazanie zlyhalo');
+    }
+  }
+
+  async function send(e?: React.FormEvent) {
+    e?.preventDefault();
     const body = text.trim();
     if (!body || !activeId) return;
     const channelId = activeId; // kanál v momente odoslania
+    const replyToId = replyTo?.id;
     setText('');
+    setReplyTo(null);
     try {
       const message = await api<Message>(`/chat/channels/${channelId}/messages`, {
         method: 'POST',
-        body: JSON.stringify({ body }),
+        body: JSON.stringify({ body, replyToId }),
       });
       appendMessage(message, channelId);
       void reloadChannels();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Odoslanie zlyhalo');
       setText(body);
+      if (replyToId) setReplyTo((cur) => cur ?? messages.find((m) => m.id === replyToId) ?? null);
     }
   }
 
@@ -200,11 +249,14 @@ export default function ChatPage() {
     }
     const channelId = activeId;
     const caption = text.trim();
+    const replyToId = replyTo?.id;
     setText('');
+    setReplyTo(null);
     try {
       const form = new FormData();
       form.append('file', file);
       if (caption) form.append('body', caption);
+      if (replyToId) form.append('replyToId', replyToId);
       const token = getToken();
       const res = await fetch(`${API_URL}/chat/channels/${channelId}/attachment`, {
         method: 'POST',
@@ -295,8 +347,39 @@ export default function ChatPage() {
                     })}
                   </span>
                 </p>
-                {message.body && <p className="mt-1 text-sm text-gray-800">{message.body}</p>}
+                {message.replyTo && (
+                  <div className="mt-1 rounded border-l-4 border-club-300 bg-white/70 px-2 py-1 text-xs text-gray-600">
+                    <span className="font-semibold">
+                      {message.replyTo.sender.firstName} {message.replyTo.sender.lastName}
+                    </span>
+                    <p className="line-clamp-2 whitespace-pre-wrap break-words">{quoteText(message.replyTo)}</p>
+                  </div>
+                )}
+                {message.body && (
+                  <p className="mt-1 whitespace-pre-wrap break-words text-sm text-gray-800">{message.body}</p>
+                )}
                 {message.attachment && <MessageAttachment att={message.attachment} />}
+                <div className="mt-1 flex gap-3 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReplyTo(message);
+                      textRef.current?.focus();
+                    }}
+                    className="text-club-700 hover:underline"
+                  >
+                    Odpovedať
+                  </button>
+                  {meId === message.sender.id && (
+                    <button
+                      type="button"
+                      onClick={() => void deleteMessage(message.id)}
+                      className="text-red-600 hover:underline"
+                    >
+                      Vymazať
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
             {messages.length === 0 && (
@@ -304,7 +387,21 @@ export default function ChatPage() {
             )}
             <div ref={bottomRef} />
           </div>
-          <form onSubmit={send} className="flex items-center gap-2 border-t border-club-100 p-3">
+          {replyTo && (
+            <div className="flex items-start justify-between gap-2 border-t border-club-100 bg-club-50 px-4 py-2 text-xs text-gray-600">
+              <div className="min-w-0">
+                Odpoveď pre{' '}
+                <span className="font-semibold">
+                  {replyTo.sender.firstName} {replyTo.sender.lastName}
+                </span>
+                <p className="truncate">{quoteText(replyTo)}</p>
+              </div>
+              <button type="button" onClick={() => setReplyTo(null)} className="text-gray-500 hover:text-gray-800" title="Zrušiť odpoveď">
+                ✕
+              </button>
+            </div>
+          )}
+          <form onSubmit={send} className="flex items-end gap-2 border-t border-club-100 p-3">
             <input ref={fileRef} type="file" onChange={onAttach} className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" />
             <button
               type="button"
@@ -315,11 +412,20 @@ export default function ChatPage() {
             >
               📎
             </button>
-            <input
+            <textarea
+              ref={textRef}
+              rows={1}
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="Napíšte správu…"
-              className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-club-500 focus:outline-none"
+              onKeyDown={(e) => {
+                // Enter odošle, Shift+Enter vloží nový riadok
+                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  void send();
+                }
+              }}
+              placeholder="Napíšte správu… (Shift+Enter = nový riadok)"
+              className="max-h-[200px] flex-1 resize-none rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-club-500 focus:outline-none"
             />
             <button
               type="submit"
