@@ -103,7 +103,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   const [scoreThem, setScoreThem] = useState('0');
   const [error, setError] = useState<string | null>(null);
   const [notifyBusy, setNotifyBusy] = useState(false);
-  const [notifyResult, setNotifyResult] = useState<{ recipients: number; missing: Array<{ id: string; name: string }> } | null>(null);
+  const [notifyResult, setNotifyResult] = useState<{ recipients: number; coachCopySent?: boolean; missing: Array<{ id: string; name: string }> } | null>(null);
   const [meetDraft, setMeetDraft] = useState('');
   const [notesDraft, setNotesDraft] = useState('');
   const [detailsBusy, setDetailsBusy] = useState(false);
@@ -261,11 +261,11 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
     setNotifyBusy(true);
     setError(null);
     try {
-      const res = await api<{ recipients: number; sent: number; missing: Array<{ id: string; name: string }> }>(
+      const res = await api<{ recipients: number; sent: number; coachCopySent?: boolean; missing: Array<{ id: string; name: string }> }>(
         `/matches/${id}/notify-nomination`,
         { method: 'POST' },
       );
-      setNotifyResult({ recipients: res.recipients, missing: res.missing });
+      setNotifyResult({ recipients: res.recipients, coachCopySent: res.coachCopySent, missing: res.missing });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Odoslanie zlyhalo');
     } finally {
@@ -641,6 +641,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
               {notifyResult && (
                 <div className="mt-2 rounded-md bg-club-50 p-3 text-sm text-gray-700">
                   <p>Oznam odoslaný na {notifyResult.recipients} e-mailových adries.</p>
+                  {notifyResult.coachCopySent && <p>Kompletná nominácia vám prišla na e-mail.</p>}
                   {notifyResult.missing.length > 0 && (
                     <div className="mt-2">
                       <p className="font-medium text-amber-700">

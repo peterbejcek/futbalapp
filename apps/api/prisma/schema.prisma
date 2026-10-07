@@ -736,6 +736,7 @@ enum ChannelKind {
   TEAM_ANNOUNCEMENTS // Oznamy družstva — píše len tréner/vedenie
   TEAM_TRAINING      // Tréningy — organizácia tréningov
   TEAM_GENERAL       // Všeobecné — diskusia rodičov/hráčov
+  TEAM_EMAIL         // Hromadný email — správa sa zobrazí v kanáli a odíde e-mailom hráčom/rodičom (píše tréner družstva/admin)
   CLUB_ANNOUNCEMENT  // Celoklubové oznamy — píše len vedenie
   COACHES            // Interné pre trénerov
   BOARD              // Interné pre vedenie

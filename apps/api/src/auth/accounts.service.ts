@@ -79,22 +79,37 @@ export class AccountsService {
     return { userId: user.id, email, tempPassword, created: true };
   }
 
-  /** Odošle novému kontu prihlasovacie údaje s dočasným heslom. */
-  private async sendCredentialsEmail(email: string, firstName: string, tempPassword: string) {
+  /** Odošle prihlasovacie údaje (dočasné heslo) + odkazy na portál a stiahnutie aplikácie. */
+  private async sendCredentialsEmail(email: string, firstName: string, tempPassword: string, reset = false) {
     const link = 'https://fkknv.sk/prihlasenie';
+    const androidUrl = 'https://play.google.com/store/apps/details?id=sk.fkknv.app';
+    const iosUrl = 'https://apps.apple.com/sk/app/fk-knv/id6805670800';
+    const btn = (href: string, label: string, bg: string) =>
+      `<a href="${href}" style="display:inline-block;background:${bg};color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;margin:0 8px 8px 0">${label}</a>`;
     const html = `
-      <div style="font-family:Arial,Helvetica,sans-serif;color:#16223c">
-        <h2 style="color:#1a2848">Vitajte v portáli FK Košická Nová Ves</h2>
+      <div style="font-family:Arial,Helvetica,sans-serif;color:#16223c;max-width:560px">
+        <h2 style="color:#1a2848">${reset ? 'Nové heslo do portálu' : 'Vitajte v portáli'} FK Košická Nová Ves</h2>
         <p>Dobrý deň${firstName ? ` ${firstName}` : ''},</p>
-        <p>bolo vám vytvorené konto do klubového portálu. Prihláste sa týmito údajmi:</p>
+        <p>${
+          reset
+            ? 'vaše heslo do klubového portálu bolo obnovené. Prihláste sa týmito údajmi:'
+            : 'bolo vám vytvorené konto do klubového portálu a mobilnej aplikácie FK Košická Nová Ves. Prihláste sa týmito údajmi:'
+        }</p>
         <table style="margin:12px 0;font-size:15px">
           <tr><td style="color:#6b7280;padding:2px 8px 2px 0">Prihlasovací e-mail:</td><td><strong>${email}</strong></td></tr>
           <tr><td style="color:#6b7280;padding:2px 8px 2px 0">Dočasné heslo:</td><td><strong style="letter-spacing:1px">${tempPassword}</strong></td></tr>
         </table>
-        <p><a href="${link}" style="display:inline-block;background:#2b4278;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Prihlásiť sa</a></p>
-        <p style="color:#6b7280;font-size:13px">Po prihlásení si heslo, prosím, zmeňte v nastaveniach. Ak ste o konto nežiadali, tento e-mail ignorujte.</p>
+        <p><strong>Prihlásenie cez web:</strong></p>
+        <p>${btn(link, 'Prihlásiť sa do portálu', '#2b4278')}</p>
+        <p><strong>Mobilná aplikácia FK KNV</strong> — nominácie, dochádzka, komunikácia a oznamy vždy po ruke. Stiahnite si ju sem:</p>
+        <p>${btn(androidUrl, 'Android — Google Play', '#1a2848')}${btn(iosUrl, 'iPhone — App Store', '#1a2848')}</p>
+        <p style="color:#6b7280;font-size:13px">Po prvom prihlásení si, prosím, heslo zmeňte v nastaveniach (rovnaké údaje platia na webe aj v aplikácii). Ak ste o konto nežiadali, tento e-mail ignorujte.</p>
       </div>`;
-    await this.email.send([email], 'Prihlasovacie údaje — FK Košická Nová Ves', html);
+    await this.email.send(
+      [email],
+      reset ? 'Nové heslo — FK Košická Nová Ves' : 'Prihlasovacie údaje — FK Košická Nová Ves',
+      html,
+    );
   }
 
   /**
@@ -162,6 +177,8 @@ export class AccountsService {
       where: { id: userId },
       data: { passwordHash: await bcrypt.hash(tempPassword, 10) },
     });
+    // nové heslo pošli aj priamo používateľovi na e-mail (aj s odkazmi na portál a aplikáciu)
+    await this.sendCredentialsEmail(user.email, user.firstName ?? '', tempPassword, true);
     return { tempPassword };
   }
 

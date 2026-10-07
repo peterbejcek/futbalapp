@@ -11,7 +11,7 @@ export class EmailService {
   private readonly apiKey = process.env.RESEND_API_KEY;
   private readonly from = process.env.EMAIL_FROM ?? 'FK Košická Nová Ves <noreply@fkknv.sk>';
 
-  async send(to: string[], subject: string, html: string): Promise<{ sent: boolean }> {
+  async send(to: string[], subject: string, html: string, replyTo?: string): Promise<{ sent: boolean }> {
     if (to.length === 0) return { sent: false };
     if (!this.apiKey) {
       this.logger.log(`[DEV e-mail] to=${to.join(',')} subject="${subject}"`);
@@ -24,7 +24,7 @@ export class EmailService {
           Authorization: `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ from: this.from, to, subject, html }),
+        body: JSON.stringify({ from: this.from, to, subject, html, ...(replyTo ? { reply_to: replyTo } : {}) }),
       });
       if (!response.ok) {
         this.logger.warn(`Resend vrátil ${response.status}: ${await response.text()}`);

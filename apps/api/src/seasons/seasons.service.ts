@@ -44,10 +44,11 @@ export class SeasonsService {
       data: { teamCategoryId: category.id, name, sortOrder: count },
     });
     // nové družstvo dostane vlastné komunikačné podkanály (Oznamy/Tréningy/Všeobecné)
-    const subchannels: Array<{ kind: 'TEAM_ANNOUNCEMENTS' | 'TEAM_TRAINING' | 'TEAM_GENERAL'; suffix: string }> = [
+    const subchannels: Array<{ kind: 'TEAM_ANNOUNCEMENTS' | 'TEAM_TRAINING' | 'TEAM_GENERAL' | 'TEAM_EMAIL'; suffix: string }> = [
       { kind: 'TEAM_ANNOUNCEMENTS', suffix: ' · Oznamy' },
       { kind: 'TEAM_TRAINING', suffix: ' · Tréningy' },
       { kind: 'TEAM_GENERAL', suffix: ' · Všeobecné' },
+      { kind: 'TEAM_EMAIL', suffix: ' · Hromadný email' },
     ];
     for (const sc of subchannels) {
       await this.prisma.channel.create({

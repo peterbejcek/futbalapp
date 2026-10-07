@@ -1,5 +1,6 @@
-import { ForbiddenException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../notifications/email.service';
 import { PushService } from '../notifications/push.service';
 import { ChatGateway } from './chat.gateway';
 import type { AuthUser } from '../auth/current-user.decorator';
@@ -23,11 +24,21 @@ const MESSAGE_INCLUDE = {
 /** Interné kanály len pre daný okruh. */
 const STAFF_ONLY = new Set(['COACHES', 'BOARD']);
 
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** Smie používateľ spravovať hromadné e-maily daného družstva (admin/vedúci, tréner družstva)? */
+function canUseTeamEmail(user: AuthUser, teamId: string | null) {
+  if (isStaff(user)) return true;
+  return user.roles.some((r) => r.role === 'COACH' && (!r.teamId || r.teamId === teamId));
+}
+
 @Injectable()
 export class ChatService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pushService: PushService,
+    private readonly email: EmailService,
     @Inject(forwardRef(() => ChatGateway)) private readonly chatGateway: ChatGateway,
   ) {}
 
@@ -53,11 +64,15 @@ export class ChatService {
     // hráč/rodič: len kanály svojich družstiev (a detí); tréner: všetky
     const relevant = !staff && !coach ? await this.relevantTeamIds(user.id) : [];
     const demo = isDemoScope(user); // demo konto: len demo kanály; ostatní: bez demo
+    const coachTeamIds = user.roles.filter((r) => r.role === 'COACH' && r.teamId).map((r) => r.teamId!);
+    const coachAll = user.roles.some((r) => r.role === 'COACH' && !r.teamId);
     const channels = await this.prisma.channel.findMany({
       where: staff
         ? { isDemo: demo }
         : {
             isDemo: demo,
+            // „Hromadný email" vidí len tréner družstva a vedenie (nie hráči/rodičia)
+            AND: coachAll ? [] : [{ NOT: { kind: 'TEAM_EMAIL' as const, teamId: { notIn: coachTeamIds } } }],
             OR: [
               { kind: 'CLUB_ANNOUNCEMENT' }, // celoklubové oznamy číta každý prihlásený
               { members: { some: { userId: user.id } } },
@@ -129,6 +144,10 @@ export class ChatService {
       if (!staff && !coach && !membership) throw new ForbiddenException('Nemáte prístup k tomuto kanálu');
       return channel;
     }
+    if (channel.kind === 'TEAM_EMAIL') {
+      if (!canUseTeamEmail(user, channel.teamId)) throw new ForbiddenException('Hromadný email môže používať len tréner družstva alebo vedenie');
+      return channel;
+    }
     if (STAFF_ONLY.has(channel.kind)) {
       if (!staff && !membership) throw new ForbiddenException('Nemáte prístup k tomuto kanálu');
       return channel;
@@ -194,8 +213,56 @@ export class ChatService {
     });
 
     this.chatGateway.broadcastMessage(channelId, message);
+    if (channel.kind === 'TEAM_EMAIL') {
+      const emailed = await this.sendTeamEmail(channel, user, message.sender, body);
+      return { ...message, emailedTo: emailed };
+    }
     await this.notifyMembers(channel, user.id, `${message.sender.firstName} ${message.sender.lastName}: ${body.slice(0, 120)}`);
     return message;
+  }
+
+  /** Rozošle text správy e-mailom hráčom a rodičom družstva (aktuálna sezóna). Vráti počet adries. */
+  private async sendTeamEmail(
+    channel: { teamId: string | null; name: string },
+    user: AuthUser,
+    sender: { firstName: string; lastName: string },
+    body: string,
+  ) {
+    if (!channel.teamId) return 0;
+    const season = await this.prisma.season.findFirst({ where: { isActive: true } });
+    if (!season) return 0;
+    const team = await this.prisma.team.findUnique({ where: { id: channel.teamId }, select: { name: true } });
+    const memberships = await this.prisma.teamMembership.findMany({
+      where: { seasonId: season.id, teamId: channel.teamId, leftAt: null },
+      select: {
+        member: {
+          select: {
+            user: { select: { email: true } },
+            guardians: { select: { user: { select: { email: true } } } },
+          },
+        },
+      },
+    });
+    const emails = new Set<string>();
+    for (const { member } of memberships) {
+      if (member.user?.email) emails.add(member.user.email.trim().toLowerCase());
+      for (const g of member.guardians) if (g.user.email) emails.add(g.user.email.trim().toLowerCase());
+    }
+    emails.delete(user.email.trim().toLowerCase()); // odosielateľ dostane len kópiu nižšie
+    const teamName = team?.name ?? channel.name;
+    const senderName = `${sender.firstName} ${sender.lastName}`;
+    const html = `
+      <div style="font-family:Arial,Helvetica,sans-serif;color:#16223c">
+        <h2 style="color:#1a2848">${escapeHtml(teamName)} — správa od trénera</h2>
+        <div style="margin:12px 0;font-size:15px;line-height:1.5">${escapeHtml(body).replace(/\n/g, '<br>')}</div>
+        <p style="color:#6b7280;font-size:13px">Odosielateľ: ${escapeHtml(senderName)}. Na tento e-mail môžete odpovedať priamo odosielateľovi.</p>
+      </div>`;
+    const subject = `${teamName} — správa od ${senderName}`;
+    // každému zvlášť, aby si príjemcovia navzájom nevideli adresy
+    for (const to of [...emails, user.email]) {
+      await this.email.send([to], subject, html, user.email);
+    }
+    return emails.size;
   }
 
   private async notifyMembers(channel: { id: string; name: string }, senderId: string, body: string) {
@@ -218,6 +285,7 @@ export class ChatService {
     file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
   ) {
     const channel = await this.assertAccess(channelId, user, true);
+    if (channel.kind === 'TEAM_EMAIL') throw new BadRequestException('Do hromadného emailu nie je možné vkladať prílohy');
     const replyTo = await this.validReplyTo(channelId, replyToId);
     const message = await this.prisma.message.create({
       data: { channelId, senderId: user.id, body: body?.trim() ?? '', replyToId: replyTo },
@@ -265,10 +333,11 @@ export class ChatService {
     // Doplň chýbajúce podkanály pre všetky družstvá (napr. nové družstvo pridané
     // v Nastaveniach, ktorému kanály ešte nevznikli).
     const teams = await this.prisma.team.findMany();
-    const subKinds: Array<{ kind: 'TEAM_ANNOUNCEMENTS' | 'TEAM_TRAINING' | 'TEAM_GENERAL'; suffix: string }> = [
+    const subKinds: Array<{ kind: 'TEAM_ANNOUNCEMENTS' | 'TEAM_TRAINING' | 'TEAM_GENERAL' | 'TEAM_EMAIL'; suffix: string }> = [
       { kind: 'TEAM_ANNOUNCEMENTS', suffix: ' · Oznamy' },
       { kind: 'TEAM_TRAINING', suffix: ' · Tréningy' },
       { kind: 'TEAM_GENERAL', suffix: ' · Všeobecné' },
+      { kind: 'TEAM_EMAIL', suffix: ' · Hromadný email' },
     ];
     for (const team of teams) {
       for (const sc of subKinds) {
@@ -281,8 +350,9 @@ export class ChatService {
       }
     }
 
+    // „Hromadný email" nemá členov — prístup určuje rola (tréner družstva / admin)
     const channels = await this.prisma.channel.findMany({
-      where: { teamId: { not: null } },
+      where: { teamId: { not: null }, kind: { not: 'TEAM_EMAIL' } },
     });
 
     let synced = 0;

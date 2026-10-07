@@ -10,6 +10,12 @@ import type { AuthUser } from '../auth/current-user.decorator';
 /** Kategórie, kde hráč potvrdzuje účasť na zápase. */
 const CONFIRM_CATEGORIES = ['U17', 'U19', 'MUZI'];
 
+const NOMINATION_STATUS_SK: Record<string, string> = {
+  NOMINATED: 'nominovaný',
+  CONFIRMED: 'potvrdil účasť',
+  DECLINED: 'odmietol',
+};
+
 @Injectable()
 export class MatchesService {
   constructor(
@@ -191,7 +197,32 @@ export class MatchesService {
       const res = await this.email.send([to], subject, html);
       if (res.sent) sent++;
     }
-    return { recipients: emails.size, sent, missing, needsConfirm };
+
+    // kompletná nominácia na e-mail trénera, ktorý oznam rozposlal
+    const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const players = [...match.nominations]
+      .sort((x, y) => x.member.lastName.localeCompare(y.member.lastName, 'sk'))
+      .map((n, i) => `<tr><td style="padding:2px 10px 2px 0;color:#6b7280">${i + 1}.</td><td>${esc(`${n.member.lastName} ${n.member.firstName}`)}</td><td style="padding-left:12px;color:#6b7280">${NOMINATION_STATUS_SK[n.status] ?? ''}</td></tr>`)
+      .join('');
+    const coachHtml = `
+      <div style="font-family:Arial,Helvetica,sans-serif;color:#16223c">
+        <h2 style="color:#1a2848">Nominácia na zápas — kópia pre trénera</h2>
+        <table style="margin:10px 0;font-size:15px">
+          <tr><td style="color:#6b7280;padding:2px 8px 2px 0">Zápas:</td><td><strong>${esc(vs)}</strong></td></tr>
+          <tr><td style="color:#6b7280;padding:2px 8px 2px 0">Kedy:</td><td><strong>${esc(when)}</strong></td></tr>
+          ${ev.location ? `<tr><td style="color:#6b7280;padding:2px 8px 2px 0">Kde:</td><td>${esc(ev.location)}</td></tr>` : ''}
+        </table>
+        <p><strong>Nominovaní hráči (${match.nominations.length}):</strong></p>
+        <table style="font-size:15px">${players || '<tr><td>Žiadni hráči</td></tr>'}</table>
+        ${
+          missing.length > 0
+            ? `<p style="margin-top:14px"><strong style="color:#b45309">Bez e-mailu (oznam nedostali):</strong> ${esc(missing.map((m) => m.name).join(', '))}</p>`
+            : ''
+        }
+        <p style="color:#6b7280;font-size:13px">Oznam bol odoslaný na ${emails.size} e-mailových adries hráčov a rodičov.</p>
+      </div>`;
+    const coachRes = await this.email.send([user.email], `Nominácia (kópia) — ${vs}`, coachHtml);
+    return { recipients: emails.size, sent, missing, needsConfirm, coachCopySent: coachRes.sent };
   }
 
   /**

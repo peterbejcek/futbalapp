@@ -59,7 +59,7 @@ export default function NominationScreen() {
   async function sendEmail() {
     setNotifying(true);
     try {
-      const res = await api<{ recipients: number; sent: number; missing: Array<{ name: string }> }>(
+      const res = await api<{ recipients: number; sent: number; coachCopySent?: boolean; missing: Array<{ name: string }> }>(
         `/matches/${id}/notify-nomination`,
         { method: 'POST' },
       );
@@ -67,7 +67,7 @@ export default function NominationScreen() {
         res.missing.length > 0
           ? `\n\nBez e-mailu (nedostali oznam):\n${res.missing.map((m) => `• ${m.name}`).join('\n')}`
           : '';
-      Alert.alert('Oznam odoslaný', `Odoslané na ${res.recipients} adries.${missingMsg}`);
+      Alert.alert('Oznam odoslaný', `Odoslané na ${res.recipients} adries.${res.coachCopySent ? '\nKompletná nominácia vám prišla na e-mail.' : ''}${missingMsg}`);
     } catch (e) {
       Alert.alert('Chyba', e instanceof Error ? e.message : 'Odoslanie zlyhalo');
     } finally {

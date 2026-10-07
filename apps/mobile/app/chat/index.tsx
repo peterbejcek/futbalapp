@@ -18,6 +18,7 @@ const KIND_LABELS: Record<string, string> = {
   TEAM_ANNOUNCEMENTS: '📢 Oznamy',
   TEAM_TRAINING: '🏃 Tréningy',
   TEAM_GENERAL: '💬 Všeobecné',
+  TEAM_EMAIL: '✉ Hromadný email',
   CLUB_ANNOUNCEMENT: '📣 Oznamy klubu',
   COACHES: '👔 Tréneri a vedenie',
   BOARD: '🗂 Vedenie',

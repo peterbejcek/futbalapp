@@ -54,6 +54,7 @@ const KIND_LABELS: Record<string, string> = {
   TEAM_ANNOUNCEMENTS: '📢 Oznamy',
   TEAM_TRAINING: '🏃 Tréningy',
   TEAM_GENERAL: '💬 Všeobecné',
+  TEAM_EMAIL: '✉ Hromadný email',
   CLUB_ANNOUNCEMENT: '📣 Oznamy klubu',
   COACHES: '👔 Tréneri a vedenie',
   BOARD: '🗂 Vedenie',
@@ -78,6 +79,7 @@ interface Message {
   createdAt: string;
   sender: { id: string; firstName: string; lastName: string };
   attachment?: Attachment | null;
+  emailedTo?: number;
   replyTo?: {
     id: string;
     body: string;
@@ -95,6 +97,7 @@ export default function ChatPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
+  const [info, setInfo] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [meId, setMeId] = useState<string | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -141,6 +144,7 @@ export default function ChatPage() {
   // otvorenie kanála: hneď vynuluj neprečítané (na serveri sa označí pri načítaní správ)
   function openChannel(id: string) {
     setActiveId(id);
+    setInfo(null);
     setReplyTo(null);
     setChannels((prev) => prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c)));
   }
@@ -231,6 +235,7 @@ export default function ChatPage() {
         body: JSON.stringify({ body, replyToId }),
       });
       appendMessage(message, channelId);
+      if (typeof message.emailedTo === 'number') setInfo(`Správa odoslaná e-mailom na ${message.emailedTo} adries (hráči a rodičia).`);
       void reloadChannels();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Odoslanie zlyhalo');
@@ -275,6 +280,7 @@ export default function ChatPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-club-900">Komunikácia</h1>
+      {info && <p className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">{info}</p>}
       {error && <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
       <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
@@ -334,6 +340,11 @@ export default function ChatPage() {
         <section className="flex h-[600px] flex-col rounded-lg border border-club-100 bg-white">
           <h2 className="border-b border-club-100 px-4 py-3 text-sm font-semibold text-club-800">
             {active?.name ?? 'Vyberte kanál'}
+            {active?.kind === 'TEAM_EMAIL' && (
+              <span className="ml-2 font-normal text-gray-500">
+                — napísaná správa sa odošle aj e-mailom všetkým hráčom a rodičom družstva
+              </span>
+            )}
           </h2>
           <div className="flex-1 space-y-3 overflow-y-auto p-4">
             {messages.map((message) => (
@@ -406,7 +417,7 @@ export default function ChatPage() {
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              disabled={!activeId}
+              disabled={!activeId || active?.kind === 'TEAM_EMAIL'}
               title="Priložiť obrázok alebo dokument"
               className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
             >
