@@ -57,6 +57,19 @@ interface ImportResult {
   items: Array<{ name: string; action: 'created' | 'updated' | 'unchanged'; registrationValidUntil: string | null }>;
 }
 
+interface IssfChange {
+  memberId: string;
+  name: string;
+  fields: Array<{ field: string; label: string; current: string; incoming: string }>;
+}
+interface IssfPreview {
+  fetched: number;
+  newCount: number;
+  changeCount: number;
+  newPlayers: Array<{ firstName: string; lastName: string; registrationNumber: string | null; birthDate: string | null }>;
+  changes: IssfChange[];
+}
+
 /** Farebné zvýraznenie platnosti preukazu: po platnosti / do 30 dní / ok. */
 function cardBadge(iso: string | null | undefined) {
   if (!iso) return null;
@@ -115,6 +128,11 @@ function MembersTable() {
   const [creating, setCreating] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [importing, setImporting] = useState(false);
+  const [issfBusy, setIssfBusy] = useState(false);
+  const [issfPreview, setIssfPreview] = useState<IssfPreview | null>(null);
+  const [issfOverwrite, setIssfOverwrite] = useState<Set<string>>(new Set());
+  const [issfCreateNew, setIssfCreateNew] = useState(true);
+  const [issfResult, setIssfResult] = useState<{ created: number; updated: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const categoryParam = searchParams.get('category') ?? '';
@@ -188,6 +206,54 @@ function MembersTable() {
       setError(err instanceof Error ? err.message : 'Import zlyhal');
     } finally {
       setImporting(false);
+    }
+  }
+
+  async function startIssfSync() {
+    setIssfBusy(true);
+    setError(null);
+    setIssfResult(null);
+    try {
+      const res = await api<IssfPreview>('/members/issf-sync/preview', { method: 'POST' });
+      if (res.newCount + res.changeCount === 0) {
+        setIssfResult({ created: 0, updated: 0 });
+        return;
+      }
+      setIssfPreview(res);
+      setIssfOverwrite(new Set(res.changes.map((c) => c.memberId))); // predvolene prepísať všetko
+      setIssfCreateNew(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'ISSF synchronizácia zlyhala');
+    } finally {
+      setIssfBusy(false);
+    }
+  }
+
+  function toggleIssfOverwrite(memberId: string) {
+    setIssfOverwrite((prev) => {
+      const next = new Set(prev);
+      if (next.has(memberId)) next.delete(memberId);
+      else next.add(memberId);
+      return next;
+    });
+  }
+
+  async function applyIssfSync() {
+    if (!issfPreview) return;
+    setIssfBusy(true);
+    setError(null);
+    try {
+      const res = await api<{ created: number; updated: number }>('/members/issf-sync/apply', {
+        method: 'POST',
+        body: JSON.stringify({ overwriteMemberIds: [...issfOverwrite], createNew: issfCreateNew }),
+      });
+      setIssfResult(res);
+      setIssfPreview(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Uloženie synchronizácie zlyhalo');
+    } finally {
+      setIssfBusy(false);
     }
   }
 
@@ -280,6 +346,9 @@ function MembersTable() {
             <Button variant="ghost" onClick={() => fileRef.current?.click()} disabled={importing}>
               {importing ? 'Importujem…' : '⬆ Import z Excelu'}
             </Button>
+            <Button variant="ghost" onClick={startIssfSync} disabled={issfBusy}>
+              {issfBusy ? 'Synchronizujem…' : '🔄 Synchronizovať z ISSF'}
+            </Button>
             <Button onClick={() => setCreating(true)}>+ Nový člen</Button>
           </div>
         )}
@@ -304,6 +373,92 @@ function MembersTable() {
             </button>
           </div>
         </Card>
+      )}
+
+      {issfResult && (
+        <Card className="border-club-300 bg-club-50">
+          <div className="flex items-start justify-between gap-4">
+            <p className="text-sm font-semibold text-club-900">
+              {issfResult.created === 0 && issfResult.updated === 0
+                ? 'ISSF synchronizácia: žiadne nové údaje — evidencia je aktuálna.'
+                : `ISSF synchronizácia dokončená: ${issfResult.created} pridaných, ${issfResult.updated} aktualizovaných.`}
+            </p>
+            <button onClick={() => setIssfResult(null)} className="text-sm text-club-600 hover:underline">
+              Zavrieť
+            </button>
+          </div>
+        </Card>
+      )}
+
+      {issfPreview && (
+        <Modal open onClose={() => setIssfPreview(null)} title="Synchronizácia z ISSF">
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Z ISSF načítaných {issfPreview.fetched} hráčov. Noví sa vytvoria, pri existujúcich s rozdielmi vyberte,
+              či prepísať údaje z ISSF alebo ponechať súčasné.
+            </p>
+
+            {issfPreview.newCount > 0 && (
+              <div className="rounded-md border border-club-100 p-3">
+                <label className="flex items-center gap-2 text-sm font-medium text-club-900">
+                  <input type="checkbox" checked={issfCreateNew} onChange={(e) => setIssfCreateNew(e.target.checked)} />
+                  Vytvoriť nových hráčov ({issfPreview.newCount})
+                </label>
+                <ul className="mt-2 max-h-28 overflow-y-auto pl-6 text-sm text-gray-600">
+                  {issfPreview.newPlayers.map((p, i) => (
+                    <li key={i} className="list-disc">
+                      {p.lastName} {p.firstName}
+                      {p.birthDate && p.birthDate !== '—' ? ` (${p.birthDate})` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {issfPreview.changeCount > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-club-900">Zmeny u existujúcich hráčov ({issfPreview.changeCount})</p>
+                <div className="max-h-72 space-y-2 overflow-y-auto">
+                  {issfPreview.changes.map((c) => (
+                    <div key={c.memberId} className="rounded-md border border-gray-200 p-3">
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-800">
+                        <input
+                          type="checkbox"
+                          checked={issfOverwrite.has(c.memberId)}
+                          onChange={() => toggleIssfOverwrite(c.memberId)}
+                        />
+                        {c.name}
+                        <span className="text-xs font-normal text-gray-500">
+                          {issfOverwrite.has(c.memberId) ? '— prepísať z ISSF' : '— ponechať súčasné'}
+                        </span>
+                      </label>
+                      <table className="mt-2 w-full text-xs">
+                        <tbody>
+                          {c.fields.map((f) => (
+                            <tr key={f.field} className="align-top">
+                              <td className="w-40 py-0.5 pr-2 text-gray-500">{f.label}</td>
+                              <td className="py-0.5 pr-2 text-gray-400 line-through">{f.current}</td>
+                              <td className="py-0.5 text-club-800">→ {f.incoming}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setIssfPreview(null)}>
+                Zrušiť
+              </Button>
+              <Button onClick={applyIssfSync} disabled={issfBusy}>
+                {issfBusy ? 'Ukladám…' : 'Potvrdiť a uložiť'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       <ErrorText>{error}</ErrorText>

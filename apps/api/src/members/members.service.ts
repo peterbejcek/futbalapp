@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import {
   categoryForBirthDate,
   ROLES,
@@ -9,6 +10,8 @@ import {
 } from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccountsService } from '../auth/accounts.service';
+import { PushService } from '../notifications/push.service';
+import { IssfService } from '../integrations/issf/issf.service';
 import { parseRosterXlsx, type RosterRow } from './roster-import';
 import type { Member as MemberRecord } from '@prisma/client';
 import type { AuthUser } from '../auth/current-user.decorator';
@@ -46,11 +49,38 @@ export interface AccountResult {
   created: boolean;
 }
 
+/** Popisky polí registračného preukazu pre náhľad ISSF synchronizácie. */
+const ROSTER_FIELD_LABELS: Record<string, string> = {
+  firstName: 'Meno',
+  lastName: 'Priezvisko',
+  birthDate: 'Dátum narodenia',
+  status: 'Stav',
+  registrationNumber: 'Registračné číslo',
+  registrationValidUntil: 'Platnosť preukazu do',
+  registeredAt: 'Dátum registrácie',
+  homeClub: 'Materský klub',
+  guestClub: 'Hosťujúci klub',
+  clubAffiliation: 'Klubová príslušnosť',
+};
+
+/** Zobrazí hodnotu poľa (dátum ako d.m.yyyy z UTC) pre náhľad rozdielov. */
+function fmtRosterValue(value: unknown): string {
+  if (value == null || value === '') return '—';
+  if (value instanceof Date) return `${value.getUTCDate()}. ${value.getUTCMonth() + 1}. ${value.getUTCFullYear()}`;
+  return String(value);
+}
+
 @Injectable()
 export class MembersService {
+  private readonly logger = new Logger(MembersService.name);
+  /** krátkodobá vyrovnávacia pamäť posledného ISSF fetchu (preview → apply bez 2. loginu) */
+  private issfCache: { at: number; rows: RosterRow[] } | null = null;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly accounts: AccountsService,
+    private readonly push: PushService,
+    private readonly issf: IssfService,
   ) {}
 
   async list(params: {
@@ -556,6 +586,131 @@ export class MembersService {
     }
 
     return { total: rows.length, created, updated, unchanged, items };
+  }
+
+  // -------------------------------------------------------------------------
+  // Synchronizácia s ISSF (prihlásené čítanie zoznamu hráčov klubu)
+  // -------------------------------------------------------------------------
+
+  /** Vytvorí nového člena z importného riadku a zaradí ho podľa ročníka. */
+  private async createFromRoster(row: RosterRow, seasonId: string | null, rules: AssignRule[]) {
+    const m = await this.prisma.member.create({
+      data: {
+        firstName: row.firstName,
+        lastName: row.lastName,
+        birthDate: row.birthDate ?? undefined,
+        status: row.status,
+        registrationNumber: row.registrationNumber ?? undefined,
+        homeClub: row.homeClub ?? undefined,
+        guestClub: row.guestClub ?? undefined,
+        clubAffiliation: row.clubAffiliation ?? undefined,
+        registrationValidUntil: row.registrationValidUntil ?? undefined,
+        registeredAt: row.registeredAt ?? undefined,
+      },
+    });
+    let team: string | null = null;
+    if (seasonId && row.birthDate) team = await this.assignByAge(m.id, row.birthDate, rules, seasonId);
+    return { memberId: m.id, team };
+  }
+
+  /**
+   * Náhľad synchronizácie z ISSF: stiahne aktuálny zoznam hráčov a porovná ho
+   * s evidenciou. Vráti nových hráčov (vytvoria sa) a existujúcich s rozdielmi
+   * (na potvrdenie prepísania). Nič nemení. Fetch sa uloží do krátkej cache,
+   * aby apply nemusel znova volať ISSF.
+   */
+  async issfSyncPreview() {
+    const rows = await this.issf.fetchRoster();
+    this.issfCache = { at: Date.now(), rows };
+
+    const newPlayers: Array<{ firstName: string; lastName: string; registrationNumber: string | null; birthDate: string | null }> = [];
+    const changes: Array<{ memberId: string; name: string; fields: Array<{ field: string; label: string; current: string; incoming: string }> }> = [];
+
+    for (const row of rows) {
+      const existing = await this.findRosterMatch(row);
+      if (!existing) {
+        newPlayers.push({
+          firstName: row.firstName,
+          lastName: row.lastName,
+          registrationNumber: row.registrationNumber,
+          birthDate: fmtRosterValue(row.birthDate),
+        });
+        continue;
+      }
+      const changed = this.diffRosterData(existing, row);
+      const fields = Object.keys(changed).map((f) => ({
+        field: f,
+        label: ROSTER_FIELD_LABELS[f] ?? f,
+        current: fmtRosterValue((existing as unknown as Record<string, unknown>)[f]),
+        incoming: fmtRosterValue((changed as Record<string, unknown>)[f]),
+      }));
+      if (fields.length) changes.push({ memberId: existing.id, name: `${existing.lastName} ${existing.firstName}`, fields });
+    }
+
+    return { fetched: rows.length, newCount: newPlayers.length, changeCount: changes.length, newPlayers, changes };
+  }
+
+  /**
+   * Aplikuje synchronizáciu z ISSF: vytvorí všetkých nových hráčov (ak createNew)
+   * a prepíše údaje len u potvrdených členov (overwriteMemberIds). Zdroj dát je
+   * cache z posledného preview (ak nie je čerstvá, znova sa načíta z ISSF).
+   */
+  async issfSyncApply(input: { overwriteMemberIds?: string[]; createNew?: boolean }) {
+    const fresh = this.issfCache && Date.now() - this.issfCache.at < 15 * 60 * 1000;
+    const rows = fresh ? this.issfCache!.rows : await this.issf.fetchRoster();
+    const { seasonId, rules } = await this.loadAssignRules();
+    const overwrite = new Set(input.overwriteMemberIds ?? []);
+    const createNew = input.createNew !== false;
+
+    let created = 0;
+    let updated = 0;
+    for (const row of rows) {
+      const existing = await this.findRosterMatch(row);
+      if (!existing) {
+        if (createNew) {
+          await this.createFromRoster(row, seasonId, rules);
+          created++;
+        }
+        continue;
+      }
+      if (overwrite.has(existing.id)) {
+        const changed = this.diffRosterData(existing, row);
+        if (Object.keys(changed).length > 0) {
+          await this.prisma.member.update({ where: { id: existing.id }, data: changed });
+          updated++;
+        }
+      }
+    }
+    this.issfCache = null;
+    return { created, updated };
+  }
+
+  /**
+   * Týždenná kontrola ISSF (pondelok 6:00): ak pribudli noví hráči alebo zmeny,
+   * upozorní vedenie klubu, nech synchronizáciu potvrdí v portáli. Sama nič nemení.
+   */
+  @Cron('0 6 * * 1')
+  async issfWeeklyCheck() {
+    if (!this.issf.isConfigured()) return;
+    try {
+      const preview = await this.issfSyncPreview();
+      if (preview.newCount + preview.changeCount === 0) return;
+      const managers = await this.prisma.user.findMany({
+        where: { isDemo: false, roles: { some: { role: { in: ['ADMIN', 'MANAGER'] as never } } } },
+        select: { id: true },
+      });
+      await this.push.notifyUsers(
+        managers.map((m) => m.id),
+        {
+          title: 'ISSF synchronizácia',
+          body: `${preview.newCount} nových hráčov a ${preview.changeCount} zmien čaká na potvrdenie.`,
+          data: { type: 'issf-sync' },
+        },
+      );
+      this.logger.log(`ISSF check: ${preview.newCount} nových, ${preview.changeCount} zmien.`);
+    } catch (e) {
+      this.logger.warn(`ISSF týždenná kontrola zlyhala: ${e instanceof Error ? e.message : e}`);
+    }
   }
 
   /**

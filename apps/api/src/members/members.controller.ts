@@ -75,6 +75,20 @@ export class MembersController {
     return this.membersService.importRoster(file.buffer);
   }
 
+  /** Náhľad synchronizácie z ISSF: stiahne zoznam hráčov a vráti rozdiely (nič nemení). */
+  @Post('issf-sync/preview')
+  @Roles('ADMIN', 'MANAGER')
+  issfSyncPreview() {
+    return this.membersService.issfSyncPreview();
+  }
+
+  /** Potvrdenie synchronizácie z ISSF: vytvorí nových + prepíše potvrdených členov. */
+  @Post('issf-sync/apply')
+  @Roles('ADMIN', 'MANAGER')
+  issfSyncApply(@Body() body: { overwriteMemberIds?: string[]; createNew?: boolean }) {
+    return this.membersService.issfSyncApply(body ?? {});
+  }
+
   /** Fotka hráča (obrázok) — verejné podľa neuhádnuteľného ID. */
   @Public()
   @Get(':id/photo')

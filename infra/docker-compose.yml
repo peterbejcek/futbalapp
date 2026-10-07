@@ -41,6 +41,11 @@ services:
       VEO_CLIENT_ID: ${VEO_CLIENT_ID:-}
       VEO_USERNAME: ${VEO_USERNAME:-}
       VEO_PASSWORD: ${VEO_PASSWORD:-}
+      # ISSF (synchronizácia hráčov klubu) — voliteľné
+      ISSF_USERNAME: ${ISSF_USERNAME:-}
+      ISSF_PASSWORD: ${ISSF_PASSWORD:-}
+      ISSF_PLAYERS_URL: ${ISSF_PLAYERS_URL:-}
+      ISSF_LOGIN_URL: ${ISSF_LOGIN_URL:-}
       PORT: 3001
     # migrácie prebehnú automaticky pri štarte (viď Dockerfile.api CMD)
 
