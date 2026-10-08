@@ -46,6 +46,7 @@ services:
       ISSF_PASSWORD: ${ISSF_PASSWORD:-}
       ISSF_PLAYERS_URL: ${ISSF_PLAYERS_URL:-}
       ISSF_LOGIN_URL: ${ISSF_LOGIN_URL:-}
+      ISSF_DEBUG: ${ISSF_DEBUG:-}
       PORT: 3001
     # migrácie prebehnú automaticky pri štarte (viď Dockerfile.api CMD)
 

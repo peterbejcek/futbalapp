@@ -164,7 +164,7 @@ export class IssfService {
     if (/type\s*=\s*["']password["']/i.test(first.body)) {
       throw new BadRequestException('ISSF: po prihlásení nie je prístup k zoznamu hráčov (prihlásenie treba doladiť).');
     }
-    const pages: string[] = [first.body];
+    const pageInfos: Array<{ url: string; body: string }> = [{ url: first.url, body: first.body }];
 
     // Wicket stránkovanie: pozbieraj odkazy na ďalšie stránky toho istého zoznamu
     const hrefs = new Set<string>();
@@ -186,20 +186,42 @@ export class IssfService {
       if (href === first.url) continue;
       try {
         const p = await cjFetch(href, jar);
-        pages.push(p.body);
+        pageInfos.push({ url: p.url, body: p.body });
         fetched++;
       } catch {
         /* preskoč nedostupnú stránku */
       }
     }
 
-    const rows = parseIssfPlayers(pages);
-    this.logger.log(`ISSF: načítaných ${pages.length} stránok, ${rows.length} hráčov.`);
+    const rows = parseIssfPlayers(pageInfos.map((p) => p.body));
+    this.logger.log(`ISSF: načítaných ${pageInfos.length} stránok, ${rows.length} hráčov.`);
     if (!rows.length) {
+      pageInfos.forEach((p, i) => this.diagnose(p.body, p.url, i));
       throw new BadRequestException(
         'ISSF: nenašli sa žiadni hráči (zmenená štruktúra stránky alebo prihlásenie — pozri logy).',
       );
     }
     return rows;
+  }
+
+  /** Diagnostika stiahnutej stránky (keď sa nenašli hráči) — pomáha doladiť parser/login. */
+  private diagnose(html: string, url: string, index: number) {
+    const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1]?.replace(/\s+/g, ' ').trim() ?? '';
+    const hasPwd = /type\s*=\s*["']password["']/i.test(html);
+    const tables = html.match(/<table[\s\S]*?<\/table>/gi) ?? [];
+    const headerSamples = tables.slice(0, 8).map((t, k) => {
+      const firstTr = /<tr[\s\S]*?<\/tr>/i.exec(t)?.[0] ?? '';
+      const cells = (firstTr.match(/<t[hd][\s\S]*?<\/t[hd]>/gi) ?? [])
+        .map((c) => c.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim())
+        .filter(Boolean);
+      return `#${k}[${cells.join(' | ')}]`;
+    });
+    this.logger.warn(
+      `ISSF diag page ${index}: url=${url} | title="${title}" | pwdForm=${hasPwd} | tables=${tables.length} | ${headerSamples.join(' ')}`,
+    );
+    if (process.env.ISSF_DEBUG) {
+      const snippet = html.replace(/\s+/g, ' ').slice(0, 1500);
+      this.logger.warn(`ISSF diag page ${index} snippet: ${snippet}`);
+    }
   }
 }
