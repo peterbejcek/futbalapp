@@ -212,6 +212,10 @@ export class IssfService {
 
     const rows = parseIssfPlayers(bodies);
     this.logger.log(`ISSF: načítaných ${bodies.length} častí (${pageInfos.length} stránok + AJAX), ${rows.length} hráčov.`);
+    if (rows.length) {
+      const sample = rows.slice(0, 5).map((r) => `${r.lastName} ${r.firstName}${r.registrationNumber ? ` (${r.registrationNumber})` : ''}`);
+      this.logger.log(`ISSF vzorka (priezvisko meno): ${sample.join(' | ')}`);
+    }
     if (!rows.length) {
       bodies.forEach((b, i) => this.diagnose(b, i < pageInfos.length ? pageInfos[i]!.url : `ajax#${i}`, i));
       for (const p of pageInfos) if (/ZoznamHracovKlubuPage/i.test(p.url)) this.diagnoseForm(p.body, p.url);
@@ -308,8 +312,9 @@ export class IssfService {
       const type = (/\btype\s*=\s*["']([^"']*)["']/i.exec(tag)?.[1] ?? 'text').toLowerCase();
       const value = /\bvalue\s*=\s*["']([^"']*)["']/i.exec(tag)?.[1] ?? '';
       if (type === 'checkbox') {
-        // zaškrtni všetky stavy (aj neaktívnych/zahraničie), nech máme kompletný zoznam
-        params.append(name, value);
+        // odošli len zaškrtnuté checkboxy (ako prehliadač) — predvolene „Aktívny".
+        // Posielanie nezaškrtnutých stavov spôsobí, že ISSF vráti 0 záznamov.
+        if (/\bchecked\b/i.test(tag)) params.append(name, value);
       } else if (type === 'submit') {
         params.append(name, value);
       } else if (type === 'hidden') {
