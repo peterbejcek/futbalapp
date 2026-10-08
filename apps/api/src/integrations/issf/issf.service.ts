@@ -199,8 +199,14 @@ export class IssfService {
     const bodies: string[] = pageInfos.map((p) => p.body);
     for (const p of pageInfos) {
       if (!/ZoznamHracovKlubuPage/i.test(p.url)) continue;
-      const ajax = await this.fetchWicketAjax(p.url, p.body, jar);
-      bodies.push(...ajax);
+      // zoznam sa naplní odoslaním vyhľadávacieho formulára (prázdne filtre = všetci)
+      const result = await this.submitSearch(p.url, p.body, jar);
+      if (result) {
+        bodies.push(result.body);
+        // stránkovanie výsledkov beží cez Wicket AJAX odkazy v odpovedi
+        const ajax = await this.fetchWicketAjax(result.url, result.body, jar);
+        bodies.push(...ajax);
+      }
     }
 
     const rows = parseIssfPlayers(bodies);
@@ -263,6 +269,58 @@ export class IssfService {
       }
     }
     return out;
+  }
+
+  /**
+   * Odošle vyhľadávací formulár zoznamu hráčov s prázdnymi filtrami (všetky stavy),
+   * čím ISSF vráti stránku s naplnenou tabuľkou hráčov.
+   */
+  private async submitSearch(
+    pageUrl: string,
+    pageBody: string,
+    jar: CookieJar,
+  ): Promise<{ url: string; body: string } | null> {
+    // vyber blok práve vyhľadávacieho formulára (action obsahuje vyhladavaniePanel)
+    const forms = pageBody.match(/<form\b[\s\S]*?<\/form>/gi) ?? [];
+    const form = forms.find((f) => /action\s*=\s*["'][^"']*vyhladavaniePanel/i.test(f));
+    if (!form) {
+      this.logger.warn('ISSF: vyhľadávací formulár sa nenašiel.');
+      return null;
+    }
+    const actionRaw = /<form\b[^>]*\baction\s*=\s*["']([^"']*)["']/i.exec(form)?.[1] ?? '';
+    const action = new URL(actionRaw.replace(/&amp;/g, '&'), pageUrl).toString();
+
+    const params = new URLSearchParams();
+    const inputRe = /<input\b[^>]*>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = inputRe.exec(form))) {
+      const tag = m[0];
+      const name = /\bname\s*=\s*["']([^"']*)["']/i.exec(tag)?.[1];
+      if (!name) continue;
+      const type = (/\btype\s*=\s*["']([^"']*)["']/i.exec(tag)?.[1] ?? 'text').toLowerCase();
+      const value = /\bvalue\s*=\s*["']([^"']*)["']/i.exec(tag)?.[1] ?? '';
+      if (type === 'checkbox') {
+        // zaškrtni všetky stavy (aj neaktívnych/zahraničie), nech máme kompletný zoznam
+        params.append(name, value);
+      } else if (type === 'submit') {
+        params.append(name, value);
+      } else if (type === 'hidden') {
+        params.append(name, value);
+      } else {
+        params.append(name, ''); // prázdne textové filtre = bez obmedzenia
+      }
+    }
+    // select pohlavie → prázdne (obe)
+    if (/name\s*=\s*["']pohlavie["']/i.test(form)) params.set('pohlavie', '');
+
+    const res = await cjFetch(action, jar, {
+      method: 'POST',
+      body: params.toString(),
+      headers: { Referer: pageUrl },
+    });
+    const tables = (res.body.match(/<table[\s\S]*?<\/table>/gi) ?? []).length;
+    this.logger.warn(`ISSF search: POST ${action} → url=${res.url} tables=${tables}`);
+    return { url: res.url, body: res.body };
   }
 
   /** Diagnostika stiahnutej stránky (keď sa nenašli hráči) — pomáha doladiť parser/login. */
