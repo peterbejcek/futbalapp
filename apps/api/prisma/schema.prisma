@@ -151,6 +151,21 @@ model Member {
   matchedTxns        BankTransaction[]   @relation("TxMatchedMember")
   photo              MemberPhoto?
   fitnessTests       FitnessTest[]
+  syncIgnores        MemberSyncIgnore[]
+}
+
+/// Rozdiely z ISSF synchronizácie, ktoré používateľ zvolil „ponechať" — pri
+/// ďalšej synchronizácii sa daná hodnota poľa ignoruje (kým sa v ISSF nezmení).
+model MemberSyncIgnore {
+  id        String   @id @default(cuid())
+  memberId  String
+  field     String
+  value     String
+  updatedAt DateTime @updatedAt
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, field])
 }
 
 /// Fotka hráča uložená ako data URL (mimo zoznamu členov, aby ho nezaťažovala).

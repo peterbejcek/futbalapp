@@ -73,6 +73,13 @@ function sameUtcDay(a: Date | null | undefined, b: Date | null | undefined): boo
   );
 }
 
+/** Normalizovaný kľúč hodnoty poľa (na porovnanie s uloženým „ignorovaným" rozdielom). */
+function rosterValueKey(value: unknown): string {
+  if (value == null || value === '') return '';
+  if (value instanceof Date) return `${value.getUTCFullYear()}-${value.getUTCMonth() + 1}-${value.getUTCDate()}`;
+  return String(value).trim();
+}
+
 /** Zobrazí hodnotu poľa (dátum ako d.m.yyyy z UTC) pre náhľad rozdielov. */
 function fmtRosterValue(value: unknown): string {
   if (value == null || value === '') return '—';
@@ -629,9 +636,21 @@ export class MembersService {
    * (na potvrdenie prepísania). Nič nemení. Fetch sa uloží do krátkej cache,
    * aby apply nemusel znova volať ISSF.
    */
+  /** Načíta uložené „ignorované" rozdiely: memberId → (field → hodnota). */
+  private async loadSyncIgnores(): Promise<Map<string, Map<string, string>>> {
+    const rows = await this.prisma.memberSyncIgnore.findMany();
+    const map = new Map<string, Map<string, string>>();
+    for (const r of rows) {
+      if (!map.has(r.memberId)) map.set(r.memberId, new Map());
+      map.get(r.memberId)!.set(r.field, r.value);
+    }
+    return map;
+  }
+
   async issfSyncPreview() {
     const rows = await this.issf.fetchRoster();
     this.issfCache = { at: Date.now(), rows };
+    const ignores = await this.loadSyncIgnores();
 
     const newPlayers: Array<{ firstName: string; lastName: string; registrationNumber: string | null; birthDate: string | null }> = [];
     const changes: Array<{ memberId: string; name: string; fields: Array<{ field: string; label: string; current: string; incoming: string }> }> = [];
@@ -647,13 +666,16 @@ export class MembersService {
         });
         continue;
       }
-      const changed = this.diffRosterData(existing, row);
-      const fields = Object.keys(changed).map((f) => ({
-        field: f,
-        label: ROSTER_FIELD_LABELS[f] ?? f,
-        current: fmtRosterValue((existing as unknown as Record<string, unknown>)[f]),
-        incoming: fmtRosterValue((changed as Record<string, unknown>)[f]),
-      }));
+      const changed = this.diffRosterData(existing, row, { ignoreName: true });
+      const memberIgnores = ignores.get(existing.id);
+      const fields = Object.keys(changed)
+        .filter((f) => memberIgnores?.get(f) !== rosterValueKey((changed as Record<string, unknown>)[f]))
+        .map((f) => ({
+          field: f,
+          label: ROSTER_FIELD_LABELS[f] ?? f,
+          current: fmtRosterValue((existing as unknown as Record<string, unknown>)[f]),
+          incoming: fmtRosterValue((changed as Record<string, unknown>)[f]),
+        }));
       if (fields.length) changes.push({ memberId: existing.id, name: `${existing.lastName} ${existing.firstName}`, fields });
     }
 
@@ -669,6 +691,7 @@ export class MembersService {
     const fresh = this.issfCache && Date.now() - this.issfCache.at < 15 * 60 * 1000;
     const rows = fresh ? this.issfCache!.rows : await this.issf.fetchRoster();
     const { seasonId, rules } = await this.loadAssignRules();
+    const ignores = await this.loadSyncIgnores();
     const overwrite = new Set(input.overwriteMemberIds ?? []);
     const createNew = input.createNew !== false;
 
@@ -683,11 +706,29 @@ export class MembersService {
         }
         continue;
       }
+      const changed = this.diffRosterData(existing, row, { ignoreName: true });
+      const memberIgnores = ignores.get(existing.id);
+      // zobrazené rozdiely = tie, ktoré neboli predtým „ponechané"
+      const shown = Object.fromEntries(
+        Object.entries(changed).filter(([f, v]) => memberIgnores?.get(f) !== rosterValueKey(v)),
+      );
+      if (!Object.keys(shown).length) continue;
+
       if (overwrite.has(existing.id)) {
-        const changed = this.diffRosterData(existing, row);
-        if (Object.keys(changed).length > 0) {
-          await this.prisma.member.update({ where: { id: existing.id }, data: changed });
-          updated++;
+        await this.prisma.member.update({ where: { id: existing.id }, data: shown });
+        updated++;
+        // po prepísaní už netreba ignorovať nič pre tieto polia
+        await this.prisma.memberSyncIgnore.deleteMany({
+          where: { memberId: existing.id, field: { in: Object.keys(shown) } },
+        });
+      } else {
+        // „ponechať" → zapamätaj hodnoty z ISSF, nech sa rozdiel nabudúce neukazuje
+        for (const [field, value] of Object.entries(shown)) {
+          await this.prisma.memberSyncIgnore.upsert({
+            where: { memberId_field: { memberId: existing.id, field } },
+            create: { memberId: existing.id, field, value: rosterValueKey(value) },
+            update: { value: rosterValueKey(value) },
+          });
         }
       }
     }
@@ -727,14 +768,17 @@ export class MembersService {
    * Vráti len tie polia, ktoré sa v importe líšia od existujúceho člena.
    * Prázdne hodnoty z importu neprepisujú vyplnené údaje v DB.
    */
-  private diffRosterData(existing: MemberRecord, row: RosterRow) {
+  private diffRosterData(existing: MemberRecord, row: RosterRow, opts: { ignoreName?: boolean } = {}) {
     const changed: Record<string, unknown> = {};
     const setIfDiff = (key: string, current: unknown, next: unknown) => {
       if (next !== undefined && next !== null && next !== current) changed[key] = next;
     };
-    // meno/priezvisko/stav sú vždy prítomné
-    setIfDiff('firstName', existing.firstName, row.firstName);
-    setIfDiff('lastName', existing.lastName, row.lastName);
+    // meno/priezvisko/stav sú vždy prítomné; pri ISSF (zlúčený stĺpec „Hráč") sa
+    // meno nerozlišuje spoľahlivo (zložené priezviská), preto ho nenavrhujeme meniť
+    if (!opts.ignoreName) {
+      setIfDiff('firstName', existing.firstName, row.firstName);
+      setIfDiff('lastName', existing.lastName, row.lastName);
+    }
     setIfDiff('status', existing.status, row.status);
     // dátumy porovnávame podľa kalendárneho dňa (UTC), nie presného času — uložené
     // hodnoty môžu mať inú časovú zložku, takže rovnaký deň by inak hlásil zmenu.
