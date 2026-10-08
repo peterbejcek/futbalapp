@@ -313,13 +313,26 @@ export class IssfService {
     // select pohlavie → prázdne (obe)
     if (/name\s*=\s*["']pohlavie["']/i.test(form)) params.set('pohlavie', '');
 
+    const bodyStr = params.toString();
     const res = await cjFetch(action, jar, {
       method: 'POST',
-      body: params.toString(),
+      body: bodyStr,
       headers: { Referer: pageUrl },
     });
     const tables = (res.body.match(/<table[\s\S]*?<\/table>/gi) ?? []).length;
     this.logger.warn(`ISSF search: POST ${action} → url=${res.url} tables=${tables}`);
+    this.logger.warn(`ISSF search body: ${bodyStr.slice(0, 600)}`);
+    // feedback/validačné hlášky
+    const feedback = [...res.body.matchAll(/<(?:li|span|div)[^>]*class=["'][^"']*(?:feedback|error|chyb)[^"']*["'][^>]*>([\s\S]*?)<\/(?:li|span|div)>/gi)]
+      .map((m) => (m[1] ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim())
+      .filter(Boolean)
+      .slice(0, 8);
+    this.logger.warn(`ISSF search feedback: ${feedback.join(' | ') || '—'}`);
+    // úryvok okolo výsledkovej oblasti
+    const idx = res.body.search(/Neboli nájden|záznam|datatable|dataview|zoznam/i);
+    if (idx >= 0) {
+      this.logger.warn(`ISSF search result snippet: ${res.body.slice(Math.max(0, idx - 300), idx + 1200).replace(/\s+/g, ' ')}`);
+    }
     return { url: res.url, body: res.body };
   }
 
