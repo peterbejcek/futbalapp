@@ -207,6 +207,7 @@ export class IssfService {
     this.logger.log(`ISSF: načítaných ${bodies.length} častí (${pageInfos.length} stránok + AJAX), ${rows.length} hráčov.`);
     if (!rows.length) {
       bodies.forEach((b, i) => this.diagnose(b, i < pageInfos.length ? pageInfos[i]!.url : `ajax#${i}`, i));
+      for (const p of pageInfos) if (/ZoznamHracovKlubuPage/i.test(p.url)) this.diagnoseForm(p.body, p.url);
       throw new BadRequestException(
         'ISSF: nenašli sa žiadni hráči (zmenená štruktúra stránky alebo prihlásenie — pozri logy).',
       );
@@ -282,6 +283,52 @@ export class IssfService {
     if (process.env.ISSF_DEBUG) {
       const snippet = html.replace(/\s+/g, ' ').slice(0, 1500);
       this.logger.warn(`ISSF diag page ${index} snippet: ${snippet}`);
+    }
+  }
+
+  /** Podrobná diagnostika vyhľadávacieho formulára na stránke zoznamu hráčov. */
+  private diagnoseForm(html: string, url: string) {
+    const formTags = html.match(/<form\b[^>]*>/gi) ?? [];
+    const forms = formTags.map((f) => {
+      const action = /\baction\s*=\s*["']([^"']*)["']/i.exec(f)?.[1] ?? '';
+      const method = /\bmethod\s*=\s*["']([^"']*)["']/i.exec(f)?.[1] ?? 'get';
+      const id = /\bid\s*=\s*["']([^"']*)["']/i.exec(f)?.[1] ?? '';
+      return `{id=${id} method=${method} action=${action}}`;
+    });
+    const inputs = [...html.matchAll(/<input\b[^>]*>/gi)]
+      .map((m) => {
+        const tag = m[0];
+        const name = /\bname\s*=\s*["']([^"']*)["']/i.exec(tag)?.[1];
+        const type = /\btype\s*=\s*["']([^"']*)["']/i.exec(tag)?.[1] ?? 'text';
+        return name ? `${name}:${type}` : null;
+      })
+      .filter(Boolean)
+      .slice(0, 50);
+    const buttons = [...html.matchAll(/<(?:button|a)\b[^>]*>(?:[\s\S]{0,40}?)<\/(?:button|a)>/gi)]
+      .map((m) => {
+        const tag = m[0];
+        const name = /\bname\s*=\s*["']([^"']*)["']/i.exec(tag)?.[1] ?? '';
+        const label = tag.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        return /vyhlad|hlad|zobraz|export|excel|filtr|najst|vyhľad/i.test(label) ? `${name}="${label}"` : null;
+      })
+      .filter(Boolean)
+      .slice(0, 20);
+    const count = (re: RegExp) => (html.match(re) ?? []).length;
+    const counts = `wicketAjaxGet=${count(/wicketAjaxGet/g)} Wicket.Ajax=${count(/Wicket\.Ajax/g)} IFormSubmitListener=${count(/IFormSubmitListener/g)} IBehaviorListener=${count(/IBehaviorListener/g)} IResourceListener=${count(/IResourceListener/g)}`;
+    const exportLinks = [...html.matchAll(/\bhref\s*=\s*["']([^"']*)["']/gi)]
+      .map((m) => m[1] ?? '')
+      .filter((h) => /export|excel|csv|xls|IResourceListener/i.test(h))
+      .slice(0, 10);
+
+    this.logger.warn(`ISSF form@${url}: forms=${forms.join(' ')}`);
+    this.logger.warn(`ISSF form inputs: ${inputs.join(' , ')}`);
+    this.logger.warn(`ISSF form buttons: ${buttons.join(' , ')}`);
+    this.logger.warn(`ISSF form counts: ${counts}`);
+    this.logger.warn(`ISSF export links: ${exportLinks.join(' , ') || '—'}`);
+    const formIdx = html.search(/<form\b/i);
+    if (formIdx >= 0) {
+      const snippet = html.slice(formIdx, formIdx + 2500).replace(/\s+/g, ' ');
+      this.logger.warn(`ISSF form snippet: ${snippet}`);
     }
   }
 }
