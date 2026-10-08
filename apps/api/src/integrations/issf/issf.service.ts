@@ -199,13 +199,14 @@ export class IssfService {
     const bodies: string[] = pageInfos.map((p) => p.body);
     for (const p of pageInfos) {
       if (!/ZoznamHracovKlubuPage/i.test(p.url)) continue;
-      // zoznam sa naplní odoslaním vyhľadávacieho formulára (prázdne filtre = všetci)
+      // DataTable sa napĺňa AJAXom priamo na stránke zoznamu (odkazy sú v atribútoch
+      // s entitnými úvodzovkami &#039;)
+      bodies.push(...(await this.fetchWicketAjax(p.url, p.body, jar)));
+      // + poistka: odoslanie vyhľadávacieho formulára (prázdne filtre = všetci)
       const result = await this.submitSearch(p.url, p.body, jar);
       if (result) {
         bodies.push(result.body);
-        // stránkovanie výsledkov beží cez Wicket AJAX odkazy v odpovedi
-        const ajax = await this.fetchWicketAjax(result.url, result.body, jar);
-        bodies.push(...ajax);
+        bodies.push(...(await this.fetchWicketAjax(result.url, result.body, jar)));
       }
     }
 
@@ -227,21 +228,28 @@ export class IssfService {
    * inak presmeruje na celú stránku.
    */
   private async fetchWicketAjax(pageUrl: string, pageBody: string, jar: CookieJar): Promise<string[]> {
-    const baseUrl = /Wicket\.Ajax\.baseUrl\s*=\s*["']([^"']+)["']/i.exec(pageBody)?.[1] ?? '';
+    // Wicket vkladá AJAX volania do atribútov s entitnými úvodzovkami (&#039;),
+    // preto najprv dekódujeme HTML entity a až potom hľadáme URL.
+    const decoded = pageBody
+      .replace(/&#0?39;/g, "'")
+      .replace(/&apos;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&');
+    const baseUrl = /Wicket\.Ajax\.baseUrl\s*=\s*["']([^"']+)["']/i.exec(decoded)?.[1] ?? '';
     const urls = new Set<string>();
     const add = (raw: string | undefined) => {
       if (!raw) return;
       try {
-        urls.add(new URL(raw.replace(/&amp;/g, '&'), pageUrl).toString());
+        urls.add(new URL(raw, pageUrl).toString());
       } catch {
         /* ignoruj */
       }
     };
     let m: RegExpExecArray | null;
-    const reGet = /wicketAjaxGet\(\s*['"]([^'"]+)['"]/gi;
-    while ((m = reGet.exec(pageBody))) add(m[1]);
-    const reU = /["']u["']\s*:\s*["']([^"']+)["']/gi;
-    while ((m = reU.exec(pageBody))) add(m[1]);
+    const reGet = /wicketAjax(?:Get|Post)\(\s*['"]([^'"]+)['"]/gi;
+    while ((m = reGet.exec(decoded))) add(m[1]);
+    const reU = /["']u["']\s*:\s*['"]([^'"]+)['"]/gi;
+    while ((m = reU.exec(decoded))) add(m[1]);
 
     this.logger.warn(`ISSF ajax: ${pageUrl} → ${urls.size} AJAX URL: ${[...urls].slice(0, 12).join(' , ')}`);
 
