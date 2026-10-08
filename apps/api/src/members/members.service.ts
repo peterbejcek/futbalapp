@@ -63,6 +63,16 @@ const ROSTER_FIELD_LABELS: Record<string, string> = {
   clubAffiliation: 'Klubová príslušnosť',
 };
 
+/** Zhodujú sa dva dátumy v kalendárnom dni (UTC)? Rozdielna časová zložka sa ignoruje. */
+function sameUtcDay(a: Date | null | undefined, b: Date | null | undefined): boolean {
+  if (!a || !b) return false;
+  return (
+    a.getUTCFullYear() === b.getUTCFullYear() &&
+    a.getUTCMonth() === b.getUTCMonth() &&
+    a.getUTCDate() === b.getUTCDate()
+  );
+}
+
 /** Zobrazí hodnotu poľa (dátum ako d.m.yyyy z UTC) pre náhľad rozdielov. */
 function fmtRosterValue(value: unknown): string {
   if (value == null || value === '') return '—';
@@ -726,15 +736,13 @@ export class MembersService {
     setIfDiff('firstName', existing.firstName, row.firstName);
     setIfDiff('lastName', existing.lastName, row.lastName);
     setIfDiff('status', existing.status, row.status);
-    // dátumy porovnávame podľa času; prázdny import neprepisuje
-    if (row.birthDate && existing.birthDate?.getTime() !== row.birthDate.getTime()) changed.birthDate = row.birthDate;
-    if (
-      row.registrationValidUntil &&
-      existing.registrationValidUntil?.getTime() !== row.registrationValidUntil.getTime()
-    ) {
+    // dátumy porovnávame podľa kalendárneho dňa (UTC), nie presného času — uložené
+    // hodnoty môžu mať inú časovú zložku, takže rovnaký deň by inak hlásil zmenu.
+    if (row.birthDate && !sameUtcDay(existing.birthDate, row.birthDate)) changed.birthDate = row.birthDate;
+    if (row.registrationValidUntil && !sameUtcDay(existing.registrationValidUntil, row.registrationValidUntil)) {
       changed.registrationValidUntil = row.registrationValidUntil;
     }
-    if (row.registeredAt && existing.registeredAt?.getTime() !== row.registeredAt.getTime()) {
+    if (row.registeredAt && !sameUtcDay(existing.registeredAt, row.registeredAt)) {
       changed.registeredAt = row.registeredAt;
     }
     setIfDiff('registrationNumber', existing.registrationNumber, row.registrationNumber);
