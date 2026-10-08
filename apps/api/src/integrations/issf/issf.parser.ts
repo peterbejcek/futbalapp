@@ -60,8 +60,8 @@ function splitFullName(value: string): { firstName: string; lastName: string } |
   }
   const parts = v.split(' ');
   if (parts.length < 2) return { lastName: v, firstName: '' };
-  // ISSF uvádza „Priezvisko Meno" — prvé slovo je priezvisko, zvyšok meno
-  return { lastName: parts[0]!, firstName: parts.slice(1).join(' ') };
+  // ISSF uvádza „Meno Priezvisko" — posledné slovo je priezvisko, zvyšok meno
+  return { firstName: parts.slice(0, -1).join(' '), lastName: parts[parts.length - 1]! };
 }
 
 /** Hlavičkové bunky tabuľky — z <thead> (aj bez <tr>), inak z prvého <tr>. */
