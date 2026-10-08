@@ -193,15 +193,75 @@ export class IssfService {
       }
     }
 
-    const rows = parseIssfPlayers(pageInfos.map((p) => p.body));
-    this.logger.log(`ISSF: načítaných ${pageInfos.length} stránok, ${rows.length} hráčov.`);
+    // Zoznam hráčov sa v ISSF (Wicket) načítava cez AJAX až po otvorení stránky.
+    // Na stránkach zoznamu zavoláme tie isté AJAX requesty — ich odpoveď obsahuje
+    // naplnenú tabuľku, ktorú vieme rozparsovať.
+    const bodies: string[] = pageInfos.map((p) => p.body);
+    for (const p of pageInfos) {
+      if (!/ZoznamHracovKlubuPage/i.test(p.url)) continue;
+      const ajax = await this.fetchWicketAjax(p.url, p.body, jar);
+      bodies.push(...ajax);
+    }
+
+    const rows = parseIssfPlayers(bodies);
+    this.logger.log(`ISSF: načítaných ${bodies.length} častí (${pageInfos.length} stránok + AJAX), ${rows.length} hráčov.`);
     if (!rows.length) {
-      pageInfos.forEach((p, i) => this.diagnose(p.body, p.url, i));
+      bodies.forEach((b, i) => this.diagnose(b, i < pageInfos.length ? pageInfos[i]!.url : `ajax#${i}`, i));
       throw new BadRequestException(
         'ISSF: nenašli sa žiadni hráči (zmenená štruktúra stránky alebo prihlásenie — pozri logy).',
       );
     }
     return rows;
+  }
+
+  /**
+   * Zavolá Wicket AJAX requesty registrované na stránke (wicketAjaxGet/„u":…) a
+   * vráti telá odpovedí. Wicket vracia AJAX len s hlavičkou Wicket-Ajax: true,
+   * inak presmeruje na celú stránku.
+   */
+  private async fetchWicketAjax(pageUrl: string, pageBody: string, jar: CookieJar): Promise<string[]> {
+    const baseUrl = /Wicket\.Ajax\.baseUrl\s*=\s*["']([^"']+)["']/i.exec(pageBody)?.[1] ?? '';
+    const urls = new Set<string>();
+    const add = (raw: string | undefined) => {
+      if (!raw) return;
+      try {
+        urls.add(new URL(raw.replace(/&amp;/g, '&'), pageUrl).toString());
+      } catch {
+        /* ignoruj */
+      }
+    };
+    let m: RegExpExecArray | null;
+    const reGet = /wicketAjaxGet\(\s*['"]([^'"]+)['"]/gi;
+    while ((m = reGet.exec(pageBody))) add(m[1]);
+    const reU = /["']u["']\s*:\s*["']([^"']+)["']/gi;
+    while ((m = reU.exec(pageBody))) add(m[1]);
+
+    this.logger.warn(`ISSF ajax: ${pageUrl} → ${urls.size} AJAX URL: ${[...urls].slice(0, 12).join(' , ')}`);
+
+    const out: string[] = [];
+    let n = 0;
+    for (const u of urls) {
+      if (n >= 12) break;
+      n++;
+      try {
+        const res = await fetch(u, {
+          headers: {
+            'User-Agent': UA,
+            'Wicket-Ajax': 'true',
+            'Wicket-Ajax-BaseURL': baseUrl,
+            'X-Requested-With': 'XMLHttpRequest',
+            Accept: 'text/xml, */*; q=0.01',
+            Referer: pageUrl,
+            Cookie: jar.header(),
+          },
+        });
+        jar.setFrom(res);
+        out.push(await res.text());
+      } catch {
+        /* preskoč */
+      }
+    }
+    return out;
   }
 
   /** Diagnostika stiahnutej stránky (keď sa nenašli hráči) — pomáha doladiť parser/login. */
