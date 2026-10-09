@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import { enduranceMinutesFor } from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamIds, isStaff } from '../auth/scope';
 import type { AuthUser } from '../auth/current-user.decorator';
@@ -12,10 +13,12 @@ export interface FitnessTestInput {
   run20m?: number | null;
   run30m?: number | null;
   shuttleRun?: number | null;
+  dribbleSlalom?: number | null;
+  enduranceRun?: number | null;
   standingJump?: number | null;
 }
 
-const TIME_FIELDS = ['run10m', 'run20m', 'run30m', 'shuttleRun'] as const;
+const TIME_FIELDS = ['run10m', 'run20m', 'run30m', 'shuttleRun', 'dribbleSlalom'] as const;
 
 const include = {
   member: { select: { id: true, firstName: true, lastName: true } },
@@ -52,8 +55,13 @@ export class FitnessTestsService {
       throw new BadRequestException('Hráč nie je v zvolenom družstve');
     }
     const teamId = body.teamId || member.memberships[0]?.teamId || null;
+    // dĺžka vytrvalostného behu podľa vekovej kategórie družstva (U13 = 6 min, U15 = 12 min)
+    const team = teamId
+      ? await this.prisma.team.findUnique({ where: { id: teamId }, select: { teamCategory: { select: { code: true } } } })
+      : null;
+    const enduranceMinutes = enduranceMinutesFor(team?.teamCategory.code);
     return this.prisma.fitnessTest.create({
-      data: { ...(data as Prisma.FitnessTestUncheckedCreateInput), memberId: member.id, teamId },
+      data: { ...(data as Prisma.FitnessTestUncheckedCreateInput), memberId: member.id, teamId, enduranceMinutes },
       include,
     });
   }
@@ -114,6 +122,13 @@ export class FitnessTestsService {
         throw new BadRequestException('Skok do diaľky zadajte v cm (celé číslo)');
       }
       data.standingJump = v;
+    }
+    if (body.enduranceRun !== undefined) {
+      const v = body.enduranceRun;
+      if (v !== null && (!Number.isInteger(v) || v <= 0 || v > 10000)) {
+        throw new BadRequestException('Vytrvalostný beh zadajte v metroch (celé číslo)');
+      }
+      data.enduranceRun = v;
     }
     return data;
   }

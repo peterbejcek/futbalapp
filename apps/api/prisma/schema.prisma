@@ -863,6 +863,12 @@ model FitnessTest {
   run20m        Float?
   run30m        Float?
   shuttleRun    Float?
+  /// Vedenie lopty – lomený slalom v sekundách
+  dribbleSlalom Float?
+  /// Vytrvalostný beh v metroch (6 min mladší žiaci, 12 min starší žiaci)
+  enduranceRun  Int?
+  /// Dĺžka vytrvalostného behu v minútach (podľa kategórie družstva v čase previerky)
+  enduranceMinutes Int?
   /// Skok do diaľky z miesta v cm
   standingJump  Int?
   createdAt     DateTime @default(now())

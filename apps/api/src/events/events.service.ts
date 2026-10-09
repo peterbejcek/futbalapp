@@ -126,6 +126,20 @@ export class EventsService {
     return team;
   }
 
+  /**
+   * Členovia družstva, ktorí v danej sezóne z družstva neodišli (kľúč `sezóna:člen`).
+   * Hráč vyradený z družstva sa v dochádzke nezobrazuje — okrem už zapísaných
+   * (označených) záznamov, ktoré ostávajú ako história.
+   */
+  private async activeMemberKeys(teamId: string, seasonIds: string[]): Promise<Set<string>> {
+    if (seasonIds.length === 0) return new Set();
+    const rows = await this.prisma.teamMembership.findMany({
+      where: { teamId, seasonId: { in: seasonIds }, leftAt: null },
+      select: { seasonId: true, memberId: true },
+    });
+    return new Set(rows.map((r) => `${r.seasonId}:${r.memberId}`));
+  }
+
   /** Predpripraví dochádzku pre všetkých hráčov družstva (vedenie/tréner/rodič sa nezahŕňa). */
   private async prepareAttendance(eventId: string, teamId: string, seasonId: string) {
     const memberships = await this.prisma.teamMembership.findMany({
@@ -295,6 +309,13 @@ export class EventsService {
       },
     });
     if (!event) throw new NotFoundException('Udalosť neexistuje');
+    // vyradení hráči (už nie sú v družstve) sa v nezapísanej dochádzke nezobrazujú
+    if (event.teamId) {
+      const active = await this.activeMemberKeys(event.teamId, [event.seasonId]);
+      event.attendances = event.attendances.filter(
+        (a) => a.status !== 'UNKNOWN' || active.has(`${event.seasonId}:${a.memberId}`),
+      );
+    }
     return event;
   }
 
@@ -313,14 +334,18 @@ export class EventsService {
   async teamAttendanceStats(teamId: string) {
     const events = await this.prisma.event.findMany({
       where: { teamId, type: 'TRAINING' },
-      select: { id: true },
+      select: { id: true, seasonId: true },
     });
     const eventIds = events.map((e) => e.id);
     if (eventIds.length === 0) return [];
-    const attendances = await this.prisma.attendance.findMany({
-      where: { eventId: { in: eventIds } },
-      include: { member: { select: { id: true, firstName: true, lastName: true } } },
-    });
+    const seasonOf = new Map(events.map((e) => [e.id, e.seasonId]));
+    const active = await this.activeMemberKeys(teamId, [...new Set(events.map((e) => e.seasonId))]);
+    const attendances = (
+      await this.prisma.attendance.findMany({
+        where: { eventId: { in: eventIds } },
+        include: { member: { select: { id: true, firstName: true, lastName: true } } },
+      })
+    ).filter((a) => a.status !== 'UNKNOWN' || active.has(`${seasonOf.get(a.eventId)}:${a.memberId}`));
     const byMember = new Map<string, { name: string; present: number; counted: number }>();
     for (const a of attendances) {
       const entry = byMember.get(a.memberId) ?? {
@@ -360,17 +385,21 @@ export class EventsService {
 
     const trainings = await this.prisma.event.findMany({
       where: { teamId, type: 'TRAINING', startAt: { gte: from, lt: to } },
-      select: { id: true, startAt: true },
+      select: { id: true, startAt: true, seasonId: true },
       orderBy: { startAt: 'asc' },
     });
 
     const eventIds = trainings.map((t) => t.id);
-    const attendances = eventIds.length
-      ? await this.prisma.attendance.findMany({
-          where: { eventId: { in: eventIds } },
-          include: { member: { select: { id: true, firstName: true, lastName: true } } },
-        })
-      : [];
+    const seasonOf = new Map(trainings.map((t) => [t.id, t.seasonId]));
+    const active = await this.activeMemberKeys(teamId, [...new Set(trainings.map((t) => t.seasonId))]);
+    const attendances = (
+      eventIds.length
+        ? await this.prisma.attendance.findMany({
+            where: { eventId: { in: eventIds } },
+            include: { member: { select: { id: true, firstName: true, lastName: true } } },
+          })
+        : []
+    ).filter((a) => a.status !== 'UNKNOWN' || active.has(`${seasonOf.get(a.eventId)}:${a.memberId}`));
 
     const STATUSES = ['PRESENT', 'ABSENT', 'EXCUSED', 'INJURED', 'SICK'] as const;
     const members = new Map<
@@ -396,6 +425,6 @@ export class EventsService {
     const rows = [...members.values()].sort((x, y) =>
       `${x.lastName} ${x.firstName}`.localeCompare(`${y.lastName} ${y.firstName}`, 'sk'),
     );
-    return { trainings, rows };
+    return { trainings: trainings.map(({ id, startAt }) => ({ id, startAt })), rows };
   }
 }

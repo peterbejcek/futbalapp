@@ -6,6 +6,8 @@ import {
   fitnessDelta,
   formatFitnessDate,
   previousFitnessValue,
+  enduranceMinutesFor,
+  fitnessDisciplineLabel,
   type FitnessDiscipline,
   type FitnessDisciplineKey,
 } from '@fkknv/shared';
@@ -22,6 +24,9 @@ export interface FitnessTest {
   run20m: number | null;
   run30m: number | null;
   shuttleRun: number | null;
+  dribbleSlalom: number | null;
+  enduranceRun: number | null;
+  enduranceMinutes: number | null;
   standingJump: number | null;
   member: { id: string; firstName: string; lastName: string };
   team: { id: string; name: string } | null;
@@ -30,6 +35,11 @@ export interface FitnessTest {
 export type DisciplineKey = FitnessDisciplineKey;
 export const DISCIPLINES = FITNESS_DISCIPLINES;
 export const formatDate = formatFitnessDate;
+export { fitnessDisciplineLabel };
+
+/** Poznámka k vytrvalostnému behu (dĺžka v minútach) pri hodnote v tabuľke. */
+export const enduranceNote = (t: Pick<FitnessTest, 'enduranceMinutes'>, key: DisciplineKey) =>
+  key === 'enduranceRun' && t.enduranceMinutes ? `${t.enduranceMinutes} min` : undefined;
 
 /** Porovnanie s predchádzajúcou previerkou hráča (ktorá mala v danej disciplíne hodnotu). */
 export const previousOf = (all: FitnessTest[], test: FitnessTest, key: DisciplineKey) =>
@@ -40,16 +50,23 @@ export function ValueCell({
   value,
   previous,
   discipline,
+  note,
 }: {
   value: number | null;
   previous: number | null;
   discipline: FitnessDiscipline;
+  note?: string;
 }) {
   const { text, trend } = fitnessDelta(value, previous, discipline);
   if (trend === 'none' && value == null) return <span className="text-gray-300">–</span>;
   const cls =
     trend === 'better' ? 'font-semibold text-green-600' : trend === 'worse' ? 'font-semibold text-red-600' : trend === 'same' ? 'text-black' : '';
-  return <span className={cls}>{text}</span>;
+  return (
+    <span className={cls}>
+      {text}
+      {note && <span className="ml-1 text-xs font-normal text-gray-400">{note}</span>}
+    </span>
+  );
 }
 
 export const LEGEND = (
@@ -67,6 +84,8 @@ const emptyForm = () => ({
   run20m: '',
   run30m: '',
   shuttleRun: '',
+  dribbleSlalom: '',
+  enduranceRun: '',
   standingJump: '',
 });
 
@@ -76,7 +95,7 @@ export function PlayerFitnessPanel({
   teams,
 }: {
   memberId: string;
-  teams: Array<{ id: string; name: string }>;
+  teams: Array<{ id: string; name: string; teamCategory?: { code: string } }>;
 }) {
   const [tests, setTests] = useState<FitnessTest[]>([]);
   const [editing, setEditing] = useState<string | 'new' | null>(null);
@@ -105,6 +124,8 @@ export function PlayerFitnessPanel({
       run20m: t.run20m?.toString() ?? '',
       run30m: t.run30m?.toString() ?? '',
       shuttleRun: t.shuttleRun?.toString() ?? '',
+      dribbleSlalom: t.dribbleSlalom?.toString() ?? '',
+      enduranceRun: t.enduranceRun?.toString() ?? '',
       standingJump: t.standingJump?.toString() ?? '',
     });
     setEditing(t.id);
@@ -120,6 +141,8 @@ export function PlayerFitnessPanel({
       run20m: num(form.run20m),
       run30m: num(form.run30m),
       shuttleRun: num(form.shuttleRun),
+      dribbleSlalom: num(form.dribbleSlalom),
+      enduranceRun: num(form.enduranceRun),
       standingJump: num(form.standingJump),
       ...(editing === 'new' ? { memberId, teamId: form.teamId || null } : {}),
     };
@@ -146,6 +169,11 @@ export function PlayerFitnessPanel({
   }
 
   const desc = [...tests].reverse();
+  const editedTest = editing && editing !== 'new' ? tests.find((t) => t.id === editing) : null;
+  const formMinutes =
+    editing === 'new'
+      ? enduranceMinutesFor(teams.find((t) => t.id === form.teamId)?.teamCategory?.code)
+      : (editedTest?.enduranceMinutes ?? null);
 
   return (
     <div className="space-y-2 rounded-md border border-club-100 p-3">
@@ -180,7 +208,7 @@ export function PlayerFitnessPanel({
             {DISCIPLINES.map((d) => (
               <div key={d.key}>
                 <label className={labelCls}>
-                  {d.label} ({d.unit})
+                  {fitnessDisciplineLabel(d, formMinutes)} ({d.unit})
                 </label>
                 <input
                   type="number"
@@ -229,7 +257,7 @@ export function PlayerFitnessPanel({
                   <td className="whitespace-nowrap px-1 py-1">{formatDate(t.testedAt)}</td>
                   {DISCIPLINES.map((d) => (
                     <td key={d.key} className="whitespace-nowrap px-1 py-1">
-                      <ValueCell value={t[d.key]} previous={previousOf(tests, t, d.key)} discipline={d} />
+                      <ValueCell value={t[d.key]} previous={previousOf(tests, t, d.key)} discipline={d} note={enduranceNote(t, d.key)} />
                     </td>
                   ))}
                   <td className="whitespace-nowrap px-1 py-1 text-right">

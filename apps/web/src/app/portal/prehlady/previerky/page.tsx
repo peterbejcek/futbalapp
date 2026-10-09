@@ -8,6 +8,7 @@ import {
   DISCIPLINES,
   LEGEND,
   ValueCell,
+  enduranceNote,
   formatDate,
   previousOf,
   type FitnessTest,
@@ -141,7 +142,7 @@ export default function FitnessTestsPage() {
                   <td className="whitespace-nowrap px-3 py-2 font-medium">{formatDate(t.testedAt)}</td>
                   {DISCIPLINES.map((d) => (
                     <td key={d.key} className="whitespace-nowrap px-3 py-2">
-                      <ValueCell value={t[d.key]} previous={previousOf(tests, t, d.key)} discipline={d} />
+                      <ValueCell value={t[d.key]} previous={previousOf(tests, t, d.key)} discipline={d} note={enduranceNote(t, d.key)} />
                     </td>
                   ))}
                 </tr>
@@ -187,7 +188,7 @@ export default function FitnessTestsPage() {
                   <td className="whitespace-nowrap px-3 py-2">{t.team?.name ?? '—'}</td>
                   {DISCIPLINES.map((d) => (
                     <td key={d.key} className="whitespace-nowrap px-3 py-2">
-                      <ValueCell value={t[d.key]} previous={previousOf(tests, t, d.key)} discipline={d} />
+                      <ValueCell value={t[d.key]} previous={previousOf(tests, t, d.key)} discipline={d} note={enduranceNote(t, d.key)} />
                     </td>
                   ))}
                 </tr>
