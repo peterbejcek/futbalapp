@@ -3,6 +3,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
   FITNESS_DISCIPLINES,
+  fitnessDisciplineLabel,
   fitnessDelta,
   formatFitnessDate,
   previousFitnessValue,
@@ -34,7 +35,7 @@ function TestValues({ test, all }: { test: FitnessTest; all: FitnessTest[] }) {
         const { text, trend } = fitnessDelta(test[d.key], previousFitnessValue(all, test, d.key), d);
         return (
           <View key={d.key} style={styles.valueRow}>
-            <Text style={styles.valueLabel}>{d.label}</Text>
+            <Text style={styles.valueLabel}>{fitnessDisciplineLabel(d, test.enduranceMinutes)}</Text>
             <Text style={[styles.value, { color: trendColor[trend], fontWeight: trend === 'none' ? '400' : '700' }]}>
               {test[d.key] == null ? '–' : `${text} ${d.unit}`}
             </Text>

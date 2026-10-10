@@ -7,6 +7,9 @@ export interface FitnessTest {
   run20m: number | null;
   run30m: number | null;
   shuttleRun: number | null;
+  dribbleSlalom: number | null;
+  enduranceRun: number | null;
+  enduranceMinutes: number | null;
   standingJump: number | null;
   member: { id: string; firstName: string; lastName: string };
   team: { id: string; name: string } | null;

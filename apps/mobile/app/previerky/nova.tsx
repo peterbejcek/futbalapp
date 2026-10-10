@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { FITNESS_DISCIPLINES, type FitnessDisciplineKey } from '@fkknv/shared';
+import {
+  FITNESS_DISCIPLINES,
+  enduranceMinutesFor,
+  fitnessDisciplineLabel,
+  type FitnessDisciplineKey,
+} from '@fkknv/shared';
 import { api } from '@/api';
 import { canManage, coachTeams, fetchMe, isStaff, type Me } from '@/auth';
 import { colors } from '@/theme';
@@ -10,6 +15,7 @@ import { todayIso, type FitnessTest } from '@/fitness';
 interface Team {
   id: string;
   name: string;
+  teamCategory?: { code: string };
 }
 interface Player {
   id: string;
@@ -25,7 +31,7 @@ interface Row {
   error: string | null;
 }
 
-const emptyValues = (): Values => ({ run10m: '', run20m: '', run30m: '', shuttleRun: '', standingJump: '' });
+const emptyValues = (): Values => Object.fromEntries(FITNESS_DISCIPLINES.map((d) => [d.key, ''])) as Values;
 const toNum = (s: string) => (s.trim() === '' ? null : Number(s.replace(',', '.')));
 const collator = new Intl.Collator('sk');
 
@@ -49,6 +55,8 @@ export default function NewFitnessTestScreen() {
 
   const available = me && canManage(me) ? (isStaff(me) ? teams : teams.filter((t) => coachTeams(me).some((c) => c.id === t.id))) : [];
   const teamName = teams.find((t) => t.id === teamId)?.name;
+  // dĺžka vytrvalostného behu podľa vekovej kategórie družstva (U13 = 6 min, U15 = 12 min)
+  const minutes = enduranceMinutesFor(teams.find((t) => t.id === teamId)?.teamCategory?.code);
 
   const load = useCallback(async () => {
     if (!teamId || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -69,15 +77,8 @@ export default function NewFitnessTestScreen() {
       const next: Record<string, Row> = {};
       for (const p of sorted) {
         const t = existing.get(p.id);
-        const values: Values = t
-          ? {
-              run10m: t.run10m?.toString() ?? '',
-              run20m: t.run20m?.toString() ?? '',
-              run30m: t.run30m?.toString() ?? '',
-              shuttleRun: t.shuttleRun?.toString() ?? '',
-              standingJump: t.standingJump?.toString() ?? '',
-            }
-          : emptyValues();
+        const values: Values = emptyValues();
+        if (t) for (const d of FITNESS_DISCIPLINES) values[d.key] = t[d.key]?.toString() ?? '';
         next[p.id] = { testId: t?.id ?? null, values, saved: { ...values }, busy: false, error: null };
       }
       setPlayers(sorted);
@@ -163,7 +164,7 @@ export default function NewFitnessTestScreen() {
                 {FITNESS_DISCIPLINES.map((d) => (
                   <View key={d.key} style={styles.cell}>
                     <Text style={styles.cellLabel}>
-                      {d.label} ({d.unit})
+                      {fitnessDisciplineLabel(d, minutes)} ({d.unit})
                     </Text>
                     <TextInput
                       value={row.values[d.key]}

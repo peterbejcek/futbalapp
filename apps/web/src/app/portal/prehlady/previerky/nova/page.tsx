@@ -6,11 +6,13 @@ import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { coachTeams, isStaff, useMe } from '@/lib/auth';
 import { Card, ErrorText, inputCls } from '@/components/ui';
-import { DISCIPLINES, type DisciplineKey, type FitnessTest } from '@/components/fitness';
+import { enduranceMinutesFor } from '@fkknv/shared';
+import { DISCIPLINES, fitnessDisciplineLabel, type DisciplineKey, type FitnessTest } from '@/components/fitness';
 
 interface Team {
   id: string;
   name: string;
+  teamCategory?: { code: string };
 }
 interface Player {
   id: string;
@@ -26,7 +28,7 @@ interface Row {
   error: string | null;
 }
 
-const emptyValues = (): Values => ({ run10m: '', run20m: '', run30m: '', shuttleRun: '', standingJump: '' });
+const emptyValues = (): Values => Object.fromEntries(DISCIPLINES.map((d) => [d.key, ''])) as Values;
 const today = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -77,15 +79,8 @@ function NewTestForm() {
       const next: Record<string, Row> = {};
       for (const p of sorted) {
         const t = existing.get(p.id);
-        const values: Values = t
-          ? {
-              run10m: t.run10m?.toString() ?? '',
-              run20m: t.run20m?.toString() ?? '',
-              run30m: t.run30m?.toString() ?? '',
-              shuttleRun: t.shuttleRun?.toString() ?? '',
-              standingJump: t.standingJump?.toString() ?? '',
-            }
-          : emptyValues();
+        const values: Values = emptyValues();
+        if (t) for (const d of DISCIPLINES) values[d.key] = t[d.key]?.toString() ?? '';
         next[p.id] = { testId: t?.id ?? null, values, saved: { ...values }, busy: false, error: null };
       }
       setPlayers(sorted);
@@ -133,6 +128,8 @@ function NewTestForm() {
   }
 
   const thCls = 'whitespace-nowrap px-3 py-2 text-left font-medium';
+  // dĺžka vytrvalostného behu podľa vekovej kategórie družstva (U13 = 6 min, U15 = 12 min)
+  const minutes = enduranceMinutesFor(teams.find((t) => t.id === teamId)?.teamCategory?.code);
 
   return (
     <div className="space-y-5">
@@ -180,7 +177,7 @@ function NewTestForm() {
                 <th className={thCls}>Hráč</th>
                 {DISCIPLINES.map((d) => (
                   <th key={d.key} className={thCls}>
-                    {d.label} ({d.unit})
+                    {fitnessDisciplineLabel(d, minutes)} ({d.unit})
                   </th>
                 ))}
                 <th />
