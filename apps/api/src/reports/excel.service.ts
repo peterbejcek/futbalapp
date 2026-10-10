@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import ExcelJS from 'exceljs';
 import { PrismaService } from '../prisma/prisma.service';
+import { bySlovakName } from '../members/members.service';
 
 const HEADER_STYLE: Partial<ExcelJS.Style> = {
   font: { bold: true, color: { argb: 'FFFFFFFF' } },
@@ -34,8 +35,8 @@ export class ExcelService {
         },
         guardians: { include: { user: true } },
       },
-      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     });
+    members.sort(bySlovakName); // slovenská abeceda (Š za S…)
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet(categoryCode ? `Členovia ${categoryCode}` : 'Členovia');
@@ -138,8 +139,8 @@ export class ExcelService {
       where: {
         memberships: { some: { leftAt: null, season: { isActive: true }, team: { teamCategory: { code: categoryCode } } } },
       },
-      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     });
+    members.sort(bySlovakName); // slovenská abeceda (Š za S…)
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet(`Dochádzka ${categoryCode}`);

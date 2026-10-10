@@ -8,6 +8,7 @@ import {
 } from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClubsService } from '../clubs/clubs.service';
+import { bySlovakName } from '../members/members.service';
 import { canManageTeam, coachBlockedFromTeam, coachTeamIds, isDemoScope, isStaff } from '../auth/scope';
 import type { AuthUser } from '../auth/current-user.decorator';
 
@@ -304,11 +305,12 @@ export class EventsService {
         team: { include: { teamCategory: true } },
         attendances: {
           include: { member: { select: { id: true, firstName: true, lastName: true } } },
-          orderBy: { member: { lastName: 'asc' } },
         },
       },
     });
     if (!event) throw new NotFoundException('Udalosť neexistuje');
+    // zoradenie podľa slovenskej abecedy (databáza radí Š/Č/Ž podľa kódu znaku, nie abecedy)
+    event.attendances.sort((a, b) => bySlovakName(a.member, b.member));
     // vyradení hráči (už nie sú v družstve) sa v nezapísanej dochádzke nezobrazujú
     if (event.teamId) {
       const active = await this.activeMemberKeys(event.teamId, [event.seasonId]);
