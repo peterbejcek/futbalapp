@@ -95,7 +95,7 @@ export function PlayerFitnessPanel({
   teams,
 }: {
   memberId: string;
-  teams: Array<{ id: string; name: string; teamCategory?: { code: string } }>;
+  teams: Array<{ id: string; name: string; teamCategory?: { code: string; name?: string } }>;
 }) {
   const [tests, setTests] = useState<FitnessTest[]>([]);
   const [editing, setEditing] = useState<string | 'new' | null>(null);
@@ -172,7 +172,10 @@ export function PlayerFitnessPanel({
   const editedTest = editing && editing !== 'new' ? tests.find((t) => t.id === editing) : null;
   const formMinutes =
     editing === 'new'
-      ? enduranceMinutesFor(teams.find((t) => t.id === form.teamId)?.teamCategory?.code)
+      ? enduranceMinutesFor(
+          teams.find((t) => t.id === form.teamId)?.teamCategory?.code,
+          teams.find((t) => t.id === form.teamId)?.teamCategory?.name,
+        )
       : (editedTest?.enduranceMinutes ?? null);
 
   return (

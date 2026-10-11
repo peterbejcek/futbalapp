@@ -15,7 +15,7 @@ import { todayIso, type FitnessTest } from '@/fitness';
 interface Team {
   id: string;
   name: string;
-  teamCategory?: { code: string };
+  teamCategory?: { code: string; name?: string };
 }
 interface Player {
   id: string;
@@ -56,7 +56,8 @@ export default function NewFitnessTestScreen() {
   const available = me && canManage(me) ? (isStaff(me) ? teams : teams.filter((t) => coachTeams(me).some((c) => c.id === t.id))) : [];
   const teamName = teams.find((t) => t.id === teamId)?.name;
   // dĺžka vytrvalostného behu podľa vekovej kategórie družstva (U13 = 6 min, U15 = 12 min)
-  const minutes = enduranceMinutesFor(teams.find((t) => t.id === teamId)?.teamCategory?.code);
+  const selectedTeam = teams.find((t) => t.id === teamId);
+  const minutes = enduranceMinutesFor(selectedTeam?.teamCategory?.code, selectedTeam?.teamCategory?.name);
 
   const load = useCallback(async () => {
     if (!teamId || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {

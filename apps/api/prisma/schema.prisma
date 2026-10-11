@@ -685,6 +685,8 @@ model Match {
   jerseyColor JerseyColor?
   /// Odkaz na video zo zápasu (napr. Veo) — dopĺňa sa pri/po zápase.
   videoUrl    String?
+  /// Odkaz na highlighty zo zápasu (strih najlepších momentov).
+  highlightsUrl String?
   state       MatchState @default(PLANNED)
 
   event       Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)

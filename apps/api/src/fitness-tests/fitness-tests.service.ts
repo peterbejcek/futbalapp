@@ -57,9 +57,9 @@ export class FitnessTestsService {
     const teamId = body.teamId || member.memberships[0]?.teamId || null;
     // dĺžka vytrvalostného behu podľa vekovej kategórie družstva (U13 = 6 min, U15 = 12 min)
     const team = teamId
-      ? await this.prisma.team.findUnique({ where: { id: teamId }, select: { teamCategory: { select: { code: true } } } })
+      ? await this.prisma.team.findUnique({ where: { id: teamId }, select: { teamCategory: { select: { code: true, name: true } } } })
       : null;
-    const enduranceMinutes = enduranceMinutesFor(team?.teamCategory.code);
+    const enduranceMinutes = enduranceMinutesFor(team?.teamCategory.code, team?.teamCategory.name);
     return this.prisma.fitnessTest.create({
       data: { ...(data as Prisma.FitnessTestUncheckedCreateInput), memberId: member.id, teamId, enduranceMinutes },
       include,

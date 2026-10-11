@@ -75,6 +75,7 @@ export class MatchesService {
         scoreThem: true,
         jerseyColor: true,
         videoUrl: true,
+        highlightsUrl: true,
         event: { select: { title: true, startAt: true, team: { select: { name: true } } } },
         photos: { select: { id: true }, orderBy: { createdAt: 'asc' } },
       },
@@ -363,6 +364,16 @@ export class MatchesService {
       throw new BadRequestException('Odkaz na video musí začínať http(s)://');
     }
     return this.prisma.match.update({ where: { id: matchId }, data: { videoUrl: clean } });
+  }
+
+  /** Nastaví/odstráni odkaz na highlighty zo zápasu. */
+  async setHighlights(matchId: string, url: string | null, user: AuthUser) {
+    await this.assertMatchTeam(matchId, user);
+    const clean = url?.trim() || null;
+    if (clean && !/^https?:\/\//i.test(clean)) {
+      throw new BadRequestException('Odkaz na highlighty musí začínať http(s)://');
+    }
+    return this.prisma.match.update({ where: { id: matchId }, data: { highlightsUrl: clean } });
   }
 
   /**

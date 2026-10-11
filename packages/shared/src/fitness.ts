@@ -87,8 +87,17 @@ export function formatFitnessDate(iso: string): string {
 /** Dĺžka vytrvalostného behu podľa kategórie družstva: mladší žiaci (U13) 6 min, starší žiaci (U15) 12 min. */
 export const FITNESS_ENDURANCE_MINUTES: Record<string, number> = { U13: 6, U15: 12 };
 
-export function enduranceMinutesFor(categoryCode: string | null | undefined): number | null {
-  return (categoryCode && FITNESS_ENDURANCE_MINUTES[categoryCode]) || null;
+export function enduranceMinutesFor(
+  categoryCode: string | null | undefined,
+  categoryName?: string | null,
+): number | null {
+  const byCode = categoryCode ? FITNESS_ENDURANCE_MINUTES[categoryCode] : undefined;
+  if (byCode) return byCode;
+  // záloha podľa názvu kategórie („Mladší žiaci …“ / „Starší žiaci …“)
+  const name = (categoryName ?? '').toLowerCase();
+  if (/mladš\S*\s+žiac/.test(name)) return 6;
+  if (/starš\S*\s+žiac/.test(name)) return 12;
+  return null;
 }
 
 /** Názov disciplíny; pri vytrvalostnom behu aj s dĺžkou („Vytrvalostný beh – 6 min“). */

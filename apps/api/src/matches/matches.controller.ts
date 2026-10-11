@@ -142,6 +142,13 @@ export class MatchesController {
     return this.matchesService.setVideo(matchId, body.url, user);
   }
 
+  /** Nastaviť/odstrániť odkaz na highlighty zo zápasu. */
+  @Post(':id/highlights')
+  @Roles('ADMIN', 'MANAGER', 'COACH')
+  setHighlights(@Param('id') matchId: string, @Body() body: { url: string | null }, @CurrentUser() user: AuthUser) {
+    return this.matchesService.setHighlights(matchId, body.url, user);
+  }
+
   /** Automaticky nájsť kandidátov na Veo video podľa dátumu a tímov. */
   @Get(':id/video/candidates')
   @Roles('ADMIN', 'MANAGER', 'COACH')

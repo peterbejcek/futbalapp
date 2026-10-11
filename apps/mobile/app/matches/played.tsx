@@ -25,6 +25,7 @@ interface PlayedMatch {
   scoreThem: number | null;
   jerseyColor: 'DARK' | 'LIGHT' | null;
   videoUrl: string | null;
+  highlightsUrl: string | null;
   event: { title: string; startAt: string; team: { name: string } | null };
   photos: Array<{ id: string }>;
 }
@@ -97,7 +98,12 @@ export default function PlayedMatchesScreen() {
 
               {item.videoUrl ? (
                 <Pressable onPress={() => Linking.openURL(item.videoUrl!)}>
-                  <Text style={styles.videoLink}>▶ Pozrieť video</Text>
+                  <Text style={styles.videoLink}>▶ Video zápasu</Text>
+                </Pressable>
+              ) : null}
+              {item.highlightsUrl ? (
+                <Pressable onPress={() => Linking.openURL(item.highlightsUrl!)}>
+                  <Text style={styles.videoLink}>▶ Highlighty</Text>
                 </Pressable>
               ) : null}
 

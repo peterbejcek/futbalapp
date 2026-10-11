@@ -34,6 +34,7 @@ interface MatchDetail {
   notes: string | null;
   jerseyColor: 'DARK' | 'LIGHT' | null;
   videoUrl: string | null;
+  highlightsUrl: string | null;
   event: { title: string; startAt: string; team: { id: string; name: string } | null };
   nominations: Nomination[];
   events: MatchEventRow[];
@@ -64,6 +65,7 @@ export default function MatchLiveScreen() {
   const [notesDraft, setNotesDraft] = useState('');
   const [detailsBusy, setDetailsBusy] = useState(false);
   const [videoDraft, setVideoDraft] = useState('');
+  const [highlightsDraft, setHighlightsDraft] = useState('');
   const [videoBusy, setVideoBusy] = useState(false);
   const [veoBusy, setVeoBusy] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -100,8 +102,9 @@ export default function MatchLiveScreen() {
       setMeetDraft(formatEventTimeSk(match.meetAt ?? new Date(new Date(match.event.startAt).getTime() - 3_600_000)));
       setNotesDraft(match.notes ?? '');
       setVideoDraft(match.videoUrl ?? '');
+      setHighlightsDraft(match.highlightsUrl ?? '');
     }
-  }, [match?.meetAt, match?.notes, match?.videoUrl, match?.event.startAt]);
+  }, [match?.meetAt, match?.notes, match?.videoUrl, match?.highlightsUrl, match?.event.startAt]);
 
   async function saveDetails() {
     if (!match) return;
@@ -138,6 +141,18 @@ export default function MatchLiveScreen() {
       await load();
     } catch (e) {
       Alert.alert('Chyba', e instanceof Error ? e.message : 'Uloženie videa zlyhalo');
+    } finally {
+      setVideoBusy(false);
+    }
+  }
+
+  async function saveHighlights(url: string | null) {
+    setVideoBusy(true);
+    try {
+      await api(`/matches/${id}/highlights`, { method: 'POST', body: JSON.stringify({ url }) });
+      await load();
+    } catch (e) {
+      Alert.alert('Chyba', e instanceof Error ? e.message : 'Uloženie highlightov zlyhalo');
     } finally {
       setVideoBusy(false);
     }
@@ -387,7 +402,7 @@ export default function MatchLiveScreen() {
           <Text style={styles.sectionTitle}>Video a fotky zo zápasu</Text>
           {canControl ? (
             <>
-              <Text style={styles.meetLabel}>Odkaz na video (napr. Veo)</Text>
+              <Text style={styles.meetLabel}>Video zápasu (odkaz, napr. Veo)</Text>
               <TextInput
                 style={styles.meetInput}
                 value={videoDraft}
@@ -412,14 +427,38 @@ export default function MatchLiveScreen() {
                   <Text style={styles.primaryBtnText}>{veoBusy ? 'Hľadám…' : 'Nájsť video (Veo)'}</Text>
                 </Pressable>
               </View>
+              <Text style={styles.meetLabel}>Highlighty (odkaz)</Text>
+              <TextInput
+                style={styles.meetInput}
+                value={highlightsDraft}
+                onChangeText={setHighlightsDraft}
+                placeholder="https://…"
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+              <View style={styles.videoBtnRow}>
+                <Pressable
+                  style={[styles.saveScoreBtn, videoBusy && { opacity: 0.5 }]}
+                  onPress={() => saveHighlights(highlightsDraft.trim() || null)}
+                  disabled={videoBusy}
+                >
+                  <Text style={styles.saveScoreText}>{videoBusy ? 'Ukladám…' : 'Uložiť odkaz'}</Text>
+                </Pressable>
+              </View>
             </>
           ) : null}
 
           {match.videoUrl ? (
             <Pressable onPress={() => Linking.openURL(match.videoUrl!)}>
-              <Text style={styles.videoLink}>▶ Pozrieť video zo zápasu</Text>
+              <Text style={styles.videoLink}>▶ Video zápasu</Text>
             </Pressable>
-          ) : !canControl ? (
+          ) : null}
+          {match.highlightsUrl ? (
+            <Pressable onPress={() => Linking.openURL(match.highlightsUrl!)}>
+              <Text style={styles.videoLink}>▶ Highlighty</Text>
+            </Pressable>
+          ) : null}
+          {!match.videoUrl && !match.highlightsUrl && !canControl ? (
             <Text style={styles.empty}>Video zatiaľ nie je pridané.</Text>
           ) : null}
 

@@ -12,7 +12,7 @@ import { DISCIPLINES, fitnessDisciplineLabel, type DisciplineKey, type FitnessTe
 interface Team {
   id: string;
   name: string;
-  teamCategory?: { code: string };
+  teamCategory?: { code: string; name?: string };
 }
 interface Player {
   id: string;
@@ -129,7 +129,8 @@ function NewTestForm() {
 
   const thCls = 'whitespace-nowrap px-3 py-2 text-left font-medium';
   // dĺžka vytrvalostného behu podľa vekovej kategórie družstva (U13 = 6 min, U15 = 12 min)
-  const minutes = enduranceMinutesFor(teams.find((t) => t.id === teamId)?.teamCategory?.code);
+  const selectedTeam = teams.find((t) => t.id === teamId);
+  const minutes = enduranceMinutesFor(selectedTeam?.teamCategory?.code, selectedTeam?.teamCategory?.name);
 
   return (
     <div className="space-y-5">
@@ -170,13 +171,20 @@ function NewTestForm() {
       ) : players.length === 0 ? (
         <Card className="text-sm text-gray-500">Družstvo nemá žiadnych hráčov.</Card>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-club-100 bg-white">
-          <table className="w-full border-collapse text-sm">
-            <thead className="bg-club-50 text-club-800">
+        <div className="rounded-lg border border-club-100 bg-white md:overflow-visible overflow-x-auto">
+          <table className="min-w-[44rem] w-full table-fixed border-collapse text-xs sm:text-sm">
+            <colgroup>
+              <col className="w-[15%]" />
+              {DISCIPLINES.map((d) => (
+                <col key={d.key} className="w-[9.5%]" />
+              ))}
+              <col className="w-[18%]" />
+            </colgroup>
+            <thead className="bg-club-50 align-bottom text-club-800">
               <tr>
-                <th className={thCls}>Hráč</th>
+                <th className="px-2 py-2 text-left text-xs font-medium">Hráč</th>
                 {DISCIPLINES.map((d) => (
-                  <th key={d.key} className={thCls}>
+                  <th key={d.key} className="px-1 py-2 text-left text-xs font-medium leading-tight">
                     {fitnessDisciplineLabel(d, minutes)} ({d.unit})
                   </th>
                 ))}
@@ -190,11 +198,11 @@ function NewTestForm() {
                 const dirty = DISCIPLINES.some((d) => row.values[d.key] !== row.saved[d.key]);
                 return (
                   <tr key={p.id}>
-                    <td className="whitespace-nowrap px-3 py-1.5 font-medium">
+                    <td className="px-2 py-1.5 text-sm font-medium leading-tight">
                       {p.lastName} {p.firstName}
                     </td>
                     {DISCIPLINES.map((d) => (
-                      <td key={d.key} className="px-2 py-1.5">
+                      <td key={d.key} className="px-1 py-1.5">
                         <input
                           type="number"
                           inputMode="decimal"
@@ -202,11 +210,11 @@ function NewTestForm() {
                           min="0"
                           value={row.values[d.key]}
                           onChange={(e) => setValue(p.id, d.key, e.target.value)}
-                          className="w-24 rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-club-500 focus:outline-none"
+                          className="w-full min-w-0 rounded-md border border-gray-300 px-1.5 py-1 text-sm focus:border-club-500 focus:outline-none"
                         />
                       </td>
                     ))}
-                    <td className="whitespace-nowrap px-3 py-1.5 text-right">
+                    <td className="px-2 py-1.5 text-right">
                       <button
                         onClick={() => save(p.id)}
                         disabled={row.busy || (!!row.testId && !dirty)}
@@ -214,7 +222,7 @@ function NewTestForm() {
                       >
                         {row.busy ? '…' : row.testId ? 'Upraviť' : 'Uložiť'}
                       </button>
-                      {row.testId && !dirty && <span className="ml-2 text-xs text-green-600">✓ uložené</span>}
+                      {row.testId && !dirty && <div className="text-xs text-green-600">✓ uložené</div>}
                       {row.error && <div className="mt-1 text-xs text-red-600">{row.error}</div>}
                     </td>
                   </tr>

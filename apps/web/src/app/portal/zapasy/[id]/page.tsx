@@ -43,6 +43,7 @@ interface MatchDetail {
   notes: string | null;
   jerseyColor: 'DARK' | 'LIGHT' | null;
   videoUrl: string | null;
+  highlightsUrl: string | null;
   event: {
     id: string;
     title: string;
@@ -108,6 +109,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   const [notesDraft, setNotesDraft] = useState('');
   const [detailsBusy, setDetailsBusy] = useState(false);
   const [videoDraft, setVideoDraft] = useState('');
+  const [highlightsDraft, setHighlightsDraft] = useState('');
   const [videoBusy, setVideoBusy] = useState(false);
   const [veoBusy, setVeoBusy] = useState(false);
   const [veoCandidates, setVeoCandidates] = useState<Array<{ url: string; title: string; recordedAt: string | null }> | null>(null);
@@ -144,8 +146,9 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       setMeetDraft(formatEventTimeSk(meetTimeOf(match)));
       setNotesDraft(match.notes ?? '');
       setVideoDraft(match.videoUrl ?? '');
+      setHighlightsDraft(match.highlightsUrl ?? '');
     }
-  }, [match?.meetAt, match?.notes, match?.videoUrl, match?.event.startAt]);
+  }, [match?.meetAt, match?.notes, match?.videoUrl, match?.highlightsUrl, match?.event.startAt]);
 
   async function saveDetails() {
     if (!match) return;
@@ -188,6 +191,19 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Uloženie videa zlyhalo');
+    } finally {
+      setVideoBusy(false);
+    }
+  }
+
+  async function saveHighlights(url: string | null) {
+    setVideoBusy(true);
+    setError(null);
+    try {
+      await api(`/matches/${id}/highlights`, { method: 'POST', body: JSON.stringify({ url }) });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Uloženie highlightov zlyhalo');
     } finally {
       setVideoBusy(false);
     }
@@ -502,7 +518,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           {/* Video */}
           {manage ? (
             <div className="space-y-2">
-              <label className="block text-xs text-gray-500">Odkaz na video (napr. Veo)</label>
+              <label className="block text-xs font-medium text-gray-600">Video zápasu (odkaz, napr. Veo)</label>
               <div className="flex flex-wrap gap-2">
                 <input
                   value={videoDraft}
@@ -538,18 +554,50 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
               {match.videoUrl && (
                 <div className="flex items-center gap-2 text-sm">
                   <a href={match.videoUrl} target="_blank" rel="noopener noreferrer" className="text-club-700 underline">
-                    ▶ Otvoriť video
+                    ▶ Video zápasu
                   </a>
                   <button onClick={() => saveVideo(null)} className="text-xs text-red-600 hover:underline">
                     odstrániť
                   </button>
                 </div>
               )}
+
+              <label className="block pt-2 text-xs font-medium text-gray-600">Highlighty (odkaz)</label>
+              <div className="flex flex-wrap gap-2">
+                <input
+                  value={highlightsDraft}
+                  onChange={(e) => setHighlightsDraft(e.target.value)}
+                  placeholder="https://…"
+                  className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
+                <Button variant="ghost" onClick={() => saveHighlights(highlightsDraft || null)} disabled={videoBusy}>
+                  {videoBusy ? 'Ukladám…' : 'Uložiť odkaz'}
+                </Button>
+              </div>
+              {match.highlightsUrl && (
+                <div className="flex items-center gap-2 text-sm">
+                  <a href={match.highlightsUrl} target="_blank" rel="noopener noreferrer" className="text-club-700 underline">
+                    ▶ Highlighty
+                  </a>
+                  <button onClick={() => saveHighlights(null)} className="text-xs text-red-600 hover:underline">
+                    odstrániť
+                  </button>
+                </div>
+              )}
             </div>
-          ) : match.videoUrl ? (
-            <a href={match.videoUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-club-700 underline">
-              ▶ Pozrieť video zo zápasu
-            </a>
+          ) : match.videoUrl || match.highlightsUrl ? (
+            <div className="flex flex-wrap gap-4 text-sm">
+              {match.videoUrl && (
+                <a href={match.videoUrl} target="_blank" rel="noopener noreferrer" className="text-club-700 underline">
+                  ▶ Video zápasu
+                </a>
+              )}
+              {match.highlightsUrl && (
+                <a href={match.highlightsUrl} target="_blank" rel="noopener noreferrer" className="text-club-700 underline">
+                  ▶ Highlighty
+                </a>
+              )}
+            </div>
           ) : (
             <p className="text-sm text-gray-500">Video zatiaľ nie je pridané.</p>
           )}
