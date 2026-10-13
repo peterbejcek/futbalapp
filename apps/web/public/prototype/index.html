@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FK Košická Nová Ves — prototyp</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;700;800&display=swap">
+<style>
+:root{--navy:#0b1630;--navy2:#13244d;--navy3:#1b3270;--red:#e11d2e;--neon:#27e8a7;--gold:#f5c84b;--ink:#eaf0ff;--mut:#93a4cc;--card:rgba(255,255,255,.06);--line:rgba(255,255,255,.12)}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:Inter,"Segoe UI",system-ui,Arial,sans-serif;background:radial-gradient(1200px 700px at 80% -10%,#24419a55,transparent),radial-gradient(900px 600px at -10% 30%,#e11d2e22,transparent),var(--navy);color:var(--ink);min-height:100vh}
+h1,h2,h3,.disp{font-family:Anton,Impact,"Arial Narrow Bold","Arial Black",sans-serif;letter-spacing:.02em;text-transform:uppercase;font-weight:400}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+/* top bar */
+header{position:sticky;top:0;z-index:50;background:linear-gradient(180deg,#0b1630f2,#0b1630cc);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.bar{max-width:1200px;margin:auto;display:flex;align-items:center;gap:18px;padding:8px 20px}
+.brand{display:flex;align-items:center;gap:10px;cursor:pointer}
+.brand img{height:46px}
+.brand b{font-family:Anton,Impact,sans-serif;font-size:20px;line-height:1;text-transform:uppercase}
+.brand small{display:block;color:var(--mut);font-size:11px;letter-spacing:.15em}
+nav{display:flex;gap:2px;margin-left:auto;flex-wrap:wrap}
+nav button{padding:10px 14px;font-weight:700;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);transform:skewX(-12deg);border-bottom:3px solid transparent;transition:.2s}
+nav button span{display:inline-block;transform:skewX(12deg)}
+nav button:hover{color:#fff;background:var(--card)}
+nav button.on{color:#fff;border-color:var(--neon);background:linear-gradient(180deg,transparent,#27e8a722)}
+.login{background:var(--red);padding:9px 16px;font-weight:800;font-size:13px;text-transform:uppercase;transform:skewX(-12deg);margin-left:8px}
+.login span{display:inline-block;transform:skewX(12deg)}
+@media(max-width:900px){.bar{flex-wrap:wrap}nav{margin-left:0;width:100%;overflow-x:auto;flex-wrap:nowrap}}
+main{max-width:1200px;margin:auto;padding:24px 20px 80px}
+.page{display:none;animation:in .35s}.page.on{display:block}
+@keyframes in{from{opacity:0;transform:translateY(12px)}to{opacity:1}}
+.sec{display:flex;align-items:center;gap:12px;margin:34px 0 14px}
+.sec h2{font-size:30px}.sec:before{content:"";width:8px;height:32px;background:var(--neon);transform:skewX(-14deg)}
+.sec .more{margin-left:auto;color:var(--neon);font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.1em}
+.panel{background:var(--card);border:1px solid var(--line);clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,18px 100%,0 calc(100% - 18px));padding:20px}
+/* hero */
+.hero{position:relative;overflow:hidden;min-height:420px;display:grid;grid-template-columns:1.1fr .9fr;gap:10px;align-items:end;background:linear-gradient(120deg,var(--navy3),var(--navy) 70%);clip-path:polygon(0 0,100% 0,100% calc(100% - 40px),calc(100% - 40px) 100%,0 100%);padding:40px 40px 0}
+.hero:before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(115deg,transparent 0 60px,#ffffff06 60px 120px)}
+.hero:after{content:"1935";position:absolute;right:-10px;top:-30px;font:900 220px Anton,Impact,sans-serif;color:#ffffff0a}
+.hero .t{position:relative;padding-bottom:40px}
+.tag{display:inline-block;background:var(--red);padding:4px 12px;font-weight:800;font-size:12px;letter-spacing:.15em;text-transform:uppercase;transform:skewX(-12deg)}
+.hero h1{font-size:clamp(44px,7vw,92px);line-height:.92;margin:14px 0}
+.hero h1 em{font-style:normal;color:var(--neon)}
+.hero p{color:var(--mut);max-width:460px;line-height:1.5}
+.btns{display:flex;gap:12px;margin-top:22px;flex-wrap:wrap}
+.btn{padding:13px 24px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;font-size:13px;transform:skewX(-12deg);transition:.2s;display:inline-block}
+.btn span{display:inline-block;transform:skewX(12deg)}
+.btn.p{background:var(--neon);color:#04251a}.btn.s{border:2px solid var(--line)}
+.btn:hover{transform:skewX(-12deg) translateY(-3px);box-shadow:0 8px 24px #27e8a744}
+.hero .pl{position:relative;display:flex;justify-content:center;align-items:end;gap:0}
+.hero .pl svg{height:380px;filter:drop-shadow(0 10px 30px #000a)}
+.hero .pl svg:nth-child(1){margin-right:-60px;height:330px;opacity:.9}.hero .pl svg:nth-child(3){margin-left:-60px;height:330px;opacity:.9}
+@media(max-width:800px){.hero{grid-template-columns:1fr;padding:28px 22px 0}.hero .pl svg{height:260px}.hero .pl svg:nth-child(1),.hero .pl svg:nth-child(3){height:220px}}
+/* match card */
+.next{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px;text-align:center}
+.team{display:flex;flex-direction:column;align-items:center;gap:8px}
+.crest{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;font:22px Anton,Impact;border:3px solid #fff3}
+.vs{font:44px Anton,Impact;color:var(--mut)}
+.score{font:56px Anton,Impact;letter-spacing:.05em}
+.cd{display:flex;gap:10px;justify-content:center;margin-top:10px}
+.cd div{background:#0006;padding:8px 12px;min-width:62px}.cd b{font:30px Anton,Impact;display:block;color:var(--neon)}.cd small{font-size:10px;color:var(--mut);letter-spacing:.15em;text-transform:uppercase}
+.grid{display:grid;gap:16px}.g3{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}.g2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+.news{padding:0;overflow:hidden;cursor:pointer;transition:.25s}.news:hover{transform:translateY(-4px);border-color:var(--neon)}
+.news .im{height:120px;background:linear-gradient(135deg,var(--navy3),var(--red));display:grid;place-items:center;font:48px Anton,Impact;color:#fff5}
+.news .bd{padding:16px}.news small{color:var(--neon);font-weight:700;letter-spacing:.1em}.news h3{font-size:19px;margin:6px 0;line-height:1.15}.news p{color:var(--mut);font-size:13px;line-height:1.45}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.stat{text-align:center}.stat b{font:54px Anton,Impact;color:var(--gold);display:block}.stat small{color:var(--mut);text-transform:uppercase;letter-spacing:.12em;font-size:11px}
+@media(max-width:700px){.stats{grid-template-columns:repeat(2,1fr)}}
+/* filters */
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.chip{padding:8px 16px;font-weight:800;font-size:12px;letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--line);transform:skewX(-12deg);color:var(--mut);transition:.2s}
+.chip span{display:inline-block;transform:skewX(12deg)}.chip.on,.chip:hover{background:var(--neon);color:#04251a;border-color:var(--neon)}
+/* FUT card */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:22px}
+.fut{position:relative;aspect-ratio:3/4.3;cursor:pointer;transition:transform .3s;perspective:600px}
+.fut:hover{transform:translateY(-8px) rotate(-1.5deg) scale(1.04);filter:drop-shadow(0 14px 22px #000a)}
+.fut .face{position:absolute;inset:0;clip-path:polygon(50% 0,100% 8%,100% 86%,50% 100%,0 86%,0 8%);background:var(--bg);overflow:hidden}
+.fut .face:before{content:"";position:absolute;inset:3px;clip-path:inherit;background:linear-gradient(160deg,#ffffff55,transparent 40%,#00000044),var(--bg2)}
+.fut .face:after{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 40%,#ffffff44 50%,transparent 60%);transform:translateX(-120%);transition:.7s}
+.fut:hover .face:after{transform:translateX(120%)}
+.fut .rt{position:absolute;left:14%;top:14%;z-index:2;color:var(--tx);line-height:.9;text-align:center}
+.fut .rt b{font:40px Anton,Impact;display:block}.fut .rt small{font:700 13px "Segoe UI";letter-spacing:.05em}
+.fut .av{position:absolute;left:24%;right:6%;top:9%;height:50%;z-index:1}.fut .av svg{width:100%;height:100%}
+.fut .nm{position:absolute;left:0;right:0;top:61%;text-align:center;font:700 17px Anton,Impact;text-transform:uppercase;color:var(--tx);z-index:2;letter-spacing:.04em}
+.fut .nm:after{content:"";display:block;width:56%;height:2px;background:var(--tx);opacity:.4;margin:4px auto}
+.fut .st{position:absolute;left:14%;right:14%;top:73%;display:grid;grid-template-columns:1fr 1fr;gap:0 10px;color:var(--tx);font:700 12px "Segoe UI";z-index:2}
+.fut .st span b{font:15px Anton,Impact;margin-right:4px}
+.fut .nr{position:absolute;bottom:6%;left:0;right:0;text-align:center;color:var(--tx);font:700 10px "Segoe UI";letter-spacing:.2em;z-index:2;opacity:.8}
+.t-gold{--bg:#a77a15;--bg2:linear-gradient(160deg,#f6dd8a,#d3a331 55%,#b98a1c);--tx:#3a2a05}
+.t-silver{--bg:#7d8795;--bg2:linear-gradient(160deg,#eef2f7,#b7c0cc 55%,#98a2b0);--tx:#222a36}
+.t-bronze{--bg:#7a4a22;--bg2:linear-gradient(160deg,#eab27d,#b7733c 55%,#945a2b);--tx:#2e1808}
+.t-toty{--bg:#27e8a7;--bg2:linear-gradient(160deg,#1b3270,#0b1630 60%,#13244d);--tx:#27e8a7}
+/* modal */
+.modal{position:fixed;inset:0;background:#030816e6;z-index:100;display:none;place-items:center;padding:16px;backdrop-filter:blur(6px)}
+.modal.on{display:grid;animation:in .25s}
+.mbox{width:min(880px,100%);max-height:92vh;overflow:auto;background:linear-gradient(135deg,var(--navy3),var(--navy));border:1px solid var(--line);display:grid;grid-template-columns:260px 1fr;gap:26px;padding:28px;position:relative;clip-path:polygon(0 0,calc(100% - 28px) 0,100% 28px,100% 100%,0 100%)}
+@media(max-width:700px){.mbox{grid-template-columns:1fr}}
+.x{position:absolute;right:14px;top:10px;font-size:26px;color:var(--mut)}
+.mbox h2{font-size:42px;line-height:1}.mbox .meta{color:var(--mut);margin:6px 0 18px;letter-spacing:.08em;text-transform:uppercase;font-size:12px}
+.bars{display:grid;gap:9px}
+.bar2{display:grid;grid-template-columns:50px 1fr 34px;align-items:center;gap:10px;font-weight:700;font-size:12px;letter-spacing:.1em;color:var(--mut)}
+.bar2 i{display:block;height:9px;background:#fff1;transform:skewX(-20deg);overflow:hidden}.bar2 i u{display:block;height:100%;background:linear-gradient(90deg,var(--neon),#8bffd8);width:0;transition:width 1s cubic-bezier(.2,.8,.2,1)}
+.bar2 b{font:18px Anton,Impact;color:#fff}
+.kv{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:20px}.kv div{background:#0005;padding:10px;text-align:center}.kv b{font:26px Anton,Impact;display:block;color:var(--gold)}.kv small{font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.1em}
+/* tables */
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.12em;text-align:left;padding:10px 8px}
+td{padding:11px 8px;border-top:1px solid var(--line)}
+tr.me td{background:#27e8a71a;font-weight:800}tr.me td:first-child{box-shadow:inset 4px 0 var(--neon)}
+tbody tr{transition:.15s}tbody tr:hover{background:#ffffff0d}
+td.n,th.n{text-align:center}.form{display:inline-flex;gap:3px}.form i{width:18px;height:18px;display:grid;place-items:center;font:700 10px "Segoe UI";font-style:normal;color:#04251a}
+.W{background:var(--neon)}.R{background:var(--mut)}.L{background:var(--red);color:#fff!important}
+.fx{display:grid;grid-template-columns:90px 1fr auto 1fr 120px;gap:12px;align-items:center;padding:14px 16px;border-top:1px solid var(--line);cursor:pointer;transition:.15s}
+.fx:hover{background:#ffffff0d}.fx .d b{font:22px Anton,Impact;display:block}.fx .d small{color:var(--mut);font-size:11px;text-transform:uppercase}
+.fx .h{text-align:right;font-weight:700}.fx .sc{font:26px Anton,Impact;background:#0006;padding:2px 14px;min-width:84px;text-align:center}
+.fx .w{color:var(--mut);font-size:12px;text-align:right}
+@media(max-width:700px){.fx{grid-template-columns:60px 1fr auto 1fr}.fx .w{display:none}}
+.tr{display:grid;grid-template-columns:80px 1fr auto;gap:14px;align-items:center;padding:14px 0;border-top:1px solid var(--line)}
+.tr .dy{font:28px Anton,Impact;color:var(--neon);text-align:center}.tr .dy small{display:block;font:700 10px "Segoe UI";color:var(--mut)}
+.tr b{display:block;font-size:16px}.tr span{color:var(--mut);font-size:13px}
+.pill{background:var(--red);padding:4px 10px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em}
+.people{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+.pp{display:flex;gap:14px;align-items:center}.pp .ic{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--navy3),var(--red));display:grid;place-items:center;font:22px Anton,Impact;flex:none}
+.pp b{display:block}.pp small{color:var(--neon);font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:11px}.pp span{display:block;color:var(--mut);font-size:12px;margin-top:3px}
+.tl{position:relative;padding-left:28px}.tl:before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:3px;background:linear-gradient(var(--neon),var(--red))}
+.tl div{position:relative;margin-bottom:18px}.tl div:before{content:"";position:absolute;left:-28px;top:4px;width:17px;height:17px;background:var(--navy);border:3px solid var(--neon);transform:rotate(45deg) scale(.8)}
+.tl b{font:22px Anton,Impact;color:var(--gold)}.tl p{color:var(--mut);font-size:14px;line-height:1.45}
+.doc{display:flex;align-items:center;gap:14px;padding:14px 0;border-top:1px solid var(--line)}.doc i{font:700 11px "Segoe UI";font-style:normal;background:var(--red);padding:6px 8px}.doc span{margin-left:auto;color:var(--neon);font-weight:700;font-size:12px;text-transform:uppercase}
+footer{border-top:1px solid var(--line);padding:30px 20px;color:var(--mut);text-align:center;font-size:12px;line-height:1.7}
+.note{background:#f5c84b22;border:1px dashed var(--gold);padding:8px 14px;font-size:12px;color:var(--gold);margin-bottom:16px}
+.tabs{display:flex;gap:8px;margin-bottom:12px}
+.fld{width:100%;padding:12px;background:#0006;border:1px solid var(--line);color:#fff;font:inherit;margin-bottom:10px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--neon);color:#04251a;padding:12px 22px;font-weight:800;z-index:200;transition:.35s}.toast.on{transform:translateX(-50%)}
+</style>
+</head>
+<body>
+<header><div class="bar">
+  <div class="brand" onclick="go('domov')"><img src="logo.png" alt="Erb"><div><b>FK Košická<br>Nová Ves</b></div></div>
+  <nav id="nav"></nav>
+  <a class="login" href="#" onclick="toast('Prihlásenie → existujúci portál /prihlasenie');return false"><span>Prihlásiť</span></a>
+</div></header>
+
+<main>
+<!-- DOMOV -->
+<section class="page" id="p-domov">
+  <div class="hero">
+    <div class="t">
+      <span class="tag">Sezóna 2026/27 · od 1935</span>
+      <h1>Zelená je<br><em>naša hra</em></h1>
+      <p>Oficiálny portál FK Košická Nová Ves. Zloženie mužstiev, rozpis zápasov a tréningov, novinky z klubu — na jednom mieste.</p>
+      <div class="btns"><a class="btn p" href="#" onclick="go('timy');return false"><span>Pozrieť tímy</span></a><a class="btn s" href="#" onclick="go('zapasy');return false"><span>Rozpis zápasov</span></a></div>
+    </div>
+    <div class="pl" id="heroPl"></div>
+  </div>
+
+  <div class="sec"><h2>Najbližší zápas</h2><a class="more" href="#" onclick="go('zapasy');return false">Všetky zápasy →</a></div>
+  <div class="panel" id="nextMatch"></div>
+
+  <div class="sec"><h2>Klub v číslach</h2></div>
+  <div class="panel stats">
+    <div class="stat"><b data-c="91">0</b><small>rokov histórie</small></div>
+    <div class="stat"><b data-c="9">0</b><small>vekových kategórií</small></div>
+    <div class="stat"><b data-c="220">0</b><small>registrovaných hráčov</small></div>
+    <div class="stat"><b data-c="12">0</b><small>trénerov a funkcionárov</small></div>
+  </div>
+
+  <div class="sec"><h2>Aktuality</h2><a class="more" href="#" onclick="go('aktuality');return false">Všetky správy →</a></div>
+  <div class="grid g3" id="newsHome"></div>
+</section>
+
+<!-- TIMY -->
+<section class="page" id="p-timy">
+  <div class="sec" style="margin-top:0"><h2>Zloženie mužstiev</h2></div>
+  <div class="note">Prototyp: dáta z portálu (sezóna 2026/27). Hráči a fotografie sú vymyslené, bez väzby na reálne osoby.</div>
+  <div class="chips" id="teamChips"></div>
+  <div class="cards" id="cards"></div>
+</section>
+
+<!-- ZAPASY -->
+<section class="page" id="p-zapasy">
+  <div class="sec" style="margin-top:0"><h2>Zápasy a tabuľka</h2></div>
+  <div class="note">Rozpis a výsledky sa načítavajú z portálu (modul Zápasy).</div>
+  <div class="chips" id="matchChips"></div>
+  <div class="grid g2" style="grid-template-columns:1.5fr 1fr;align-items:start">
+    <div class="panel" style="padding:0" id="fixtures"></div>
+    <div class="panel" id="table"></div>
+  </div>
+</section>
+
+<!-- TRENINGY -->
+<section class="page" id="p-treningy">
+  <div class="sec" style="margin-top:0"><h2>Rozpis tréningov</h2></div>
+  <div class="note">Rozpis sa načítava z portálu (modul Tréningy). Miesta podľa klubového webu.</div>
+  <div class="chips" id="trChips"></div>
+  <div class="panel" id="trList"></div>
+</section>
+
+<!-- AKTUALITY -->
+<section class="page" id="p-aktuality">
+  <div class="sec" style="margin-top:0"><h2>Aktuality</h2></div>
+  <div class="grid g3" id="newsAll"></div>
+</section>
+
+<!-- KLUB -->
+<section class="page" id="p-klub">
+  <div class="sec" style="margin-top:0"><h2>História klubu</h2></div>
+  <div class="panel tl">
+    <div><b>1935</b><p>Kňaz Jozef Balogh a ďalší nadšenci zakladajú prvý futbalový klub v obci. Ihrisko stálo na dnešnej Agátovej ulici.</p></div>
+    <div><b>1947–48</b><p>Vzniká SOKOL Košická Nová Ves (J. Drenčák, J. Lengyel, O. Lengyel); v roku 1948 premenovaný na Jednota.</p></div>
+    <div><b>1951</b><p>Začiatok tradičného májového zápasu „Horný a dolný koniec“.</p></div>
+    <div><b>1958</b><p>Sokol hrá I.A triedu košického kraja.</p></div>
+    <div><b>1974</b><p>Názov Motostav. 29. augusta otvorenie nového štadióna zápasom s VSS Košice.</p></div>
+    <div><b>1982–1996</b><p>TJ ČSAD — obdobie najväčšieho rozmachu, oddiely futbal, kolky, basketbal, stolný tenis, turistika. V r. 1983 postup do krajských súťaží.</p></div>
+    <div><b>1997</b><p>Súčasný názov: Futbalový klub Košická Nová Ves.</p></div>
+  </div>
+  <div class="sec"><h2>Funkcionári a tréneri</h2></div>
+  <div class="people" id="people"></div>
+  <div class="sec"><h2>Zverejňovanie zmlúv</h2></div>
+  <div class="panel" id="docs"></div>
+</section>
+
+<!-- KONTAKT -->
+<section class="page" id="p-kontakt">
+  <div class="sec" style="margin-top:0"><h2>Kontakt</h2></div>
+  <div class="grid g2">
+    <div class="panel">
+      <h3 style="font-size:24px;margin-bottom:12px">FK Košická Nová Ves</h3>
+      <p style="line-height:2">📍 Agátová č. 1, 040 14 Košice<br>📞 0903 903 936 (manažér)<br>✉️ fkknv1935@gmail.com<br>IČO: 31 942 059<br>IBAN: SK77 0200 0000 0000 6263 9512 (VÚB)</p>
+      <p style="margin-top:14px;color:var(--mut);font-size:13px;line-height:1.5">Podporte klub 2 % / 3 % z dane — formuláre nájdete v sekcii Zverejňovanie zmlúv.</p>
+    </div>
+    <div class="panel">
+      <h3 style="font-size:24px;margin-bottom:12px">Napíšte nám</h3>
+      <input class="fld" placeholder="Meno"><input class="fld" placeholder="E-mail"><textarea class="fld" rows="4" placeholder="Správa"></textarea>
+      <a class="btn p" href="#" onclick="toast('Správa odoslaná (prototyp)');return false"><span>Odoslať</span></a>
+    </div>
+  </div>
+</section>
+
+<!-- NEWS DETAIL -->
+<section class="page" id="p-clanok"><div class="panel" id="article"></div></section>
+</main>
+
+<footer>© FK Košická Nová Ves · Agátová 1, 040 14 Košice · Prototyp novej frontend stránky<br>Dáta o klube: fkkosickanovaves.sk · Zloženie, zápasy a tréningy: portál FKKNV (ukážkové dáta)</footer>
+
+<div class="modal" id="modal" onclick="if(event.target===this)closeM()"><div class="mbox" id="mbox"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const NAV=[['domov','Domov'],['timy','Tímy'],['zapasy','Zápasy'],['treningy','Tréningy'],['aktuality','Aktuality'],['klub','Klub'],['kontakt','Kontakt']];
+$('#nav').innerHTML=NAV.map(([k,l])=>`<button data-k="${k}" onclick="go('${k}')"><span>${l}</span></button>`).join('');
+function go(k){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id==='p-'+k));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.k===k||(k==='clanok'&&b.dataset.k==='aktuality')));scrollTo({top:0});location.hash=k;if(k==='domov')countUp()}
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),2200)}
+
+/* ---------- vymyslení hráči (generované, bez väzby na reálne osoby) ---------- */
+const SK=['Dávid','Samuel','Matej','Tomáš','Adam','Filip','Oliver','Jakub','Šimon','Lukáš','Tobias','Marek','Patrik','Denis','Richard','Timotej','Nikolas','Sebastián','Eduard','Viktor','Kristián','Maxim','Alex','Dominik'];
+const LN=['Hudák','Zelinka','Kováčik','Brezina','Novotný','Halász','Poliak','Gajdoš','Rusnák','Tóth','Mihalík','Šoltés','Varga','Lacko','Hrabovský','Kmeť','Bartoš','Sivák','Dudáš','Fedor','Molnár','Čurilla','Petrík','Ráž'];
+let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;const pick=a=>a[Math.floor(rnd()*a.length)];
+const SKIN=['#f1c9a5','#e0ac80','#c98f66','#f6d6b8','#a8714a'],HAIR=['#2a1a10','#4a2e1a','#7a4a22','#d9b36b','#111','#8a5a2b'];
+function avatar(p,uid){const s=p.skin,h=p.hair,st=p.style;
+ const hair=st===0?`<path d="M62 62Q62 34 100 34Q138 34 138 62Q130 48 100 48Q70 48 62 62Z" fill="${h}"/>`:st===1?`<path d="M60 70Q56 30 100 30Q144 30 140 70Q132 46 100 46Q68 46 60 70Z" fill="${h}"/><rect x="60" y="56" width="80" height="8" fill="${h}" opacity=".0"/>`:`<path d="M62 64Q60 36 100 32Q140 36 138 64Q128 44 100 50Q72 44 62 64Z" fill="${h}"/><path d="M62 64l-2 14l8-8z M138 64l2 14l-8-8z" fill="${h}"/>`;
+ return `<svg viewBox="0 0 200 240" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="k${uid}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1d3a8a"/><stop offset="1" stop-color="#0d1f55"/></linearGradient></defs>
+ <path d="M18 240Q20 168 66 152L100 166L134 152Q180 168 182 240Z" fill="url(#k${uid})"/>
+ <path d="M66 152L100 168L134 152L134 160L100 178L66 160Z" fill="#e11d2e"/>
+ <path d="M18 240Q19 205 30 182L50 190Q40 212 40 240Z M182 240Q181 205 170 182L150 190Q160 212 160 240Z" fill="#e11d2e" opacity=".9"/>
+ <rect x="86" y="128" width="28" height="30" rx="8" fill="${s}"/><rect x="86" y="140" width="28" height="12" fill="#0003"/>
+ <ellipse cx="100" cy="88" rx="38" ry="46" fill="${s}"/>
+ <ellipse cx="62" cy="92" rx="6" ry="10" fill="${s}"/><ellipse cx="138" cy="92" rx="6" ry="10" fill="${s}"/>
+ ${hair}
+ <ellipse cx="85" cy="90" rx="5" ry="6" fill="#fff"/><ellipse cx="115" cy="90" rx="5" ry="6" fill="#fff"/><circle cx="86" cy="91" r="3" fill="#2a1a10"/><circle cx="116" cy="91" r="3" fill="#2a1a10"/>
+ <path d="M76 80Q85 75 94 80M106 80Q115 75 124 80" stroke="${h}" stroke-width="3" fill="none" stroke-linecap="round"/>
+ <path d="M100 92L97 106Q100 108 103 106Z" fill="#0002"/><path d="M86 116Q100 126 114 116" stroke="#8a3b2e" stroke-width="3" fill="none" stroke-linecap="round"/>
+ <text x="100" y="222" text-anchor="middle" font-family="Anton,Impact" font-size="30" fill="#fff" opacity=".9">${p.no}</text></svg>`}
+
+const TEAMS={A:'„A“ mužstvo',U19:'U19 dorast',U17:'U17 dorast',U15:'U15 žiaci',U13:'U13 žiaci',U11:'U11 prípravka',U9:'U9 prípravka'};
+const AGE={A:[14,15],U19:[14,15],U17:[13,15],U15:[13,15],U13:[13,14],U11:[13,14],U9:[13,14]};
+const POS=['GK','CB','LB','RB','CM','CDM','CAM','LW','RW','ST'];
+const SQUAD=[];let no=1;
+for(const t of Object.keys(TEAMS)){const n=t==='A'?18:14;for(let i=0;i<n;i++){const pos=i===0?'GK':i===1?'GK':POS[1+Math.floor(rnd()*9)];
+ const base=({A:72,U19:68,U17:66,U15:64,U13:60,U11:56,U9:52})[t];const ov=Math.min(88,base+Math.floor(rnd()*14)-3);
+ const f=()=>Math.max(35,Math.min(94,ov+Math.floor(rnd()*22)-11));
+ SQUAD.push({id:SQUAD.length,team:t,name:pick(SK),last:pick(LN),pos,no:(i+1)+Math.floor(rnd()*0),ov,age:AGE[t][0]+Math.floor(rnd()*(AGE[t][1]-AGE[t][0]+1)),skin:pick(SKIN),hair:pick(HAIR),style:Math.floor(rnd()*3),
+ pac:f(),sho:pos==='GK'?f()-20:f(),pas:f(),dri:f(),def:f(),phy:f(),gp:6+Math.floor(rnd()*10),g:pos==='GK'?0:Math.floor(rnd()*(ov>75?9:5)),a:Math.floor(rnd()*6),mom:Math.floor(rnd()*3)})}}
+const tier=o=>o>=80?'toty':o>=72?'gold':o>=62?'silver':'bronze';
+let curTeam='A';
+function cardHTML(p){return `<div class="fut t-${tier(p.ov)}" onclick="openP(${p.id})"><div class="face"></div>
+ <div class="rt"><b>${p.ov}</b><small>${p.pos}</small></div><div class="av">${avatar(p,'c'+p.id)}</div>
+ <div class="nm">${p.last}</div>
+ <div class="st"><span><b>${p.pac}</b>PAC</span><span><b>${p.dri}</b>DRI</span><span><b>${p.sho}</b>SHO</span><span><b>${p.def}</b>DEF</span><span><b>${p.pas}</b>PAS</span><span><b>${p.phy}</b>PHY</span></div>
+ <div class="nr">FK KNV · ${p.team}</div></div>`}
+function renderTeams(){$('#teamChips').innerHTML=Object.entries(TEAMS).map(([k,v])=>`<button class="chip ${k===curTeam?'on':''}" onclick="curTeam='${k}';renderTeams()"><span>${v}</span></button>`).join('');
+ $('#cards').innerHTML=SQUAD.filter(p=>p.team===curTeam).sort((a,b)=>b.ov-a.ov).map(cardHTML).join('')}
+function openP(id){const p=SQUAD[id];const bars=[['PAC',p.pac],['SHO',p.sho],['PAS',p.pas],['DRI',p.dri],['DEF',p.def],['PHY',p.phy]];
+ $('#mbox').innerHTML=`<button class="x" onclick="closeM()">✕</button><div style="width:240px;margin:auto">${cardHTML(p).replace('onclick="openP('+p.id+')"','')}</div>
+ <div><h2>${p.name} ${p.last}</h2><div class="meta">${TEAMS[p.team]} · ${p.pos} · ${p.age} rokov · č. ${p.no}</div>
+ <div class="bars">${bars.map(([k,v])=>`<div class="bar2"><span>${k}</span><i><u data-w="${v}"></u></i><b>${v}</b></div>`).join('')}</div>
+ <div class="kv"><div><b>${p.gp}</b><small>Zápasy</small></div><div><b>${p.g}</b><small>Góly</small></div><div><b>${p.a}</b><small>Asistencie</small></div><div><b>${p.mom}</b><small>MOM</small></div></div>
+ <p style="margin-top:16px;color:var(--mut);font-size:12px">Ukážkový hráč — fiktívna postava, nie reálna osoba.</p></div>`;
+ $('#modal').classList.add('on');requestAnimationFrame(()=>setTimeout(()=>document.querySelectorAll('.bar2 u').forEach(u=>u.style.width=u.dataset.w+'%'),30))}
+function closeM(){$('#modal').classList.remove('on')}
+addEventListener('keydown',e=>e.key==='Escape'&&closeM());
+
+/* hero */
+$('#heroPl').innerHTML=[3,0,9].map((i,k)=>avatar(SQUAD.filter(p=>p.team==='U15')[i],'h'+k)).join('');
+
+/* ---------- zápasy ---------- */
+const OPP=['Čaňa','Ťahanovce','Šaca','Slovan Ruskov','Bidovce','Krásna n/Hornádom','Vyšná Myšľa','Nižná Myšľa','Kechnec'];
+const MATCH=[];let d0=new Date('2026-08-16');
+for(let i=0;i<12;i++){const d=new Date(d0.getTime()+i*7*864e5);const played=d<new Date('2026-10-13');const home=i%2===0;const a=Math.floor(rnd()*5),b=Math.floor(rnd()*4);
+ MATCH.push({d,opp:OPP[i%OPP.length],home,played,my:home?a:b,op:home?b:a,team:['A','U19','U17','U15','U13'][i%5],time:['15:30','13:00','10:30','10:00','09:00'][i%5],place:home?'Štadión, Agátová 1':'Hosťujúci štadión'});}
+let curM='A';
+const fmt=d=>d.toLocaleDateString('sk-SK',{day:'numeric',month:'short'}),dow=d=>d.toLocaleDateString('sk-SK',{weekday:'short'});
+function renderMatches(){const keys=['A','U19','U17','U15','U13'];
+ $('#matchChips').innerHTML=keys.map(k=>`<button class="chip ${k===curM?'on':''}" onclick="curM='${k}';renderMatches()"><span>${TEAMS[k]}</span></button>`).join('');
+ const L=MATCH.filter(m=>m.team===curM||true).map((m,i)=>({...m,team:curM,i}));
+ $('#fixtures').innerHTML=L.map(m=>{const h=m.home?'FK Košická N. Ves':m.opp,a=m.home?m.opp:'FK Košická N. Ves';
+  return `<div class="fx" onclick="toast('Detail zápasu: zostavy, góly, minutáž (modul Zápasy)')"><div class="d"><b>${fmt(m.d)}</b><small>${dow(m.d)} · ${m.time}</small></div><div class="h">${h}</div>
+  <div class="sc">${m.played?(m.home?m.my+' : '+m.op:m.op+' : '+m.my):'– : –'}</div><div>${a}</div><div class="w">${m.played?`<span class="pill" style="background:${m.my>m.op?'var(--neon);color:#04251a':m.my===m.op?'var(--mut);color:#000':'var(--red)'}">${m.my>m.op?'Výhra':m.my===m.op?'Remíza':'Prehra'}</span>`:m.place}</div></div>`}).join('');
+ const rows=['FK Košická N. Ves',...OPP.slice(0,7)].map((n,i)=>{const w=9-i,dr=1+(i%3),l=i;return{n,p:w+dr+l,w,d:dr,l,gf:30-i*3,ga:10+i*3,pts:w*3+dr}}).sort((a,b)=>b.pts-a.pts);
+ $('#table').innerHTML=`<h3 style="font-size:22px;margin-bottom:8px">Tabuľka · ${TEAMS[curM]}</h3><table><thead><tr><th>#</th><th>Tím</th><th class="n">Z</th><th class="n">+/−</th><th class="n">B</th></tr></thead><tbody>${rows.map((r,i)=>`<tr class="${r.n.startsWith('FK')?'me':''}"><td>${i+1}</td><td>${r.n}</td><td class="n">${r.p}</td><td class="n">${r.gf-r.ga}</td><td class="n"><b>${r.pts}</b></td></tr>`).join('')}</tbody></table>`}
+
+/* najbližší zápas + odpočet */
+const nm=MATCH.find(m=>!m.played);nm.d.setHours(15,30);
+$('#nextMatch').innerHTML=`<div class="next"><div class="team"><div class="crest" style="background:var(--navy3)">KNV</div><b>FK Košická N. Ves</b></div><div><div class="vs">VS</div><small style="color:var(--mut)">${fmt(nm.d)} · ${nm.time} · ${nm.home?'doma':'vonku'}</small></div><div class="team"><div class="crest" style="background:var(--red)">${nm.opp.slice(0,3).toUpperCase()}</div><b>${nm.opp}</b></div></div><div class="cd" id="cd"></div>`;
+setInterval(()=>{const s=Math.max(0,(nm.d-new Date())/1000);const v=[[86400,'dní'],[3600,'hod'],[60,'min'],[1,'sek']];let r=s;$('#cd').innerHTML=v.map(([u,l])=>{const n=Math.floor(r/u);r-=n*u;return`<div><b>${String(n).padStart(2,'0')}</b><small>${l}</small></div>`}).join('')},1000);
+
+/* tréningy */
+const TR=[['A','Út, Štv','18:00','Hlavné ihrisko'],['U19','Po, St','17:30','Hlavné ihrisko'],['U17','Po, St, Pia','16:30','Hlavné ihrisko'],['U15','Út, Štv','16:30','Hala CTA, Agátová'],['U13','Po, St','16:00','TCÚŠ Poľná 2'],['U11','Út, Štv','15:30','CVČ Charkovská'],['U9','St, Pia','15:30','Hala CTA, Agátová']];
+let curT='all';
+function renderTr(){$('#trChips').innerHTML=[['all','Všetky'],...Object.entries(TEAMS)].map(([k,v])=>`<button class="chip ${k===curT?'on':''}" onclick="curT='${k}';renderTr()"><span>${v}</span></button>`).join('');
+ $('#trList').innerHTML=TR.filter(r=>curT==='all'||r[0]===curT).map(r=>`<div class="tr"><div class="dy">${r[1].split(',')[0]}<small>${r[2]}</small></div><div><b>${TEAMS[r[0]]}</b><span>${r[1]} · ${r[3]}</span></div><span class="pill">Tréning</span></div>`).join('')}
+
+/* aktuality */
+const NEWS=[['TMC č.17','27. 10.','Týždenný bulletin TMC: program zápasov mládeže v 44. týždni a výsledky uplynulého víkendu.'],['TMC č.16','19. 10.','Prehľad výsledkov mládeže a pozvánka na domáce zápasy.'],['Svetlá na hlavnom ihrisku','Plánované 2024','Projekt osvetlenia hlavného ihriska — tréningy aj zápasy aj za šera.'],['Zateplenie tribúny a kabín','2023','Vďaka 2 % z daní bola zateplená tribúna a kabíny v klubovom areáli.'],['Zachytávanie dažďovej vody','Projekt','Viac než 100 m³ vody ročne pre trávnik ihriska.'],['Podpor klub 2 % / 3 %','Každý rok','Poukáž časť dane klubu — formuláre v sekcii Zverejňovanie.']];
+const nh=(n,i)=>`<div class="panel news" onclick="art(${i})"><div class="im">${n[0].slice(0,3).toUpperCase()}</div><div class="bd"><small>${n[1]}</small><h3>${n[0]}</h3><p>${n[2]}</p></div></div>`;
+$('#newsHome').innerHTML=NEWS.slice(0,3).map(nh).join('');$('#newsAll').innerHTML=NEWS.map(nh).join('');
+function art(i){const n=NEWS[i];$('#article').innerHTML=`<small style="color:var(--neon)">${n[1]}</small><h2 style="font-size:40px;margin:8px 0 14px">${n[0]}</h2><p style="line-height:1.7;color:var(--mut);max-width:680px">${n[2]}<br><br>Text článku sa v ostrej verzii preberá z klubového webu / redakčného modulu portálu.</p><div class="btns"><a class="btn s" href="#" onclick="go('aktuality');return false"><span>← Späť</span></a></div>`;go('clanok')}
+
+/* klub */
+const PPL=[['Ing. Milan Lesňák','Predseda FK','+421 915 628 912'],['Miroslav Eperješi','Manažér FK','+421 903 903 936'],['Martin Horizral','Člen výboru',''],['Ing. Michal Krcho','Člen výboru',''],['Gejza Farkaš','Tréner · U17','+421 911 387 337'],['Peter Dziak','Tréner · U15','+421 907 209 000'],['Vladimír Urban','Tréner · U13','+421 903 603 450'],['Ing. Marián Kéda','Tréner · U11 a U10','+421 904 535 890'],['Stanislav Lellák','Tréner · U10 a U9','+421 903 635 373']];
+$('#people').innerHTML=PPL.map(p=>`<div class="panel pp"><div class="ic">${p[0].replace(/(Ing\.|Mgr\.)\s*/,'').split(' ').map(x=>x[0]).join('')}</div><div><small>${p[1]}</small><b>${p[0]}</b><span>${p[2]||'—'}</span></div></div>`).join('');
+const DOCS=[['Zmluva o poskytnutí dotácie z rozpočtu mesta Košice','Dotácie'],['Zmluva o poskytnutí dotácie (Koncepcia rozvoja športu)','Dotácie'],['Výzva – Prestrešenie tenisových kurtov','Zákazky'],['Zmluva o dielo – Centaury Plus s.r.o.','Zákazky'],['Výsledok zadávania zákazky','Zákazky'],['Dodatok k zmluve o dielo','Zákazky'],['Poukázanie podielu zaplatenej dane (2 %)','Dane'],['Nadácia VSE','Iné']];
+$('#docs').innerHTML=DOCS.map(d=>`<div class="doc"><i>PDF</i><div><b>${d[0]}</b></div><span onclick="toast('Otvorí sa dokument z fkkosickanovaves.sk')" style="cursor:pointer">${d[1]} ↗</span></div>`).join('');
+
+/* count up */
+function countUp(){document.querySelectorAll('[data-c]').forEach(e=>{const t=+e.dataset.c;let c=0;const iv=setInterval(()=>{c+=Math.ceil(t/30);if(c>=t){c=t;clearInterval(iv)}e.textContent=c},30)})}
+
+renderTeams();renderMatches();renderTr();
+go(location.hash.slice(1).replace('clanok','aktuality')||'domov');
+</script>
+</body>
+</html>
