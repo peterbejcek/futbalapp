@@ -49,10 +49,8 @@ main{max-width:1200px;margin:auto;padding:24px 20px 80px}
 .btn span{display:inline-block;transform:skewX(12deg)}
 .btn.p{background:var(--neon);color:#04251a}.btn.s{border:2px solid var(--line)}
 .btn:hover{transform:skewX(-12deg) translateY(-3px);box-shadow:0 8px 24px #27e8a744}
-.hero .pl{position:relative;display:flex;justify-content:center;align-items:end;gap:0}
-.hero .pl svg{height:380px;filter:drop-shadow(0 10px 30px #000a)}
-.hero .pl svg:nth-child(1){margin-right:-60px;height:330px;opacity:.9}.hero .pl svg:nth-child(3){margin-left:-60px;height:330px;opacity:.9}
-@media(max-width:800px){.hero{grid-template-columns:1fr;padding:28px 22px 0}.hero .pl svg{height:260px}.hero .pl svg:nth-child(1),.hero .pl svg:nth-child(3){height:220px}}
+.hero .pl{position:relative;display:flex;justify-content:center}
+@media(max-width:800px){.hero{grid-template-columns:1fr;padding:28px 22px 0}}
 /* match card */
 .next{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px;text-align:center}
 .team{display:flex;flex-direction:column;align-items:center;gap:8px}
@@ -72,26 +70,38 @@ main{max-width:1200px;margin:auto;padding:24px 20px 80px}
 .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
 .chip{padding:8px 16px;font-weight:800;font-size:12px;letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--line);transform:skewX(-12deg);color:var(--mut);transition:.2s}
 .chip span{display:inline-block;transform:skewX(12deg)}.chip.on,.chip:hover{background:var(--neon);color:#04251a;border-color:var(--neon)}
-/* FUT card */
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:22px}
-.fut{position:relative;aspect-ratio:3/4.3;cursor:pointer;transition:transform .3s;perspective:600px}
-.fut:hover{transform:translateY(-8px) rotate(-1.5deg) scale(1.04);filter:drop-shadow(0 14px 22px #000a)}
-.fut .face{position:absolute;inset:0;clip-path:polygon(50% 0,100% 8%,100% 86%,50% 100%,0 86%,0 8%);background:var(--bg);overflow:hidden}
-.fut .face:before{content:"";position:absolute;inset:3px;clip-path:inherit;background:linear-gradient(160deg,#ffffff55,transparent 40%,#00000044),var(--bg2)}
-.fut .face:after{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 40%,#ffffff44 50%,transparent 60%);transform:translateX(-120%);transition:.7s}
-.fut:hover .face:after{transform:translateX(120%)}
-.fut .rt{position:absolute;left:14%;top:14%;z-index:2;color:var(--tx);line-height:.9;text-align:center}
-.fut .rt b{font:40px Anton,Impact;display:block}.fut .rt small{font:700 13px "Segoe UI";letter-spacing:.05em}
-.fut .av{position:absolute;left:24%;right:6%;top:9%;height:50%;z-index:1}.fut .av svg{width:100%;height:100%}
-.fut .nm{position:absolute;left:0;right:0;top:61%;text-align:center;font:700 17px Anton,Impact;text-transform:uppercase;color:var(--tx);z-index:2;letter-spacing:.04em}
-.fut .nm:after{content:"";display:block;width:56%;height:2px;background:var(--tx);opacity:.4;margin:4px auto}
-.fut .st{position:absolute;left:14%;right:14%;top:70%;display:grid;grid-template-columns:1fr 1fr;gap:0 10px;color:var(--tx);font:700 11px "Segoe UI";z-index:2}
-.fut .st span b{font:13px Anton,Impact;margin-right:4px}
-.fut .nr{position:absolute;display:none;bottom:6%;left:0;right:0;text-align:center;color:var(--tx);font:700 10px "Segoe UI";letter-spacing:.2em;z-index:2;opacity:.8}
-.t-gold{--bg:#a77a15;--bg2:linear-gradient(160deg,#f6dd8a,#d3a331 55%,#b98a1c);--tx:#3a2a05}
-.t-silver{--bg:#7d8795;--bg2:linear-gradient(160deg,#eef2f7,#b7c0cc 55%,#98a2b0);--tx:#222a36}
-.t-bronze{--bg:#7a4a22;--bg2:linear-gradient(160deg,#eab27d,#b7733c 55%,#945a2b);--tx:#2e1808}
-.t-toty{--bg:#27e8a7;--bg2:linear-gradient(160deg,#1b3270,#0b1630 60%,#13244d);--tx:#27e8a7}
+/* FUT card — EA FC štýl */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:26px 22px}
+.fut{position:relative;aspect-ratio:3/4.35;cursor:pointer;transition:transform .25s ease,filter .25s;transform-style:preserve-3d;--tx:#2b2008;width:100%}
+.fut:hover{filter:drop-shadow(0 18px 26px #000c) brightness(1.06)}
+.fut .face{position:absolute;inset:0;clip-path:polygon(0 4%,9% 0,91% 0,100% 4%,100% 88%,50% 100%,0 88%);background:var(--bg);overflow:hidden}
+.fut .face:before{content:"";position:absolute;inset:3px;clip-path:inherit;background:radial-gradient(circle at 70% 18%,#fff9,transparent 45%),linear-gradient(160deg,#ffffff55,transparent 35%,#0004),var(--bg2)}
+.fut .face:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(120deg,transparent 0 22px,#ffffff10 22px 24px),linear-gradient(115deg,transparent 40%,#ffffff55 50%,transparent 60%);background-size:auto,250% 100%;background-position:0 0,160% 0;transition:background-position .8s}
+.fut:hover .face:after{background-position:0 0,-60% 0}
+.fut .av{position:absolute;left:20%;right:0;top:3%;height:58%;z-index:1;-webkit-mask-image:linear-gradient(#000 78%,transparent);mask-image:linear-gradient(#000 78%,transparent)}
+.fut .av svg,.fut .av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top}
+.fut .av svg{object-fit:contain}
+.fut .rt{position:absolute;left:9%;top:11%;z-index:3;color:var(--tx);text-align:center;width:22%;display:flex;flex-direction:column;align-items:center;gap:5px}
+.fut .rt b{font:44px/0.9 Anton,Impact,sans-serif}.fut .rt small{font:800 13px Inter,sans-serif;letter-spacing:.04em}
+.fut .rt hr{width:70%;border:0;border-top:2px solid var(--tx);opacity:.35}
+.fut .fl{font:800 9px Inter,sans-serif;font-style:normal;letter-spacing:.08em;border:1px solid #0005;padding:1px 4px}
+.fut .rt img.cr{width:26px;height:auto}
+.fut .nm{position:absolute;left:6%;right:6%;top:62%;text-align:center;font:22px Anton,Impact,sans-serif;text-transform:uppercase;color:var(--tx);z-index:3;letter-spacing:.05em;text-shadow:0 1px 0 #fff4}
+.fut .st{position:absolute;left:11%;right:11%;top:73%;display:grid;grid-template-columns:repeat(6,1fr);gap:0;color:var(--tx);z-index:3;text-align:center;border-top:2px solid #0003;padding-top:6px}
+.fut .st span{display:flex;flex-direction:column;font:800 8.5px Inter,sans-serif;letter-spacing:.05em;opacity:.95}
+.fut .st span b{font:16px Anton,Impact,sans-serif;letter-spacing:0}
+.fut .nr{position:absolute;bottom:5%;left:0;right:0;text-align:center;color:var(--tx);font:800 9px Inter,sans-serif;letter-spacing:.25em;z-index:3;opacity:.75}
+.t-gold{--bg:#a77a15;--bg2:linear-gradient(160deg,#f8e08f,#d6a62f 55%,#b98a1c)}
+.t-silver{--bg:#7d8795;--bg2:linear-gradient(160deg,#f1f4f8,#b9c2ce 55%,#98a2b0);--tx:#1e2632}
+.t-bronze{--bg:#7a4a22;--bg2:linear-gradient(160deg,#eebb88,#b7733c 55%,#945a2b);--tx:#2e1808}
+.t-toty{--bg:#27e8a7;--bg2:radial-gradient(circle at 30% 10%,#2c55c9,#0b1630 70%);--tx:#7dffd6}
+.hero .pl{perspective:900px;gap:0;align-items:center;padding-bottom:30px}
+.hero .pl .fut{width:230px;flex:none}
+.hero .pl .fut:nth-child(2){width:285px;z-index:2;margin:0 -24px}
+.hero .pl .fut:nth-child(1){transform:rotate(-7deg) translateY(18px)}.hero .pl .fut:nth-child(3){transform:rotate(7deg) translateY(18px)}
+.hero .pl .fut:nth-child(2){animation:fl 4s ease-in-out infinite}@keyframes fl{50%{transform:translateY(-12px)}}
+@media(max-width:800px){.hero .pl .fut{width:140px}.hero .pl .fut:nth-child(2){width:180px}}
+.hero .pl svg{filter:none}
 /* modal */
 .modal{position:fixed;inset:0;background:#030816e6;z-index:100;display:none;place-items:center;padding:16px;backdrop-filter:blur(6px)}
 .modal.on{display:grid;animation:in .25s}
@@ -285,15 +295,17 @@ for(const t of Object.keys(TEAMS)){const n=t==='A'?18:14;for(let i=0;i<n;i++){co
  pac:f(),sho:pos==='GK'?f()-20:f(),pas:f(),dri:f(),def:f(),phy:f(),gp:6+Math.floor(rnd()*10),g:pos==='GK'?0:Math.floor(rnd()*(ov>75?9:5)),a:Math.floor(rnd()*6),mom:Math.floor(rnd()*3)})}}
 const tier=o=>o>=80?'toty':o>=72?'gold':o>=62?'silver':'bronze';
 let curTeam='A';
+const NP=24;
 function cardHTML(p){return `<div class="fut t-${tier(p.ov)}" onclick="openP(${p.id})"><div class="face"></div>
- <div class="rt"><b>${p.ov}</b><small>${p.pos}</small></div><div class="av">${avatar(p,'c'+p.id)}</div>
+ <div class="rt"><b>${p.ov}</b><small>${p.pos}</small><hr><i class="fl">SVK</i><img class="cr" src="logo.png" alt=""></div>
+ <div class="av"><div>${avatar(p,'c'+p.id)}</div><img src="players/p${String(p.id%NP+1).padStart(2,'0')}.png" alt="" onerror="this.remove()" onload="this.previousElementSibling.style.display='none'"></div>
  <div class="nm">${p.last}</div>
- <div class="st"><span><b>${p.pac}</b>PAC</span><span><b>${p.dri}</b>DRI</span><span><b>${p.sho}</b>SHO</span><span><b>${p.def}</b>DEF</span><span><b>${p.pas}</b>PAS</span><span><b>${p.phy}</b>PHY</span></div>
+ <div class="st">${[['PAC',p.pac],['SHO',p.sho],['PAS',p.pas],['DRI',p.dri],['DEF',p.def],['PHY',p.phy]].map(([k,v])=>`<span>${k}<b>${v}</b></span>`).join('')}</div>
  <div class="nr">FK KNV · ${p.team}</div></div>`}
 function renderTeams(){$('#teamChips').innerHTML=Object.entries(TEAMS).map(([k,v])=>`<button class="chip ${k===curTeam?'on':''}" onclick="curTeam='${k}';renderTeams()"><span>${v}</span></button>`).join('');
  $('#cards').innerHTML=SQUAD.filter(p=>p.team===curTeam).sort((a,b)=>b.ov-a.ov).map(cardHTML).join('')}
 function openP(id){const p=SQUAD[id];const bars=[['PAC',p.pac],['SHO',p.sho],['PAS',p.pas],['DRI',p.dri],['DEF',p.def],['PHY',p.phy]];
- $('#mbox').innerHTML=`<button class="x" onclick="closeM()">✕</button><div style="width:240px;margin:auto">${cardHTML(p).replace('onclick="openP('+p.id+')"','')}</div>
+ $('#mbox').innerHTML=`<button class="x" onclick="closeM()">✕</button><div style="width:250px;margin:auto">${cardHTML(p).replace('onclick="openP('+p.id+')"','')}</div>
  <div><h2>${p.name} ${p.last}</h2><div class="meta">${TEAMS[p.team]} · ${p.pos} · ${p.age} rokov · č. ${p.no}</div>
  <div class="bars">${bars.map(([k,v])=>`<div class="bar2"><span>${k}</span><i><u data-w="${v}"></u></i><b>${v}</b></div>`).join('')}</div>
  <div class="kv"><div><b>${p.gp}</b><small>Zápasy</small></div><div><b>${p.g}</b><small>Góly</small></div><div><b>${p.a}</b><small>Asistencie</small></div><div><b>${p.mom}</b><small>MOM</small></div></div>
@@ -303,7 +315,8 @@ function closeM(){$('#modal').classList.remove('on')}
 addEventListener('keydown',e=>e.key==='Escape'&&closeM());
 
 /* hero */
-$('#heroPl').innerHTML=[3,0,9].map((i,k)=>avatar(SQUAD.filter(p=>p.team==='U15')[i],'h'+k)).join('');
+$('#heroPl').innerHTML=[1,0,2].map(i=>cardHTML(SQUAD.filter(p=>p.team==='U15').sort((a,b)=>b.ov-a.ov)[i]).replace(/onclick="[^"]*"/,'')).join('');
+const hp=$('#heroPl');hp.addEventListener('mousemove',e=>{const r=hp.getBoundingClientRect();const x=(e.clientX-r.left)/r.width-.5;hp.style.transform=`rotateY(${x*14}deg)`});hp.addEventListener('mouseleave',()=>hp.style.transform='');hp.style.transition='transform .2s';
 
 /* ---------- zápasy ---------- */
 const OPP=['Čaňa','Ťahanovce','Šaca','Slovan Ruskov','Bidovce','Krásna n/Hornádom','Vyšná Myšľa','Nižná Myšľa','Kechnec'];
