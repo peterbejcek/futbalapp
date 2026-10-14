@@ -12,6 +12,8 @@ interface Article {
   excerpt: string;
   body: string;
   publishedAt: string | null;
+  isArchive?: boolean;
+  sourceUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -86,6 +88,9 @@ export default function ArticlesPage() {
                   ) : (
                     <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700">Koncept</span>
                   )}
+                  {a.isArchive && (
+                    <span className="ml-1 rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Archív</span>
+                  )}
                 </td>
                 <td className="px-4 py-2 text-gray-600">{fmt(a.publishedAt ?? a.createdAt)}</td>
                 <td className="px-4 py-2">
@@ -139,6 +144,8 @@ function ArticleModal({
   const [title, setTitle] = useState(article?.title ?? '');
   const [excerpt, setExcerpt] = useState(article?.excerpt ?? '');
   const [body, setBody] = useState(article?.body ?? '');
+  const [isArchive, setIsArchive] = useState(article?.isArchive ?? false);
+  const [sourceUrl, setSourceUrl] = useState(article?.sourceUrl ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const published = !!article?.publishedAt;
@@ -147,7 +154,7 @@ function ArticleModal({
     setBusy(true);
     setError(null);
     try {
-      const payload = { title, excerpt, body, publish };
+      const payload = { title, excerpt, body, publish, isArchive, sourceUrl: sourceUrl.trim() || null };
       if (article) await api(`/articles/${article.id}`, { method: 'PATCH', body: JSON.stringify(payload) });
       else await api('/articles', { method: 'POST', body: JSON.stringify(payload) });
       onDone();
@@ -186,7 +193,25 @@ function ArticleModal({
           />
           <p className="mt-1 text-xs text-gray-500">Odseky oddeľte prázdnym riadkom. HTML sa nepodporuje.</p>
         </div>
-        <ErrorText>{error}</ErrorText>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={isArchive} onChange={(e) => setIsArchive(e.target.checked)} />
+          Archívny oznam (označí sa na webe ako archív)
+        </label>
+        <div>
+          <label htmlFor="art-src" className={labelCls}>
+            Pôvodný zdroj (URL)
+          </label>
+          <input
+            id="art-src"
+            type="url"
+            value={sourceUrl}
+            onChange={(e) => setSourceUrl(e.target.value)}
+            className={inputCls}
+          />
+        </div>
+        <div aria-live="polite" role="status">
+          <ErrorText>{error}</ErrorText>
+        </div>
         <div className="flex flex-wrap justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
             Zrušiť

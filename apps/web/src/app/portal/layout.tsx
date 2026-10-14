@@ -26,6 +26,7 @@ const navigation: Entry[] = [
       { href: '/portal/presuny', label: 'Presuny', show: ({ manage }) => manage },
       { href: '/portal/registracie', label: 'Registrácie', show: ({ staff }) => staff },
       { href: '/portal/clanky', label: 'Články', show: ({ staff }) => staff },
+      { href: '/portal/obsah', label: 'Obsah webu', show: ({ staff }) => staff },
       { href: '/portal/platby', label: 'Platby', show: ({ staff }) => staff },
       { href: '/portal/prispevok', label: 'Príspevok', show: () => true },
       { href: '/portal/nastavenia', label: 'Nastavenia', show: ({ staff }) => staff },
