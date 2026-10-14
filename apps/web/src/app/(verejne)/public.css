@@ -14,4 +14,25 @@ dialog{margin:auto}p{margin:1em 0}
 
 .nav-portal{display:none}
 @media(max-width:800px){.portal.nav-portal{display:flex;margin-top:8px;justify-content:space-between}}
+/* Domov / Mužstvá: odkazy a placeholder fotky hráča */
+.team-tabs a{background:transparent;border:1px solid var(--line);padding:10px 15px;font-size:12px;font-weight:700}
+.team-tabs a:hover{border-color:var(--blue)}
+.team-tabs a.active,.filter a.active{background:var(--blue);border-color:var(--blue);color:#fff}
+.filter a{background:transparent;border:1px solid var(--line);padding:10px 15px;font-size:12px;font-weight:700}
+.filter a:hover{border-color:var(--blue)}
+.player:hover{transform:none}
+.player .portrait.ph{background-image:radial-gradient(circle at 50% 30%,#3d566a 0 15%,transparent 15.5%),radial-gradient(ellipse at 50% 78%,#3d566a 0 32%,transparent 32.5%);background-size:100% 100%;opacity:.8}
+a.match-card,a.news-card,a.list-event{display:block;color:inherit}
+a.list-event{display:grid}
+.news-art.cover{background-size:cover;background-position:center}
+.player-position{display:block;font:9px var(--body);letter-spacing:1px;color:var(--lime);margin-top:11px}
+
+.filter a{background:transparent;border:1px solid var(--line);padding:10px 15px;font-size:12px;font-weight:700}
+.filter a:hover{border-color:var(--red)}
+.filter a.active{background:var(--blue);border-color:var(--blue);color:#fff}
+.monthbar a.btn{width:34px;height:34px;padding:0;gap:0;background:var(--panel);border:1px solid var(--line)}
+a.list-event{color:inherit}
+
+/* Novinky, kluby: odkazové varianty */
+a.news-card-link{display:block}.news-card-link .news-content p{font-size:13px;margin:0 0 16px}.club-body .btn{margin-top:8px}.gallery-tile{text-align:left}
 }
