@@ -81,6 +81,9 @@ export interface PublicArticleListItemDto {
   title: string;
   excerpt: string;
   publishedAt: string;
+  /** Archívny oznam — web ho zreteľne označí ako archív. */
+  isArchive: boolean;
+  sourceUrl: string | null;
 }
 
 export interface PublicArticleDto extends PublicArticleListItemDto {
@@ -97,4 +100,49 @@ export interface PublicTeamsDto {
 export interface PublicEventDetailDto {
   club: PublicClubDto;
   event: PublicEventDto;
+}
+
+/** Verejné stavy obsahu: DRAFT sa nikdy nezverejňuje. */
+export type PublicContentStatus = 'PUBLISHED' | 'ARCHIVED';
+
+export type PublicDocumentCategory = 'CONTRACT' | 'SUBSIDY' | 'TAX_FORM' | 'ANNOUNCEMENT' | 'OTHER';
+
+export interface PublicPageDto {
+  slug: string;
+  title: string;
+  /** Odseky; riadok začínajúci „## " v pôvodnom texte je v `sections` podnadpis. */
+  sections: Array<{ heading: string | null; paragraphs: string[] }>;
+  status: PublicContentStatus;
+  sourceUrl: string | null;
+  sourceNote: string | null;
+  updatedAt: string;
+}
+
+export interface PublicPersonDto {
+  id: string;
+  name: string;
+  role: string;
+  group: 'MANAGEMENT' | 'COACH' | 'OTHER';
+  teamNote: string | null;
+  phone: string | null;
+  email: string | null;
+  status: PublicContentStatus;
+  sourceUrl: string | null;
+  sourceNote: string | null;
+}
+
+export interface PublicDocumentDto {
+  id: string;
+  title: string;
+  description: string | null;
+  category: PublicDocumentCategory;
+  documentDate: string | null; // YYYY-MM-DD podľa zdroja
+  status: PublicContentStatus;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  /** Relatívna URL /api/v1/public/documents/:id/file; null ak sa súbor nepodarilo prevziať. */
+  downloadUrl: string | null;
+  /** Odkaz na pôvodný zdroj (ponechaný vždy, ak je známy). */
+  sourceUrl: string | null;
+  sourceNote: string | null;
 }

@@ -908,8 +908,99 @@ model Article {
   /// null = koncept (neverejný)
   publishedAt DateTime?
   authorId    String?
+  /// Archívny oznam (napr. starý oznam z pôvodného webu) — na webe zreteľne označený.
+  isArchive   Boolean   @default(false)
+  /// Pôvodný zdroj (URL) pri prevzatom obsahu.
+  sourceUrl   String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   @@index([publishedAt])
+}
+
+/// Stav klubového obsahu: DRAFT = neverejný koncept, PUBLISHED = aktuálny obsah,
+/// ARCHIVED = zreteľne označený archív (neprezentuje sa ako aktuálny).
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum DocumentCategory {
+  CONTRACT
+  SUBSIDY
+  TAX_FORM
+  ANNOUNCEMENT
+  OTHER
+}
+
+enum ClubPersonGroup {
+  MANAGEMENT
+  COACH
+  OTHER
+}
+
+/// Textová stránka klubového webu (história, o klube, kontakt…). Edituje sa v portáli.
+model ClubPage {
+  id          String        @id @default(cuid())
+  /// Identifikátor stránky: o-klube | historia | kontakt | zverejnovanie | podpora | …
+  slug        String        @unique
+  title       String
+  /// Čistý text. Odseky oddelené prázdnym riadkom; riadok začínajúci „## " je podnadpis. Žiadne HTML.
+  body        String
+  status      ContentStatus @default(DRAFT)
+  /// Pôvodný zdroj obsahu (URL) a poznámka o jeho pôvode / platnosti.
+  sourceUrl   String?
+  sourceNote  String?
+  /// Kedy obsah potvrdil klub (pred publikovaním aktuálnych údajov).
+  confirmedAt DateTime?
+  sortOrder   Int           @default(0)
+  updatedById String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+/// Funkcionár / tréner zobrazený na verejnom webe.
+model ClubPerson {
+  id          String          @id @default(cuid())
+  name        String
+  role        String
+  group       ClubPersonGroup @default(MANAGEMENT)
+  /// napr. kategória trénera („Žiaci U15")
+  teamNote    String?
+  phone       String?
+  email       String?
+  status      ContentStatus   @default(DRAFT)
+  sourceUrl   String?
+  sourceNote  String?
+  confirmedAt DateTime?
+  sortOrder   Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+/// Zverejnený dokument (zmluva, dotácia, tlačivo, oznam). Súbor sa ukladá bez zmeny
+/// (pôvodný názov, obsah, kontrolný súčet), alebo sa ponechá len odkaz na zdroj.
+model ClubDocument {
+  id               String           @id @default(cuid())
+  title            String
+  description      String?
+  category         DocumentCategory @default(OTHER)
+  /// Dátum dokumentu podľa zdroja (nie dátum nahratia).
+  documentDate     DateTime?
+  originalFilename String?
+  mimeType         String?
+  size             Int?
+  /// SHA-256 obsahu súboru (hex) — kontrola, že obsah nebol zmenený.
+  sha256           String?
+  data             Bytes?
+  sourceUrl        String?
+  sourceNote       String?
+  status           ContentStatus    @default(DRAFT)
+  confirmedAt      DateTime?
+  sortOrder        Int              @default(0)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([status, category])
 }
