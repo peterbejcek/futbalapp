@@ -21,6 +21,8 @@ import { ReportsModule } from './reports/reports.module';
 import { FutbalnetModule } from './integrations/futbalnet/futbalnet.module';
 import { FitnessTestsModule } from './fitness-tests/fitness-tests.module';
 import { CaptchaModule } from './captcha/captcha.module';
+import { PublicModule } from './public/public.module';
+import { ArticlesModule } from './articles/articles.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -44,6 +46,8 @@ import { HealthController } from './health.controller';
     FutbalnetModule,
     CaptchaModule,
     FitnessTestsModule,
+    ArticlesModule,
+    PublicModule,
   ],
   controllers: [HealthController],
   providers: [
