@@ -8,3 +8,4 @@ export * from './psc';
 export * from './colors';
 export * from './datetime';
 export * from './fitness';
+export * from './public-api';

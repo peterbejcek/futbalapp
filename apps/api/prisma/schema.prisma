@@ -152,6 +152,15 @@ model Member {
   photo              MemberPhoto?
   fitnessTests       FitnessTest[]
   syncIgnores        MemberSyncIgnore[]
+
+  /// Súhlas so zverejnením mena a priezviska na verejnom webe (zbiera klub od
+  /// hráča / zákonného zástupcu). Bez súhlasu sa hráč na verejnom webe nezobrazí.
+  publicProfileConsent Boolean   @default(false)
+  /// Súhlas so zverejnením fotografie na verejnom webe. Platí len spolu s
+  /// `publicProfileConsent`.
+  publicPhotoConsent   Boolean   @default(false)
+  /// Kedy bol súhlas naposledy zaznamenaný / zmenený.
+  publicConsentAt      DateTime?
 }
 
 /// Rozdiely z ISSF synchronizácie, ktoré používateľ zvolil „ponechať" — pri
@@ -585,6 +594,9 @@ model Event {
   /// Povrch ihriska: PT | UT | VT | MT | MI (prír./umelá tráva, veľká/malá telocvičňa, multifunkčné)
   surface  String?
   source   EventSource @default(INTERNAL)
+  /// Zverejniť na verejnom webe. Zápasy a turnaje (MATCH, TOURNAMENT) sa
+  /// zverejňujú vždy; tréningy len ak je príznak zapnutý. Ostatné typy nikdy.
+  isPublic Boolean     @default(false)
   futbalnetId String?  @unique
   /// Spoločné ID pre všetky výskyty opakovaného tréningu (napr. utorky+piatky)
   recurrenceGroupId String?
@@ -881,4 +893,23 @@ model FitnessTest {
 
   @@index([memberId, testedAt])
   @@index([testedAt])
+}
+
+/// Článok klubového webu — vytvára sa v portáli (ADMIN, MANAGER), na verejnom
+/// webe sa zobrazuje len publikovaný (`publishedAt` v minulosti).
+model Article {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  title       String
+  /// Krátky úvod (zoznam noviniek).
+  excerpt     String
+  /// Čistý text; odseky oddelené prázdnym riadkom. Žiadne HTML.
+  body        String
+  /// null = koncept (neverejný)
+  publishedAt DateTime?
+  authorId    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([publishedAt])
 }
