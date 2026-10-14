@@ -1,27 +1,18 @@
 import Image from 'next/image';
-import type { PublicPlayer } from '@/lib/verejne/types';
+import type { PublicPlayerDto } from '@fkknv/shared';
+import { publicPhotoSrc } from '@/lib/verejne/public-api';
 
-const POS: Record<string, string> = { Brankár: 'BRANKÁR', Obranca: 'OBRANA', Stredopoliar: 'STRED', Útočník: 'ÚTOK' };
-
-/** Verejná karta hráča: meno, priezvisko, číslo, pozícia; fotka len so súhlasom (photoUrl). Nie je klikateľná. */
-export default function PlayerCard({ player }: { player: PublicPlayer }) {
-  const pos = player.position ? (POS[player.position] ?? player.position.toUpperCase()) : null;
+/** Verejná karta hráča: iba meno a priezvisko; fotka LEN ak existuje photoUrl, inak neutrálna silueta. */
+export default function PlayerCard({ player }: { player: PublicPlayerDto }) {
+  const name = `${player.firstName} ${player.lastName}`;
   return (
-    <article className="player" aria-label={`${player.firstName} ${player.lastName}`}>
+    <article className="player" aria-label={name}>
       {player.photoUrl ? (
-        <span
-          className="portrait"
-          role="img"
-          aria-label={`Fotografia: ${player.firstName} ${player.lastName}`}
-          style={{ backgroundImage: `url(${player.photoUrl})`, backgroundPosition: player.photoPosition ?? undefined }}
-        />
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className="portrait-img" src={publicPhotoSrc(player.photoUrl)} alt={name} loading="lazy" />
       ) : (
         <span className="portrait ph" aria-hidden="true" />
       )}
-      <span className="player-number">
-        {player.shirtNumber ?? ''}
-        {pos && <small>{pos}</small>}
-      </span>
       <Image className="mini-logo" src="/logo.png" alt="" width={22} height={35} />
       <span className="player-name">
         <b>{player.firstName}</b>

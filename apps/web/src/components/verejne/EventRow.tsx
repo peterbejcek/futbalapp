@@ -1,30 +1,25 @@
 import Link from 'next/link';
-import type { PublicEvent } from '@/lib/verejne/types';
-import { fmtDay, fmtMonthShort, fmtTime, isMatchType } from '@/lib/verejne/format';
+import type { PublicEventDto } from '@fkknv/shared';
+import { eventHeading, eventScore, fmtDay, fmtMonthShort, fmtTime, isMatchType } from '@/lib/verejne/format';
+import StateBadge from './StateBadge';
 
-export function eventHeading(e: PublicEvent): string {
-  return isMatchType(e.type) && e.match ? `FK KNV — ${e.match.opponent}` : e.title;
-}
-
-export function eventSubline(e: PublicEvent): string {
-  const time = fmtTime(e.startAt);
+function subline(e: PublicEventDto, tz: string): string {
+  const time = fmtTime(e.startAt, tz);
   if (isMatchType(e.type) && e.match) {
-    const m = e.match;
-    const where = m.isHome ? 'Doma' : 'Vonku';
-    const score = m.state === 'FINISHED' && m.scoreUs != null && m.scoreThem != null ? ` · ${m.scoreUs}:${m.scoreThem}` : '';
-    return `${time} · ${where}${score}`;
+    const score = eventScore(e);
+    return `${time} · ${e.match.isHome ? 'Doma' : 'Vonku'}${score ? ` · ${score}` : ''}${e.match.competition ? ` · ${e.match.competition}` : ''}`;
   }
   return `${time} · Tréning`;
 }
 
-/** Riadok udalosti v programe; odkazuje na detail udalosti. */
-export default function EventRow({ event: e }: { event: PublicEvent }) {
+/** Riadok udalosti v programe; odkazuje na detail udalosti. Tréning je bez skóre. */
+export default function EventRow({ event: e, tz }: { event: PublicEventDto; tz: string }) {
   const match = isMatchType(e.type);
   return (
     <Link href={`/kalendar/${encodeURIComponent(e.id)}`} className="list-event">
       <span className="event-date">
-        {fmtDay(e.startAt)}
-        <small>{fmtMonthShort(e.startAt)}</small>
+        {fmtDay(e.startAt, tz)}
+        <small>{fmtMonthShort(e.startAt, tz)}</small>
       </span>
       <span className={`event-type ${match ? 'match' : 'training'}`}>
         {match ? 'ZÁPAS' : 'TRÉNING'}
@@ -33,7 +28,9 @@ export default function EventRow({ event: e }: { event: PublicEvent }) {
       </span>
       <span>
         <h3>{eventHeading(e)}</h3>
-        <p>{eventSubline(e)}</p>
+        <p>
+          {subline(e, tz)} <StateBadge state={e.state} />
+        </p>
       </span>
       <span className="event-place">{e.location ?? ''}</span>
       <span className="event-arrow" aria-hidden="true">↗</span>

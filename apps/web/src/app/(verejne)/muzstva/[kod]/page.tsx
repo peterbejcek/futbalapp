@@ -1,52 +1,44 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { CATEGORY_CODES } from '@fkknv/shared';
-import { getPublicData } from '@/lib/verejne/data-source';
+import { getEvents, getSquad, getTeams } from '@/lib/verejne/public-api';
+import { DEFAULT_TZ, groupByCategory } from '@/lib/verejne/format';
 import PageTop from '@/components/verejne/PageTop';
 import TeamTabs from '@/components/verejne/TeamTabs';
 import PlayerCard from '@/components/verejne/PlayerCard';
-import TeamEventRow from '@/components/verejne/TeamEventRow';
-import DemoNotice from '@/components/verejne/DemoNotice';
+import EventRow from '@/components/verejne/EventRow';
 
 export const dynamic = 'force-dynamic';
 
 type Params = Promise<{ kod: string }>;
 type Search = Promise<{ tim?: string | string[]; zalozka?: string | string[] }>;
 
-async function categoryTeams(kod: string) {
-  const all = await getPublicData().getTeams();
-  return all.filter((t) => t.categoryCode.toLowerCase() === kod.toLowerCase()).sort((a, b) => a.sortOrder - b.sortOrder);
-}
-
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { kod } = await params;
-  const teams = await categoryTeams(kod);
-  if (!teams.length) return { title: 'Mužstvo sa nenašlo' };
-  return { title: `${teams[0].categoryName} — mužstvá`, description: `Súpiska a program mužstva ${teams[0].categoryName} FK Košická Nová Ves.` };
+  const cat = groupByCategory((await getTeams()).teams).find((c) => c.code.toLowerCase() === kod.toLowerCase());
+  if (!cat) return { title: 'Mužstvo sa nenašlo' };
+  return { title: `${cat.name} — mužstvá`, description: `Súpiska a program mužstva ${cat.name} FK Košická Nová Ves.` };
 }
 
 export default async function MuzstvoPage({ params, searchParams }: { params: Params; searchParams: Search }) {
   const { kod } = await params;
   const sp = await searchParams;
-  const teams = await categoryTeams(kod);
-  if (!teams.length) notFound();
+  const { teams: allTeams, season, club } = await getTeams();
+  const cats = groupByCategory(allTeams);
+  const cat = cats.find((c) => c.code.toLowerCase() === kod.toLowerCase());
+  if (!cat) notFound();
 
-  const data = getPublicData();
-  const code = teams[0].categoryCode;
+  const tz = club.timezone || DEFAULT_TZ;
   const timParam = Array.isArray(sp.tim) ? sp.tim[0] : sp.tim;
   const program = (Array.isArray(sp.zalozka) ? sp.zalozka[0] : sp.zalozka) === 'program';
-  const team = teams.find((t) => t.id === timParam) ?? teams[0];
+  const team = cat.teams.find((t) => t.id === timParam) ?? cat.teams[0];
 
-  const [season, allCats, squad, events] = await Promise.all([
-    data.getActiveSeason(),
-    data.getTeams(),
-    program ? Promise.resolve([]) : data.getSquad(team.id),
-    program ? data.getEvents({ categoryCode: code }) : Promise.resolve([]),
-  ]);
-  const cats = [...new Map(allCats.map((t) => [t.categoryCode, t.categoryName])).entries()].sort(
-    (a, b) => CATEGORY_CODES.indexOf(a[0]) - CATEGORY_CODES.indexOf(b[0]),
-  );
-  const base = `/muzstva/${kod.toLowerCase()}`;
+  const squad = program ? null : await getSquad(team.id);
+  const events = program ? (await getEvents({ teamId: team.id, from: season.startDate, to: season.endDate, limit: 300 })).events : [];
+  if (!program && !squad) notFound();
+  const players = squad?.players ?? [];
+  const rows = [...events].sort((a, b) => a.startAt.localeCompare(b.startAt));
+
+  const base = `/muzstva/${cat.code.toLowerCase()}`;
   const q = (tim: string | null, zal: boolean) => {
     const p = new URLSearchParams();
     if (tim) p.set('tim', tim);
@@ -54,49 +46,45 @@ export default async function MuzstvoPage({ params, searchParams }: { params: Pa
     const s = p.toString();
     return s ? `${base}?${s}` : base;
   };
-  const rows = events.filter((e) => e.teamId === team.id).sort((a, b) => a.startAt.localeCompare(b.startAt));
+  const keepTeam = cat.teams.length > 1 ? team.id : null;
 
   return (
     <>
       <PageTop label="JEDEN KLUB · VŠETKY GENERÁCIE" title="NAŠE MUŽSTVÁ." desc="Od prípravky po mužov. Vyber si kategóriu a spoznaj svoj tím.">
-        <TeamTabs label="Kategórie" items={cats.map(([c, name]) => ({ href: `/muzstva/${c.toLowerCase()}`, label: name, active: c === code }))} />
+        <TeamTabs label="Kategórie" items={cats.map((c) => ({ href: `/muzstva/${c.code.toLowerCase()}`, label: c.name, active: c.code === cat.code }))} />
       </PageTop>
       <section className="section">
         <div className="roster-header">
           <div>
             <span className="label">SEZÓNA {season.name}</span>
-            <h2>{teams[0].categoryName}</h2>
+            <h2>{cat.name}</h2>
           </div>
           <TeamTabs
             variant="filter"
             label="Záložky"
             items={[
-              { href: q(timParam ? team.id : null, false), label: 'Súpiska', active: !program },
-              { href: q(timParam ? team.id : null, true), label: 'Program tímu', active: program },
+              { href: q(keepTeam, false), label: 'Súpiska', active: !program },
+              { href: q(keepTeam, true), label: 'Program tímu', active: program },
             ]}
           />
         </div>
-        {teams.length > 1 && (
-          <TeamTabs
-            label="Družstvá"
-            items={teams.map((t) => ({ href: q(t.id, program), label: t.name, active: t.id === team.id }))}
-          />
+        {cat.teams.length > 1 && (
+          <TeamTabs label="Družstvá" items={cat.teams.map((t) => ({ href: q(t.id, program), label: t.name, active: t.id === team.id }))} />
         )}
         {program ? (
           rows.length ? (
-            <div>{rows.map((e) => <TeamEventRow key={e.id} event={e} />)}</div>
+            <div>{rows.map((e) => <EventRow key={e.id} event={e} tz={tz} />)}</div>
           ) : (
             <div className="empty">Pre tento tím zatiaľ nie sú naplánované žiadne udalosti.</div>
           )
-        ) : squad.length ? (
-          <div className="roster-grid"><div className="players">{squad.map((p) => <PlayerCard key={p.id} player={p} />)}</div></div>
+        ) : players.length ? (
+          <>
+            <p className="tiny-note">Zverejnení sú hráči so súhlasom klubu ({players.length} z {squad!.team.rosterSize} v súpiske).</p>
+            <div className="roster-grid"><div className="players">{players.map((p) => <PlayerCard key={p.id} player={p} />)}</div></div>
+          </>
         ) : (
-          <div className="empty">
-            <h3>Súpiska {team.name}</h3>
-            <p>Súpisku zatiaľ nemáme zverejnenú.</p>
-          </div>
+          <div className="empty">Súpiska zatiaľ nie je zverejnená.</div>
         )}
-        <DemoNotice />
       </section>
     </>
   );

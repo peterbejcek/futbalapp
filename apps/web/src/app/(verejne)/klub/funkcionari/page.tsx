@@ -24,7 +24,7 @@ export default function FunkcionariPage() {
     <>
       <PageTop label="FK KOŠICKÁ NOVÁ VES" title="ĽUDIA ZA KLUBOM." desc="Náš klub, jeho príbeh a ľudia. Informácie z pôvodného klubového webu."><ClubTabs /></PageTop>
       <section className="section">
-        <p className="demo">Zoznam podľa pôvodného webu · aktuálne obsadenie pre 2026/27 nepotvrdené</p>
+        <p className="pub-note">Zoznam podľa pôvodného webu · aktuálne obsadenie pre 2026/27 nepotvrdené</p>
         <h2>VEDENIE KLUBU</h2>
         <div className="people-grid" style={{ marginTop: 24 }}>
           {LEADERS.map(([n, r, p]) => (

@@ -47,6 +47,9 @@ services:
       ISSF_PLAYERS_URL: ${ISSF_PLAYERS_URL:-}
       ISSF_LOGIN_URL: ${ISSF_LOGIN_URL:-}
       ISSF_DEBUG: ${ISSF_DEBUG:-}
+      # Verejné API (klubový web) — voliteľné
+      CLUB_NAME: ${CLUB_NAME:-}
+      CLUB_TIMEZONE: ${CLUB_TIMEZONE:-}
       PORT: 3001
     # migrácie prebehnú automaticky pri štarte (viď Dockerfile.api CMD)
 
@@ -57,6 +60,9 @@ services:
       args:
         # zapeká sa do klientskeho bundle-u pri builde — musí byť verejná adresa API
         NEXT_PUBLIC_API_URL: https://api.fkknv.sk/api/v1
+    environment:
+      # server-side volania verejného API z web kontajnera (interná docker sieť)
+      API_INTERNAL_URL: http://api:3001/api/v1
     restart: unless-stopped
     depends_on:
       - api

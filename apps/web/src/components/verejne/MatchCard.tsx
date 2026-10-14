@@ -1,30 +1,40 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import type { PublicEvent } from '@/lib/verejne/types';
-import { fmtDay, fmtTime } from '@/lib/verejne/format';
+import type { PublicEventDto } from '@fkknv/shared';
+import { eventScore, fmtDay, fmtMonthOnly, fmtTime } from '@/lib/verejne/format';
+import StateBadge from './StateBadge';
 
-const monthShort = (iso: string) =>
-  new Intl.DateTimeFormat('sk-SK', { month: 'short', timeZone: 'Europe/Bratislava' }).format(new Date(iso)).replace('.', '').toUpperCase();
+const abbrOf = (name: string) => name.replace(/[^\p{L}]/gu, '').slice(0, 3).toUpperCase();
 
-export default function MatchCard({ event, featured }: { event: PublicEvent; featured?: boolean }) {
-  const m = event.match;
-  const opponent = m?.opponent ?? event.title;
-  const abbr = opponent.replace(/[^\p{L}]/gu, '').slice(0, 3).toUpperCase();
+function Side({ name, ours }: { name: string; ours: boolean }) {
   return (
-    <Link className={`match-card${featured ? ' featured' : ''}`} href={`/kalendar/${event.id}`}>
+    <>
+      {ours ? <Image src="/logo.png" alt="" width={31} height={49} /> : <span className="club-icon" aria-hidden="true">{abbrOf(name)}</span>}
+      <span className="club-name">{name}</span>
+    </>
+  );
+}
+
+export default function MatchCard({ event, tz, featured, label }: { event: PublicEventDto; tz: string; featured?: boolean; label?: string }) {
+  const m = event.match;
+  const home = m?.homeName ?? event.title;
+  const away = m?.awayName ?? '';
+  const score = eventScore(event);
+  return (
+    <Link className={`match-card${featured ? ' featured' : ''}`} href={`/kalendar/${encodeURIComponent(event.id)}`}>
       <div className="match-top">
-        <span className="label">{featured ? 'NAJBLIŽŠÍ VÝKOP' : 'ĎALŠÍ ZÁPAS'}</span>
-        <span className="tag">{event.teamName}</span>
+        <span className="label">{label ?? (featured ? 'NAJBLIŽŠÍ VÝKOP' : 'ĎALŠÍ ZÁPAS')}</span>
+        <span>
+          <StateBadge state={event.state} /> <span className="tag">{event.teamName}</span>
+        </span>
       </div>
       <div className="match-clubs">
-        <Image src="/logo.png" alt="" width={31} height={49} />
-        <span className="club-name">FK Košická<br />Nová Ves</span>
-        <span className="versus">VS</span>
-        <span className="club-icon" aria-hidden="true">{abbr}</span>
-        <span className="club-name">{opponent}</span>
+        <Side name={home} ours={!m || m.isHome} />
+        {score ? <span className="versus score">{score}</span> : <span className="versus">VS</span>}
+        {m && <Side name={away} ours={!m.isHome} />}
       </div>
       <div className="match-bottom">
-        <b>{fmtDay(event.startAt)}. {monthShort(event.startAt)} · {fmtTime(event.startAt)}</b>
+        <b>{fmtDay(event.startAt, tz)}. {fmtMonthOnly(event.startAt, tz)} · {fmtTime(event.startAt, tz)}</b>
         <span>{m ? (m.isHome ? 'DOMA' : 'VONKU') : ''} &nbsp; ↗</span>
       </div>
     </Link>
