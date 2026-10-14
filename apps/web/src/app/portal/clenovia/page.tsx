@@ -122,7 +122,7 @@ function MembersTable() {
   const [teamFilter, setTeamFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [search, setSearch] = useState('');
-  const [hideInactive, setHideInactive] = useState(false);
+  const [hideInactive, setHideInactive] = useState(true);
   const [sortBy, setSortBy] = useState<'lastName' | 'team' | 'card'>('lastName');
   const [pageSize, setPageSize] = useState(25);
   const [page, setPage] = useState(1);

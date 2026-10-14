@@ -211,6 +211,31 @@ export class IssfService {
     }
 
     const rows = parseIssfPlayers(bodies);
+
+    // Neaktívni hráči: ISSF ich predvolene nezobrazuje — druhé vyhľadávanie len so stavom „Neaktívny".
+    // Do evidencie sa dostanú so stavom INACTIVE (aj keď stĺpec Stav chýba).
+    try {
+      const inactiveBodies: string[] = [];
+      for (const p of pageInfos) {
+        if (!/ZoznamHracovKlubuPage/i.test(p.url)) continue;
+        const r = await this.submitSearch(p.url, p.body, jar, true);
+        if (!r) continue;
+        inactiveBodies.push(r.body);
+        inactiveBodies.push(...(await this.fetchWicketAjax(r.url, r.body, jar)));
+      }
+      const known = new Set(rows.map((r) => r.registrationNumber ?? `${r.lastName}|${r.firstName}|${r.birthDate?.toISOString() ?? ''}`));
+      let extra = 0;
+      for (const r of parseIssfPlayers(inactiveBodies)) {
+        const key = r.registrationNumber ?? `${r.lastName}|${r.firstName}|${r.birthDate?.toISOString() ?? ''}`;
+        if (known.has(key)) continue;
+        known.add(key);
+        rows.push({ ...r, status: r.status === 'GUEST' ? 'GUEST' : 'INACTIVE' });
+        extra++;
+      }
+      this.logger.log(`ISSF: pridaných ${extra} neaktívnych hráčov.`);
+    } catch (e) {
+      this.logger.warn(`ISSF: načítanie neaktívnych zlyhalo: ${e instanceof Error ? e.message : e}`);
+    }
     this.logger.log(`ISSF: načítaných ${bodies.length} častí (${pageInfos.length} stránok + AJAX), ${rows.length} hráčov.`);
     if (rows.length) {
       const sample = rows.slice(0, 5).map((r) => `${r.lastName} ${r.firstName}${r.registrationNumber ? ` (${r.registrationNumber})` : ''}`);
@@ -291,6 +316,7 @@ export class IssfService {
     pageUrl: string,
     pageBody: string,
     jar: CookieJar,
+    inactiveOnly = false,
   ): Promise<{ url: string; body: string } | null> {
     // vyber blok práve vyhľadávacieho formulára (action obsahuje vyhladavaniePanel)
     const forms = pageBody.match(/<form\b[\s\S]*?<\/form>/gi) ?? [];
@@ -312,9 +338,16 @@ export class IssfService {
       const type = (/\btype\s*=\s*["']([^"']*)["']/i.exec(tag)?.[1] ?? 'text').toLowerCase();
       const value = /\bvalue\s*=\s*["']([^"']*)["']/i.exec(tag)?.[1] ?? '';
       if (type === 'checkbox') {
-        // odošli len zaškrtnuté checkboxy (ako prehliadač) — predvolene „Aktívny".
-        // Posielanie nezaškrtnutých stavov spôsobí, že ISSF vráti 0 záznamov.
-        if (/\bchecked\b/i.test(tag)) params.append(name, value);
+        if (inactiveOnly) {
+          // len checkbox „Neaktívny" (label cez <label for=id> alebo okolitý text)
+          if (this.checkboxLabel(form, tag, m.index) && /neaktiv/.test(this.normText(this.checkboxLabel(form, tag, m.index)))) {
+            params.append(name, value);
+          }
+        } else if (/\bchecked\b/i.test(tag)) {
+          // odošli len zaškrtnuté checkboxy (ako prehliadač) — predvolene „Aktívny".
+          // Posielanie nezaškrtnutých stavov spôsobí, že ISSF vráti 0 záznamov.
+          params.append(name, value);
+        }
       } else if (type === 'submit') {
         params.append(name, value);
       } else if (type === 'hidden') {
@@ -347,6 +380,24 @@ export class IssfService {
       this.logger.warn(`ISSF search result snippet: ${res.body.slice(Math.max(0, idx - 300), idx + 1200).replace(/\s+/g, ' ')}`);
     }
     return { url: res.url, body: res.body };
+  }
+
+  private normText(t: string): string {
+    return t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  }
+
+  /** Text popisku checkboxu: <label for=id> alebo text bezprostredne za inputom. */
+  private checkboxLabel(form: string, tag: string, index: number): string {
+    const id = /\bid\s*=\s*["']([^"']*)["']/i.exec(tag)?.[1];
+    if (id) {
+      const lbl = new RegExp(`<label\\b[^>]*\\bfor\\s*=\\s*["']${id}["'][^>]*>([\\s\\S]*?)</label>`, 'i').exec(form)?.[1];
+      if (lbl) return lbl.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+    return form
+      .slice(index + tag.length, index + tag.length + 120)
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   /** Diagnostika stiahnutej stránky (keď sa nenašli hráči) — pomáha doladiť parser/login. */

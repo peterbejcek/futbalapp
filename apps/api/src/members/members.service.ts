@@ -667,7 +667,8 @@ export class MembersService {
       },
     });
     let team: string | null = null;
-    if (seasonId && row.birthDate) team = await this.assignByAge(m.id, row.birthDate, rules, seasonId);
+    // neaktívni sa k žiadnemu družstvu nepriraďujú
+    if (row.status !== 'INACTIVE' && seasonId && row.birthDate) team = await this.assignByAge(m.id, row.birthDate, rules, seasonId);
     return { memberId: m.id, team };
   }
 
