@@ -3,6 +3,7 @@ import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { Public } from '../auth/public.decorator';
 import { PublicService } from './public.service';
+import { documentFileHeaders } from './public.mapper';
 
 const CACHE_60 = 'public, max-age=60';
 
@@ -79,5 +80,42 @@ export class PublicController {
   @Header('Cache-Control', CACHE_60)
   article(@Param('slug') slug: string) {
     return this.publicService.article(slug);
+  }
+
+  @Get('pages')
+  @Header('Cache-Control', CACHE_60)
+  pages() {
+    return this.publicService.pages();
+  }
+
+  @Get('pages/:slug')
+  @Header('Cache-Control', CACHE_60)
+  page(@Param('slug') slug: string) {
+    return this.publicService.page(slug);
+  }
+
+  @Get('people')
+  @Header('Cache-Control', CACHE_60)
+  people() {
+    return this.publicService.people();
+  }
+
+  @Get('documents')
+  @Header('Cache-Control', CACHE_60)
+  documents(@Query('category') category?: string) {
+    return this.publicService.documents(typeof category === 'string' ? category : undefined);
+  }
+
+  @Get('documents/:id/file')
+  async documentFile(@Param('id') id: string, @Res() res: Response) {
+    const file = await this.publicService.documentFile(id);
+    if (!file) {
+      res.status(404).setHeader('Cache-Control', 'no-store');
+      res.end();
+      return;
+    }
+    const headers = documentFileHeaders({ ...file, size: file.buffer.length });
+    for (const [k, v] of Object.entries(headers)) res.setHeader(k, v);
+    res.end(file.buffer);
   }
 }

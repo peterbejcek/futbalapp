@@ -23,6 +23,7 @@ import { FitnessTestsModule } from './fitness-tests/fitness-tests.module';
 import { CaptchaModule } from './captcha/captcha.module';
 import { PublicModule } from './public/public.module';
 import { ArticlesModule } from './articles/articles.module';
+import { ClubContentModule } from './club-content/club-content.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -47,6 +48,7 @@ import { HealthController } from './health.controller';
     CaptchaModule,
     FitnessTestsModule,
     ArticlesModule,
+    ClubContentModule,
     PublicModule,
   ],
   controllers: [HealthController],

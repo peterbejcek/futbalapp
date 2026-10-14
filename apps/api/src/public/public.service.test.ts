@@ -1,7 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NotFoundException, ServiceUnavailableException, BadRequestException } from '@nestjs/common';
 import { PublicService } from './public.service';
-import { decodePhotoDataUrl, splitParagraphs, toEventDto, wallClockToInstant, type PublicEventRow } from './public.mapper';
+import {
+  decodePhotoDataUrl,
+  documentFileHeaders,
+  parseSections,
+  splitParagraphs,
+  toEventDto,
+  wallClockToInstant,
+  type PublicEventRow,
+} from './public.mapper';
+import { PublicController } from './public.controller';
 import { isInternalRequest } from './public.module';
 import type { PrismaService } from '../prisma/prisma.service';
 
@@ -21,6 +30,9 @@ function mockPrisma() {
     member: { findFirst: vi.fn() },
     event: { findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn() },
     article: { findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn() },
+    clubPage: { findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn() },
+    clubPerson: { findMany: vi.fn().mockResolvedValue([]) },
+    clubDocument: { findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn() },
   };
 }
 
@@ -268,6 +280,16 @@ describe('články', () => {
     expect(arg.where.publishedAt.lte).toBeInstanceOf(Date);
     expect(arg.orderBy[0]).toEqual({ publishedAt: 'desc' });
     expect(arg.select.body).toBeUndefined();
+    expect(arg.select).toMatchObject({ isArchive: true, sourceUrl: true });
+    expect(arg.select.authorId).toBeUndefined();
+  });
+  it('zoznam vracia isArchive a sourceUrl', async () => {
+    prisma.article.findMany.mockResolvedValue([
+      { id: 'a1', slug: 's', title: 'T', excerpt: 'E', publishedAt: new Date('2020-01-01T00:00:00Z'), isArchive: true, sourceUrl: 'https://old.sk/x' },
+    ]);
+    expect(await service.articles()).toEqual([
+      { id: 'a1', slug: 's', title: 'T', excerpt: 'E', publishedAt: '2020-01-01T00:00:00.000Z', isArchive: true, sourceUrl: 'https://old.sk/x' },
+    ]);
   });
   it('nepublikovaný článok → 404', async () => {
     prisma.article.findFirst.mockResolvedValue(null);
@@ -282,6 +304,8 @@ describe('články', () => {
       title: 'Leto',
       excerpt: 'Úvod',
       publishedAt: new Date('2030-01-01T10:00:00Z'),
+      isArchive: false,
+      sourceUrl: null,
       body: 'A\n\nB',
     });
     expect(await service.article('leto')).toEqual({
@@ -290,6 +314,8 @@ describe('články', () => {
       title: 'Leto',
       excerpt: 'Úvod',
       publishedAt: '2030-01-01T10:00:00.000Z',
+      isArchive: false,
+      sourceUrl: null,
       paragraphs: ['A', 'B'],
     });
   });
@@ -300,5 +326,190 @@ describe('rate-limit', () => {
     expect(isInternalRequest({ headers: {}, socket: { remoteAddress: '172.18.0.5' } } as never)).toBe(true);
     expect(isInternalRequest({ headers: { 'x-forwarded-for': '1.2.3.4' }, socket: { remoteAddress: '172.18.0.3' } } as never)).toBe(false);
     expect(isInternalRequest({ headers: {}, socket: { remoteAddress: '8.8.8.8' } } as never)).toBe(false);
+  });
+});
+
+const PUBLIC_WHERE = { in: ['PUBLISHED', 'ARCHIVED'] };
+
+describe('klubové stránky', () => {
+  it('zoznam len PUBLISHED/ARCHIVED, select slug/title/status', async () => {
+    prisma.clubPage.findMany.mockResolvedValue([
+      { slug: 'historia', title: 'História', status: 'ARCHIVED' },
+      { slug: 'koncept', title: 'K', status: 'DRAFT' },
+    ]);
+    const res = await service.pages();
+    const arg = prisma.clubPage.findMany.mock.calls[0]![0];
+    expect(arg.where).toEqual({ status: PUBLIC_WHERE });
+    expect(arg.select).toEqual({ slug: true, title: true, status: true });
+    expect(res).toEqual([{ slug: 'historia', title: 'História', status: 'ARCHIVED' }]);
+  });
+
+  it('DRAFT / neexistujúca stránka → 404', async () => {
+    prisma.clubPage.findFirst.mockResolvedValue(null);
+    await expect(service.page('koncept')).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.clubPage.findFirst.mock.calls[0]![0].where).toEqual({ slug: 'koncept', status: PUBLIC_WHERE });
+    prisma.clubPage.findFirst.mockResolvedValue({
+      slug: 'x', title: 'X', body: '', status: 'DRAFT', sourceUrl: null, sourceNote: null, updatedAt: new Date(),
+    });
+    await expect(service.page('x')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('ARCHIVED sa vráti so status ARCHIVED a sekciami', async () => {
+    prisma.clubPage.findFirst.mockResolvedValue({
+      slug: 'historia',
+      title: 'História',
+      body: 'Úvod.\n\n## Začiatky\nKlub vznikol.\n\nDruhý odsek.',
+      status: 'ARCHIVED',
+      sourceUrl: 'https://old.sk/historia',
+      sourceNote: 'Prevzaté z pôvodného webu',
+      updatedAt: new Date('2026-10-01T08:00:00Z'),
+    });
+    const res = await service.page('historia');
+    expect(res).toEqual({
+      slug: 'historia',
+      title: 'História',
+      sections: [
+        { heading: null, paragraphs: ['Úvod.'] },
+        { heading: 'Začiatky', paragraphs: ['Klub vznikol.', 'Druhý odsek.'] },
+      ],
+      status: 'ARCHIVED',
+      sourceUrl: 'https://old.sk/historia',
+      sourceNote: 'Prevzaté z pôvodného webu',
+      updatedAt: '2026-10-01T08:00:00.000Z',
+    });
+    expect(prisma.clubPage.findFirst.mock.calls[0]![0].select.updatedById).toBeUndefined();
+    expect(prisma.clubPage.findFirst.mock.calls[0]![0].select.confirmedAt).toBeUndefined();
+  });
+
+  it('sections: ## podnadpis, odseky podľa prázdneho riadku, trim, CRLF, prázdne sekcie bez nadpisu vynechané', () => {
+    expect(parseSections('')).toEqual([]);
+    expect(parseSections('## A\r\n  text  \r\n\r\n\r\n ďalší \n## B\n## C\nposledný')).toEqual([
+      { heading: 'A', paragraphs: ['text', 'ďalší'] },
+      { heading: 'B', paragraphs: [] },
+      { heading: 'C', paragraphs: ['posledný'] },
+    ]);
+    expect(parseSections('###nie\n#jeden\n<b>x</b>')).toEqual([{ heading: null, paragraphs: ['###nie\n#jeden\n<b>x</b>'] }]);
+  });
+});
+
+describe('funkcionári a tréneri', () => {
+  it('DRAFT sa nevráti; PUBLISHED pred ARCHIVED, potom skupina/poradie/meno', async () => {
+    const base = { teamNote: null, phone: null, email: null, sourceUrl: null, sourceNote: null, sortOrder: 0 };
+    prisma.clubPerson.findMany.mockResolvedValue([
+      { ...base, id: 'arch', name: 'Starý', role: 'Predseda', group: 'MANAGEMENT', status: 'ARCHIVED' },
+      { ...base, id: 'coach', name: 'Adam', role: 'Tréner', group: 'COACH', status: 'PUBLISHED' },
+      { ...base, id: 'draft', name: 'Koncept', role: 'X', group: 'MANAGEMENT', status: 'DRAFT' },
+      { ...base, id: 'boss', name: 'Zuzana', role: 'Predsedníčka', group: 'MANAGEMENT', status: 'PUBLISHED' },
+    ]);
+    const res = await service.people();
+    expect(prisma.clubPerson.findMany.mock.calls[0]![0].where).toEqual({ status: PUBLIC_WHERE });
+    expect(res.map((p) => p.id)).toEqual(['boss', 'coach', 'arch']);
+    expect(res[2]!.status).toBe('ARCHIVED');
+    expect(Object.keys(res[0]!).sort()).toEqual(
+      ['email', 'group', 'id', 'name', 'phone', 'role', 'sourceNote', 'sourceUrl', 'status', 'teamNote'].sort(),
+    );
+    const keys = allKeys(prisma.clubPerson.findMany.mock.calls[0]![0].select);
+    expect(keys.has('confirmedAt')).toBe(false);
+  });
+});
+
+describe('dokumenty', () => {
+  const doc = (over: Record<string, unknown>) => ({
+    id: 'd',
+    title: 'Dok',
+    description: null,
+    category: 'CONTRACT',
+    documentDate: null,
+    status: 'PUBLISHED',
+    mimeType: 'application/pdf',
+    size: 1234,
+    sha256: 'abc',
+    sourceUrl: 'https://old.sk/d.pdf',
+    sourceNote: null,
+    ...over,
+  });
+
+  it('zoznam neobsahuje data, DRAFT nie, PUBLISHED pred ARCHIVED, downloadUrl len so súborom', async () => {
+    prisma.clubDocument.findMany.mockResolvedValue([
+      doc({ id: 'a1', status: 'ARCHIVED', documentDate: new Date('2025-05-01T00:00:00Z') }),
+      doc({ id: 'p1', documentDate: new Date('2024-01-15T00:00:00Z'), size: null, sha256: null, mimeType: null }),
+      doc({ id: 'dr', status: 'DRAFT' }),
+      doc({ id: 'p2', documentDate: null }),
+    ]);
+    const res = await service.documents();
+    const arg = prisma.clubDocument.findMany.mock.calls[0]![0];
+    expect(arg.where).toEqual({ status: PUBLIC_WHERE });
+    expect(arg.select.data).toBeUndefined();
+    expect(arg.orderBy[0]).toEqual({ documentDate: { sort: 'desc', nulls: 'last' } });
+    expect(res.map((d) => d.id)).toEqual(['p1', 'p2', 'a1']);
+    expect(res[0]).toMatchObject({ documentDate: '2024-01-15', downloadUrl: null, sizeBytes: null });
+    expect(res[1]).toMatchObject({ downloadUrl: '/api/v1/public/documents/p2/file', sizeBytes: 1234, status: 'PUBLISHED' });
+    expect(res[2]!.status).toBe('ARCHIVED');
+    for (const d of res) expect(d).not.toHaveProperty('data');
+    expect(JSON.stringify(res)).not.toContain('sha256');
+  });
+
+  it('filter kategórie; neplatná → 400', async () => {
+    await service.documents('SUBSIDY');
+    expect(prisma.clubDocument.findMany.mock.calls[0]![0].where).toEqual({ status: PUBLIC_WHERE, category: 'SUBSIDY' });
+    await expect(service.documents('SECRET')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('súbor: DRAFT / bez dát → null (404); where vyžaduje verejný stav a data', async () => {
+    prisma.clubDocument.findFirst.mockResolvedValue(null);
+    expect(await service.documentFile('d1')).toBeNull();
+    expect(prisma.clubDocument.findFirst.mock.calls[0]![0].where).toEqual({
+      id: 'd1',
+      status: PUBLIC_WHERE,
+      data: { not: null },
+    });
+    expect(prisma.clubDocument.findFirst.mock.calls[0]![0].select).toEqual({ data: true, mimeType: true, originalFilename: true });
+    prisma.clubDocument.findFirst.mockResolvedValue({ data: null, mimeType: 'application/pdf', originalFilename: 'a.pdf' });
+    expect(await service.documentFile('d1')).toBeNull();
+  });
+
+  it('controller: 404 bez súboru; s súborom bajty a bezpečné hlavičky', async () => {
+    const controller = new PublicController(service);
+    const makeRes = () => {
+      const headers: Record<string, string> = {};
+      const res = {
+        statusCode: 200,
+        body: undefined as unknown,
+        status(c: number) { this.statusCode = c; return this; },
+        setHeader(k: string, v: string) { headers[k] = v; return this; },
+        end(b?: unknown) { this.body = b; },
+      };
+      return { res, headers };
+    };
+    prisma.clubDocument.findFirst.mockResolvedValue(null);
+    const r404 = makeRes();
+    await controller.documentFile('x', r404.res as never);
+    expect(r404.res.statusCode).toBe(404);
+
+    const bytes = Buffer.from('%PDF-1.4 obsah');
+    prisma.clubDocument.findFirst.mockResolvedValue({ data: new Uint8Array(bytes), mimeType: 'application/pdf', originalFilename: 'Zmluva č.1.pdf' });
+    const ok = makeRes();
+    await controller.documentFile('d1', ok.res as never);
+    expect(ok.res.statusCode).toBe(200);
+    expect(Buffer.compare(ok.res.body as Buffer, bytes)).toBe(0);
+    expect(ok.headers['Content-Type']).toBe('application/pdf');
+    expect(ok.headers['X-Content-Type-Options']).toBe('nosniff');
+    expect(ok.headers['Cache-Control']).toBe('public, max-age=300');
+    expect(ok.headers['Content-Length']).toBe(String(bytes.length));
+    expect(ok.headers['Content-Disposition']).toBe(
+      `inline; filename="Zmluva c.1.pdf"; filename*=UTF-8''Zmluva%20%C4%8D.1.pdf`,
+    );
+  });
+
+  it('hlavičky: nepovolený typ → octet-stream + attachment; názov bez CR/LF a úvodzoviek', () => {
+    const h = documentFileHeaders({ mimeType: 'text/html', originalFilename: 'a"\r\nSet-Cookie: x.html', size: 5 });
+    expect(h['Content-Type']).toBe('application/octet-stream');
+    expect(h['Content-Disposition'].startsWith('attachment; ')).toBe(true);
+    expect(h['Content-Disposition']).not.toMatch(/[\r\n]/);
+    expect(h['Content-Disposition']).toContain('filename="aSet-Cookie: x.html"');
+    const zip = documentFileHeaders({ mimeType: 'application/zip', originalFilename: null, size: 1 });
+    expect(zip['Content-Type']).toBe('application/zip');
+    expect(zip['Content-Disposition']).toBe(`attachment; filename="dokument"; filename*=UTF-8''dokument`);
+    expect(documentFileHeaders({ mimeType: 'image/png', originalFilename: 'f.png', size: 1 })['Content-Disposition']).toMatch(/^inline;/);
   });
 });

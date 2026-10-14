@@ -107,6 +107,13 @@ export type PublicContentStatus = 'PUBLISHED' | 'ARCHIVED';
 
 export type PublicDocumentCategory = 'CONTRACT' | 'SUBSIDY' | 'TAX_FORM' | 'ANNOUNCEMENT' | 'OTHER';
 
+/** Položka zoznamu GET /public/pages (len PUBLISHED a ARCHIVED). */
+export interface PublicPageListItemDto {
+  slug: string;
+  title: string;
+  status: PublicContentStatus;
+}
+
 export interface PublicPageDto {
   slug: string;
   title: string;

@@ -3,9 +3,13 @@ import type { Prisma } from '@prisma/client';
 import type {
   PublicArticleDto,
   PublicArticleListItemDto,
+  PublicDocumentDto,
   PublicEventDetailDto,
   PublicEventDto,
   PublicEventsDto,
+  PublicPageDto,
+  PublicPageListItemDto,
+  PublicPersonDto,
   PublicSquadDto,
   PublicTeamDto,
   PublicTeamsDto,
@@ -14,6 +18,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   ARTICLE_DETAIL_SELECT,
   ARTICLE_LIST_SELECT,
+  DOCUMENT_FILE_SELECT,
+  DOCUMENT_SELECT,
+  PAGE_DETAIL_SELECT,
+  PAGE_LIST_SELECT,
+  PERSON_SELECT,
+  PUBLIC_CONTENT_STATUSES,
   PUBLIC_EVENT_SELECT,
   SEASON_SELECT,
   SQUAD_MEMBER_SELECT,
@@ -21,9 +31,14 @@ import {
   clubConfig,
   decodePhotoDataUrl,
   parseDay,
+  publicStatus,
+  statusRank,
   toArticleDto,
   toArticleListItem,
+  toDocumentDto,
   toEventDto,
+  toPageDto,
+  toPersonDto,
   toSeasonDto,
   type PublicEventRow,
 } from './public.mapper';
@@ -41,6 +56,10 @@ const DEFAULT_EVENT_LIMIT = 200;
 const MAX_EVENT_LIMIT = 500;
 const DEFAULT_ARTICLE_LIMIT = 50;
 const MAX_ARTICLE_LIMIT = 200;
+
+const MAX_PUBLIC_DOCUMENTS = 500;
+const DOCUMENT_CATEGORIES = new Set(['CONTRACT', 'SUBSIDY', 'TAX_FORM', 'ANNOUNCEMENT', 'OTHER']);
+const PERSON_GROUP_RANK: Record<string, number> = { MANAGEMENT: 0, COACH: 1, OTHER: 2 };
 
 const collator = new Intl.Collator('sk');
 
@@ -250,5 +269,79 @@ export class PublicService {
     });
     if (!row) throw new NotFoundException('Článok neexistuje');
     return toArticleDto(row);
+  }
+
+  // ------------------------------------------------------------ klubový obsah (DRAFT nikdy)
+
+  async pages(): Promise<PublicPageListItemDto[]> {
+    const rows = await this.prisma.clubPage.findMany({
+      where: { status: { in: [...PUBLIC_CONTENT_STATUSES] } },
+      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+      select: PAGE_LIST_SELECT,
+    });
+    return rows.flatMap((r) => {
+      const status = publicStatus(r.status);
+      return status ? [{ slug: r.slug, title: r.title, status }] : [];
+    });
+  }
+
+  async page(slug: string): Promise<PublicPageDto> {
+    const row = await this.prisma.clubPage.findFirst({
+      where: { slug, status: { in: [...PUBLIC_CONTENT_STATUSES] } },
+      select: PAGE_DETAIL_SELECT,
+    });
+    const page = row ? toPageDto(row) : null;
+    if (!page) throw new NotFoundException('Stránka neexistuje');
+    return page;
+  }
+
+  async people(): Promise<PublicPersonDto[]> {
+    const rows = await this.prisma.clubPerson.findMany({
+      where: { status: { in: [...PUBLIC_CONTENT_STATUSES] } },
+      orderBy: [{ group: 'asc' }, { sortOrder: 'asc' }, { name: 'asc' }],
+      select: PERSON_SELECT,
+    });
+    return [...rows]
+      .sort(
+        (a, b) =>
+          statusRank(a.status) - statusRank(b.status) ||
+          (PERSON_GROUP_RANK[a.group] ?? 9) - (PERSON_GROUP_RANK[b.group] ?? 9) ||
+          a.sortOrder - b.sortOrder ||
+          collator.compare(a.name, b.name),
+      )
+      .map(toPersonDto)
+      .filter((p): p is PublicPersonDto => p !== null);
+  }
+
+  async documents(category?: string): Promise<PublicDocumentDto[]> {
+    if (category !== undefined && category !== '' && !DOCUMENT_CATEGORIES.has(category)) {
+      throw new BadRequestException('Neplatná kategória (CONTRACT | SUBSIDY | TAX_FORM | ANNOUNCEMENT | OTHER)');
+    }
+    const rows = await this.prisma.clubDocument.findMany({
+      where: {
+        status: { in: [...PUBLIC_CONTENT_STATUSES] },
+        ...(category ? { category: category as Prisma.ClubDocumentWhereInput['category'] } : {}),
+      },
+      orderBy: [{ documentDate: { sort: 'desc', nulls: 'last' } }, { sortOrder: 'asc' }, { title: 'asc' }],
+      take: MAX_PUBLIC_DOCUMENTS,
+      select: DOCUMENT_SELECT,
+    });
+    // stabilné triedenie: PUBLISHED pred ARCHIVED, inak poradie z DB (dátum desc)
+    return [...rows]
+      .sort((a, b) => statusRank(a.status) - statusRank(b.status))
+      .map(toDocumentDto)
+      .filter((d): d is PublicDocumentDto => d !== null);
+  }
+
+  /** Súbor zverejneného dokumentu (bajty bez zmeny). null = 404 (DRAFT, neexistuje, bez súboru). */
+  async documentFile(
+    id: string,
+  ): Promise<{ buffer: Buffer; mimeType: string | null; originalFilename: string | null } | null> {
+    const row = await this.prisma.clubDocument.findFirst({
+      where: { id, status: { in: [...PUBLIC_CONTENT_STATUSES] }, data: { not: null } },
+      select: DOCUMENT_FILE_SELECT,
+    });
+    if (!row?.data || row.data.length === 0) return null;
+    return { buffer: Buffer.from(row.data), mimeType: row.mimeType, originalFilename: row.originalFilename };
   }
 }

@@ -189,6 +189,8 @@ export const createArticleSchema = z.object({
   excerpt: z.string().trim().min(1).max(400),
   body: z.string().trim().min(1).max(20000),
   publish: z.boolean().optional(),
+  isArchive: z.boolean().optional(),
+  sourceUrl: z.lazy(() => optionalHttpUrl),
 });
 export type CreateArticleInput = z.infer<typeof createArticleSchema>;
 
@@ -197,6 +199,8 @@ export const updateArticleSchema = z.object({
   excerpt: z.string().trim().min(1).max(400).optional(),
   body: z.string().trim().min(1).max(20000).optional(),
   publish: z.boolean().optional(),
+  isArchive: z.boolean().optional(),
+  sourceUrl: z.lazy(() => optionalHttpUrl),
   slug: z
     .string()
     .trim()
@@ -206,3 +210,134 @@ export const updateArticleSchema = z.object({
     .optional(),
 });
 export type UpdateArticleInput = z.infer<typeof updateArticleSchema>;
+
+/// ---------------------------------------------------------------------------
+/// Klubový obsah (stránky, funkcionári/tréneri, dokumenty) — správa v portáli.
+/// Publikovanie (status=PUBLISHED) vyžaduje `confirm: true` (potvrdenie údajov klubom).
+
+export const CONTENT_STATUSES = ['DRAFT', 'PUBLISHED', 'ARCHIVED'] as const;
+export type ContentStatus = (typeof CONTENT_STATUSES)[number];
+export const DOCUMENT_CATEGORIES = ['CONTRACT', 'SUBSIDY', 'TAX_FORM', 'ANNOUNCEMENT', 'OTHER'] as const;
+export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
+export const CLUB_PERSON_GROUPS = ['MANAGEMENT', 'COACH', 'OTHER'] as const;
+export type ClubPersonGroup = (typeof CLUB_PERSON_GROUPS)[number];
+
+/** Len absolútna http(s) URL (žiadne javascript:, data: …). */
+export function isHttpUrl(value: string): boolean {
+  try {
+    const u = new URL(value);
+    return (u.protocol === 'http:' || u.protocol === 'https:') && !!u.hostname;
+  } catch {
+    return false;
+  }
+}
+
+/** Voliteľný text: '' → null, null = vymazať, undefined = nemeniť. */
+const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .transform((s) => (s === '' ? null : s))
+    .nullable()
+    .optional();
+
+/** Voliteľná http(s) URL: '' → null. */
+export const optionalHttpUrl = z
+  .string()
+  .trim()
+  .max(2000)
+  .refine((s) => s === '' || isHttpUrl(s), 'URL musí byť platná adresa http:// alebo https://')
+  .transform((s) => (s === '' ? null : s))
+  .nullable()
+  .optional();
+
+const contentSlug = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug smie obsahovať len a-z, 0-9 a pomlčky');
+
+const sortOrder = z.number().int().min(-100000).max(100000).optional();
+const contentStatus = z.enum(CONTENT_STATUSES).optional();
+/** true = obsah potvrdil klub (nastaví confirmedAt), false = potvrdenie zruší. */
+const confirm = z.boolean().optional();
+
+/** "YYYY-MM-DD" (platný kalendárny dátum) alebo null. */
+export const isoDateString = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Dátum v tvare YYYY-MM-DD')
+  .refine((s) => {
+    const [y, m, d] = s.split('-').map(Number) as [number, number, number];
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+  }, 'Neplatný dátum');
+
+export const createClubPageSchema = z.object({
+  slug: contentSlug,
+  title: z.string().trim().min(1).max(200),
+  /** Čistý text; odseky oddelené prázdnym riadkom, „## " = podnadpis. Žiadne HTML. */
+  body: z.string().trim().max(50000),
+  status: contentStatus,
+  sourceUrl: optionalHttpUrl,
+  sourceNote: optionalText(1000),
+  sortOrder,
+  confirm,
+});
+export type CreateClubPageInput = z.infer<typeof createClubPageSchema>;
+export const updateClubPageSchema = createClubPageSchema.partial();
+export type UpdateClubPageInput = z.infer<typeof updateClubPageSchema>;
+
+export const createClubPersonSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  role: z.string().trim().min(1).max(160),
+  group: z.enum(CLUB_PERSON_GROUPS).optional(),
+  teamNote: optionalText(160),
+  phone: optionalText(40),
+  email: z
+    .string()
+    .trim()
+    .max(200)
+    .refine((s) => s === '' || z.string().email().safeParse(s).success, 'Neplatný e-mail')
+    .transform((s) => (s === '' ? null : s))
+    .nullable()
+    .optional(),
+  status: contentStatus,
+  sourceUrl: optionalHttpUrl,
+  sourceNote: optionalText(1000),
+  sortOrder,
+  confirm,
+});
+export type CreateClubPersonInput = z.infer<typeof createClubPersonSchema>;
+export const updateClubPersonSchema = createClubPersonSchema.partial();
+export type UpdateClubPersonInput = z.infer<typeof updateClubPersonSchema>;
+
+export const createClubDocumentSchema = z.object({
+  title: z.string().trim().min(1).max(300),
+  description: optionalText(4000),
+  category: z.enum(DOCUMENT_CATEGORIES).optional(),
+  /** Dátum dokumentu podľa zdroja (nie dátum nahratia). */
+  documentDate: isoDateString.nullable().optional(),
+  sourceUrl: optionalHttpUrl,
+  sourceNote: optionalText(1000),
+  status: contentStatus,
+  sortOrder,
+  confirm,
+});
+export type CreateClubDocumentInput = z.infer<typeof createClubDocumentSchema>;
+export const updateClubDocumentSchema = createClubDocumentSchema.partial();
+export type UpdateClubDocumentInput = z.infer<typeof updateClubDocumentSchema>;
+
+/** Povolené typy súborov dokumentov (ukladajú sa bez zmeny). */
+export const CLUB_DOCUMENT_MIME_TYPES = [
+  'application/pdf',
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'image/png',
+  'image/jpeg',
+] as const;
+export const CLUB_DOCUMENT_MAX_BYTES = 15 * 1024 * 1024;

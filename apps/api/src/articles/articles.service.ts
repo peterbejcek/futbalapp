@@ -48,6 +48,8 @@ export class ArticlesService {
         excerpt: input.excerpt,
         body: input.body,
         publishedAt: input.publish ? new Date() : null,
+        isArchive: input.isArchive ?? false,
+        sourceUrl: input.sourceUrl ?? null,
         authorId,
       },
     });
@@ -76,6 +78,8 @@ export class ArticlesService {
         body: input.body,
         slug,
         publishedAt,
+        isArchive: input.isArchive,
+        sourceUrl: input.sourceUrl,
       },
     });
     await this.audit(userId, 'ARTICLE_UPDATE', id, {
