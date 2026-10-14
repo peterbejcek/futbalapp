@@ -5,7 +5,7 @@ import { fmtDay, fmtMonthShort, fmtTime, isMatchType } from '@/lib/verejne/forma
 export default function TeamEventRow({ event }: { event: PublicEvent }) {
   const match = isMatchType(event.type);
   return (
-    <Link className="list-event" href={`/kalendar?tim=${event.categoryCode}`}>
+    <Link className="list-event" href={`/kalendar/${event.id}`}>
       <span className="event-date">{fmtDay(event.startAt)}<small>{fmtMonthShort(event.startAt)}</small></span>
       <span className={`event-type ${match ? 'match' : 'training'}`}>{match ? 'ZÁPAS' : 'TRÉNING'}<br /><b>{event.teamName}</b></span>
       <span>

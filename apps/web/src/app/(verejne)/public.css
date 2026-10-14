@@ -35,4 +35,9 @@ a.list-event{color:inherit}
 
 /* Novinky, kluby: odkazové varianty */
 a.news-card-link{display:block}.news-card-link .news-content p{font-size:13px;margin:0 0 16px}.club-body .btn{margin-top:8px}.gallery-tile{text-align:left}
+
+.join-banner .btn{color:#fff}
+.match-card .club-name{overflow-wrap:break-word;word-break:normal;hyphens:auto}
+.match-card:not(.featured) .club-name{font-size:18px}
+.match-card:not(.featured) .club-icon,.match-card:not(.featured) .match-clubs img{transform:scale(.85)}
 }

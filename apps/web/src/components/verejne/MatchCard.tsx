@@ -11,7 +11,7 @@ export default function MatchCard({ event, featured }: { event: PublicEvent; fea
   const opponent = m?.opponent ?? event.title;
   const abbr = opponent.replace(/[^\p{L}]/gu, '').slice(0, 3).toUpperCase();
   return (
-    <Link className={`match-card${featured ? ' featured' : ''}`} href={`/kalendar?tim=${event.categoryCode}`}>
+    <Link className={`match-card${featured ? ' featured' : ''}`} href={`/kalendar/${event.id}`}>
       <div className="match-top">
         <span className="label">{featured ? 'NAJBLIŽŠÍ VÝKOP' : 'ĎALŠÍ ZÁPAS'}</span>
         <span className="tag">{event.teamName}</span>
