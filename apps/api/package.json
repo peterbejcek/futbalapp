@@ -10,7 +10,8 @@
     "test": "vitest run",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:seed": "ts-node prisma/seed.ts"
+    "db:seed": "ts-node prisma/seed.ts",
+    "content:import": "ts-node prisma/import-club-content.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
