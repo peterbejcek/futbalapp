@@ -128,6 +128,8 @@ export const createEventSchema = z.object({
   isHome: z.boolean().optional(),
   /// farba dresu pri zápase: tmavý / svetlý
   jerseyColor: z.enum(['DARK', 'LIGHT']).optional(),
+  /// zobraziť v kalendári na verejnom webe (platí len pre TRAINING)
+  isPublic: z.boolean().optional(),
 });
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 
@@ -141,6 +143,8 @@ export const createRecurringTrainingSchema = z.object({
   until: z.coerce.date(),
   location: z.string().max(200).optional(),
   surface: z.enum(SURFACE_CODES).optional(),
+  /// zobraziť v kalendári na verejnom webe
+  isPublic: z.boolean().optional(),
 });
 export type CreateRecurringTrainingInput = z.infer<typeof createRecurringTrainingSchema>;
 
@@ -172,3 +176,33 @@ export const assignRoleSchema = z.object({
   teamId: z.string().optional(), // scope pre COACH
 });
 export type AssignRoleInput = z.infer<typeof assignRoleSchema>;
+
+export const publicConsentSchema = z.object({
+  profile: z.boolean(),
+  photo: z.boolean(),
+});
+export type PublicConsentInput = z.infer<typeof publicConsentSchema>;
+
+/// Články verejného webu — čistý text, žiadne HTML.
+export const createArticleSchema = z.object({
+  title: z.string().trim().min(2).max(160),
+  excerpt: z.string().trim().min(1).max(400),
+  body: z.string().trim().min(1).max(20000),
+  publish: z.boolean().optional(),
+});
+export type CreateArticleInput = z.infer<typeof createArticleSchema>;
+
+export const updateArticleSchema = z.object({
+  title: z.string().trim().min(2).max(160).optional(),
+  excerpt: z.string().trim().min(1).max(400).optional(),
+  body: z.string().trim().min(1).max(20000).optional(),
+  publish: z.boolean().optional(),
+  slug: z
+    .string()
+    .trim()
+    .min(1)
+    .max(120)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Neplatný slug')
+    .optional(),
+});
+export type UpdateArticleInput = z.infer<typeof updateArticleSchema>;

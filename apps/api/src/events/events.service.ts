@@ -189,6 +189,7 @@ export class EventsService {
         endAt: input.endAt,
         location: input.location,
         surface: input.surface,
+        isPublic: input.type === 'TRAINING' ? (input.isPublic ?? false) : false,
         createdById,
         match: isMatch
           ? {
@@ -246,6 +247,7 @@ export class EventsService {
           location: input.location,
           surface: input.surface,
           recurrenceGroupId,
+          isPublic: input.isPublic ?? false,
           createdById,
         },
       });
@@ -266,6 +268,8 @@ export class EventsService {
         endAt: input.endAt,
         location: input.location,
         surface: input.surface,
+        // verejnosť len pre tréning; pri iných typoch ignoruj
+        isPublic: event.type === 'TRAINING' ? input.isPublic : undefined,
       },
     });
   }

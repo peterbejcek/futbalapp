@@ -586,6 +586,7 @@ function TrainingModal({
   const [from, setFrom] = useState('');
   const [until, setUntil] = useState('');
   const [date, setDate] = useState('');
+  const [isPublic, setIsPublic] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -604,12 +605,12 @@ function TrainingModal({
       if (recurring) {
         await api('/events/recurring', {
           method: 'POST',
-          body: JSON.stringify({ title, teamId, weekdays, startTime, endTime, from, until, location: location || undefined, surface: surface || undefined }),
+          body: JSON.stringify({ title, teamId, weekdays, startTime, endTime, from, until, location: location || undefined, surface: surface || undefined, isPublic }),
         });
       } else {
         await api('/events', {
           method: 'POST',
-          body: JSON.stringify({ type: 'TRAINING', title, teamId, startAt: `${date}T${startTime}:00.000Z`, location: location || undefined, surface: surface || undefined }),
+          body: JSON.stringify({ type: 'TRAINING', title, teamId, startAt: `${date}T${startTime}:00.000Z`, location: location || undefined, surface: surface || undefined, isPublic }),
         });
       }
       onDone();
@@ -707,6 +708,11 @@ function TrainingModal({
             ))}
           </select>
         </div>
+
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />
+          Zverejniť v kalendári na verejnom webe
+        </label>
 
         <ErrorText>{error}</ErrorText>
         <div className="flex justify-end gap-2">

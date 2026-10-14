@@ -15,7 +15,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
-import { createMemberSchema, type CreateMemberInput } from '@fkknv/shared';
+import { createMemberSchema, publicConsentSchema, type CreateMemberInput, type PublicConsentInput } from '@fkknv/shared';
 import { MembersService } from './members.service';
 import { Roles } from '../auth/roles.decorator';
 import { Public } from '../auth/public.decorator';
@@ -166,6 +166,17 @@ export class MembersController {
   @Roles('ADMIN', 'MANAGER')
   remove(@Param('id') id: string) {
     return this.membersService.remove(id);
+  }
+
+  /** Súhlas so zverejnením na verejnom webe (meno / fotografia) — len vedenie. */
+  @Patch(':id/public-consent')
+  @Roles('ADMIN', 'MANAGER')
+  setPublicConsent(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodValidationPipe(publicConsentSchema)) body: PublicConsentInput,
+  ) {
+    return this.membersService.setPublicConsent(id, body, user.id);
   }
 
   /** Admin: vygeneruje nové jednorazové heslo pre konto člena. */

@@ -458,6 +458,47 @@ export class MembersService {
     return { member: await this.get(id), account };
   }
 
+  /** Nastaví súhlasy so zverejnením na webe (fotografia vyžaduje súhlas s menom). */
+  async setPublicConsent(id: string, input: { profile: boolean; photo: boolean }, actorId: string) {
+    if (input.photo && !input.profile) {
+      throw new BadRequestException('Súhlas s fotografiou vyžaduje súhlas so zverejnením mena');
+    }
+    const member = await this.prisma.member.findUnique({ where: { id } });
+    if (!member) throw new NotFoundException('Člen neexistuje');
+    const changed =
+      member.publicProfileConsent !== input.profile || member.publicPhotoConsent !== input.photo;
+    const updated = changed
+      ? await this.prisma.member.update({
+          where: { id },
+          data: {
+            publicProfileConsent: input.profile,
+            publicPhotoConsent: input.photo,
+            publicConsentAt: new Date(),
+          },
+        })
+      : member;
+    if (changed) {
+      await this.prisma.auditLog.create({
+        data: {
+          userId: actorId,
+          action: 'MEMBER_PUBLIC_CONSENT',
+          entity: 'Member',
+          entityId: id,
+          diff: {
+            from: { profile: member.publicProfileConsent, photo: member.publicPhotoConsent },
+            to: input,
+          },
+        },
+      });
+    }
+    return {
+      id: updated.id,
+      publicProfileConsent: updated.publicProfileConsent,
+      publicPhotoConsent: updated.publicPhotoConsent,
+      publicConsentAt: updated.publicConsentAt,
+    };
+  }
+
   /** Natrvalo odstráni člena (kaskádovo aj členstvá, dochádzku, poplatky, nominácie…). */
   async remove(id: string) {
     const member = await this.prisma.member.findUnique({ where: { id } });

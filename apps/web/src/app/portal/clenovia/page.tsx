@@ -28,6 +28,9 @@ interface MemberRow {
   homeClub?: string | null;
   guestClub?: string | null;
   clubAffiliation?: string | null;
+  publicProfileConsent?: boolean;
+  publicPhotoConsent?: boolean;
+  publicConsentAt?: string | null;
   memberships: Array<{ team: { id: string; name: string; teamCategory: { code: string } } }>;
   user: { id: string; email: string; roles: Array<{ role: string; teamId: string | null }> } | null;
   guardians: Guardian[];
@@ -971,6 +974,8 @@ function MemberModal({
           </div>
         </div>
 
+        {member && staff && <PublicConsentPanel member={member} />}
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelCls}>Meno</label>
@@ -1303,6 +1308,63 @@ const RELATION_OPTIONS = [
   { value: 'RELATIVE', label: 'Iný príbuzný' },
 ];
 const RELATION_LABEL: Record<string, string> = Object.fromEntries(RELATION_OPTIONS.map((o) => [o.value, o.label]));
+
+function PublicConsentPanel({ member }: { member: MemberRow }) {
+  const [profile, setProfile] = useState(member.publicProfileConsent ?? false);
+  const [photo, setPhoto] = useState(member.publicPhotoConsent ?? false);
+  const [at, setAt] = useState<string | null>(member.publicConsentAt ?? null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    setMsg(null);
+    try {
+      const r = await api<{ publicConsentAt: string | null }>(`/members/${member.id}/public-consent`, {
+        method: 'PATCH',
+        body: JSON.stringify({ profile, photo: profile && photo }),
+      });
+      setAt(r.publicConsentAt);
+      setMsg('Uložené.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Uloženie zlyhalo');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-md border border-club-100 p-3">
+      <h3 className="text-sm font-semibold text-club-900">Zverejnenie na webe</h3>
+      <p className="text-xs text-gray-500">
+        Súhlas zbiera klub od hráča / zákonného zástupcu. Bez súhlasu sa hráč na verejnom webe nezobrazuje.
+      </p>
+      <label className="flex items-center gap-2 text-sm text-gray-700">
+        <input
+          type="checkbox"
+          checked={profile}
+          onChange={(e) => {
+            setProfile(e.target.checked);
+            if (!e.target.checked) setPhoto(false);
+          }}
+        />
+        Súhlas so zverejnením mena a priezviska na verejnom webe
+      </label>
+      <label className="flex items-center gap-2 text-sm text-gray-700">
+        <input type="checkbox" checked={photo} disabled={!profile} onChange={(e) => setPhoto(e.target.checked)} />
+        Súhlas so zverejnením fotografie
+      </label>
+      {at && <p className="text-xs text-gray-400">Naposledy zmenené: {new Date(at).toLocaleDateString('sk-SK')}</p>}
+      <ErrorText>{error}</ErrorText>
+      {msg && <p className="text-sm text-green-700">{msg}</p>}
+      <Button onClick={save} disabled={busy}>
+        {busy ? 'Ukladám…' : 'Uložiť'}
+      </Button>
+    </div>
+  );
+}
 
 interface GuardianRow {
   user: { id: string; firstName: string; lastName: string };
