@@ -14,7 +14,7 @@ const STATIC_ROUTES = [
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = STATIC_ROUTES.map((p) => ({ url: `${SITE_URL}${p === '/' ? '' : p}` }));
   // Pri výpadku API (alebo jeho časti) ostanú aspoň statické trasy.
-  const [teams, articles] = await Promise.allSettled([getTeams(), getArticles()]);
+  const [teams, articles] = await Promise.allSettled([getTeams(), getArticles(200)]);
   if (teams.status === 'fulfilled') {
     for (const c of groupByCategory(teams.value.teams)) entries.push({ url: `${SITE_URL}/muzstva/${encodeURIComponent(c.code.toLowerCase())}` });
   }

@@ -8,7 +8,7 @@ export const metadata: Metadata = pageMeta({ title: 'Novinky', description: 'Nov
 export const dynamic = 'force-dynamic';
 
 export default async function NovinkyPage() {
-  const articles = (await getArticles()).slice().sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+  const articles = (await getArticles(200)).slice().sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
   const current = articles.filter((a) => !a.isArchive);
   const archive = articles.filter((a) => a.isArchive);
   return (

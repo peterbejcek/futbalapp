@@ -86,8 +86,8 @@ export async function getEvent(id: string): Promise<PublicEventDetailDto | null>
   return ensure(await request<PublicEventDetailDto>(`/events/${encodeURIComponent(id)}`), (x) => !!x.event && !!x.club, '/events/:id');
 }
 
-export async function getArticles(): Promise<PublicArticleListItemDto[]> {
-  const d = await request<PublicArticleListItemDto[]>('/articles');
+export async function getArticles(limit?: number): Promise<PublicArticleListItemDto[]> {
+  const d = await request<PublicArticleListItemDto[]>(limit ? `/articles?limit=${limit}` : '/articles');
   if (!Array.isArray(d)) throw new PublicDataUnavailableError('Verejné API nevrátilo zoznam článkov');
   return d;
 }

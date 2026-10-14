@@ -293,7 +293,7 @@ function CommonFields({ id, c, set }: { id: string; c: Common; set: (p: Partial<
             onChange={(e) => set({ confirm: e.target.checked })}
             className="mt-1"
           />
-          <span>Klub potvrdil, že údaje sú správne a aktuálne (povinné pre publikovanie)</span>
+          <span>Klub potvrdil, že údaje sú správne a aktuálne (povinné pri publikovaní aj pri každej úprave publikovaného záznamu)</span>
         </label>
       )}
       <div>

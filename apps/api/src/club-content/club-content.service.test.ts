@@ -82,6 +82,34 @@ describe('publikačná poistka', () => {
     );
   });
 
+  it('úprava PUBLISHED záznamu bez zmeny stavu vyžaduje confirm (stránka, osoba, dokument)', async () => {
+    const { service, prisma } = make();
+    prisma.clubPage.findUnique.mockResolvedValue({ id: 'p1', slug: 'historia', title: 'H', status: 'PUBLISHED' });
+    prisma.clubPerson.findUnique.mockResolvedValue({ id: 'o1', name: 'Ján', status: 'PUBLISHED' });
+    prisma.clubDocument.findUnique.mockResolvedValue({ id: 'd1', title: 'Z', status: 'PUBLISHED', size: null, sha256: null });
+    await expect(service.updatePage('p1', { title: 'Nový' }, 'u1')).rejects.toThrow(PUBLISH_CONFIRM_MESSAGE);
+    await expect(service.updatePage('p1', { status: 'PUBLISHED', body: 'x' }, 'u1')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.updatePerson('o1', { role: 'Tréner' }, 'u1')).rejects.toThrow(PUBLISH_CONFIRM_MESSAGE);
+    await expect(service.updateDocument('d1', { description: 'x' }, 'u1')).rejects.toThrow(PUBLISH_CONFIRM_MESSAGE);
+    expect(prisma.clubPage.update).not.toHaveBeenCalled();
+    expect(prisma.clubPerson.update).not.toHaveBeenCalled();
+    expect(prisma.clubDocument.update).not.toHaveBeenCalled();
+    await service.updatePerson('o1', { role: 'Tréner', confirm: true }, 'u1');
+    expect(prisma.clubPerson.update.mock.calls[0]![0].data.confirmedAt).toBeInstanceOf(Date);
+  });
+
+  it('PUBLISHED: samotné sortOrder a zmena na DRAFT/ARCHIVED confirm nevyžadujú', async () => {
+    const { service, prisma } = make();
+    prisma.clubPage.findUnique.mockResolvedValue({ id: 'p1', slug: 'historia', title: 'H', status: 'PUBLISHED' });
+    prisma.clubDocument.findUnique.mockResolvedValue({ id: 'd1', title: 'Z', status: 'PUBLISHED', size: null, sha256: null });
+    await service.updatePage('p1', { sortOrder: 3 }, 'u1');
+    expect(prisma.clubPage.update.mock.calls[0]![0].data.confirmedAt).toBeUndefined();
+    await service.updatePage('p1', { status: 'DRAFT', title: 'x' }, 'u1');
+    await service.updateDocument('d1', { status: 'ARCHIVED', description: 'x' }, 'u1');
+    expect(prisma.clubPage.update).toHaveBeenCalledTimes(2);
+    expect(prisma.clubDocument.update).toHaveBeenCalledTimes(1);
+  });
+
   it('nový obsah je predvolene DRAFT; duplicitný slug → 409', async () => {
     const { service, prisma } = make();
     await service.createPage({ slug: 'kontakt', title: 'Kontakt', body: '' }, 'u1');

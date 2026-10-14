@@ -49,11 +49,23 @@ export interface UploadedDocumentFile {
 
 /**
  * Publikačná poistka: status=PUBLISHED sa dá nastaviť len s confirm=true.
+ * Pri úprave (PATCH) záznamu, ktorý je už PUBLISHED a po uložení ostáva PUBLISHED
+ * (status chýba alebo je PUBLISHED), sa confirm=true vyžaduje tiež – okrem zmeny
+ * iba poradia (sortOrder). Zmena na DRAFT/ARCHIVED potvrdenie nevyžaduje.
  * Vracia hodnotu confirmedAt na zápis (undefined = nemeniť).
  */
-export function resolveConfirmation(input: { status?: string; confirm?: boolean }): Date | null | undefined {
+export function resolveConfirmation(
+  input: { status?: string; confirm?: boolean },
+  existingStatus?: string,
+): Date | null | undefined {
   if (input.status === 'PUBLISHED' && input.confirm !== true) {
     throw new BadRequestException(PUBLISH_CONFIRM_MESSAGE);
+  }
+  if (existingStatus === 'PUBLISHED' && (input.status === undefined || input.status === 'PUBLISHED') && input.confirm !== true) {
+    const onlySortOrder = Object.entries(input).every(
+      ([k, v]) => v === undefined || k === 'sortOrder' || k === 'confirm',
+    );
+    if (!onlySortOrder) throw new BadRequestException(PUBLISH_CONFIRM_MESSAGE);
   }
   if (input.confirm === true) return new Date();
   if (input.confirm === false) return null;
@@ -134,8 +146,8 @@ export class ClubContentService {
   }
 
   async updatePage(id: string, input: UpdateClubPageInput, userId: string) {
-    const confirmedAt = resolveConfirmation(input);
     const existing = await this.getPage(id);
+    const confirmedAt = resolveConfirmation(input, existing.status);
     if (input.slug && input.slug !== existing.slug) await this.assertSlugFree(input.slug, id);
     const page = await this.prisma.clubPage.update({
       where: { id },
@@ -200,8 +212,8 @@ export class ClubContentService {
   }
 
   async updatePerson(id: string, input: UpdateClubPersonInput, userId: string) {
-    const confirmedAt = resolveConfirmation(input);
     const existing = await this.getPerson(id);
+    const confirmedAt = resolveConfirmation(input, existing.status);
     const person = await this.prisma.clubPerson.update({
       where: { id },
       data: {
@@ -274,8 +286,8 @@ export class ClubContentService {
   }
 
   async updateDocument(id: string, input: UpdateClubDocumentInput, userId: string) {
-    const confirmedAt = resolveConfirmation(input);
     const existing = await this.getDocument(id);
+    const confirmedAt = resolveConfirmation(input, existing.status);
     const doc = await this.prisma.clubDocument.update({
       where: { id },
       data: {
