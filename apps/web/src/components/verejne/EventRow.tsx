@@ -12,10 +12,11 @@ function subline(e: PublicEventDto, tz: string): string {
   return `${time} · Tréning`;
 }
 
-/** Riadok udalosti v programe; odkazuje na detail udalosti. Tréning je bez skóre. */
+/** Položka (li) zoznamu udalostí v programe; odkazuje na detail udalosti. Tréning je bez skóre. Vkladá sa do <ul>. */
 export default function EventRow({ event: e, tz }: { event: PublicEventDto; tz: string }) {
   const match = isMatchType(e.type);
   return (
+    <li>
     <Link href={`/kalendar/${encodeURIComponent(e.id)}`} className="list-event">
       <span className="event-date">
         {fmtDay(e.startAt, tz)}
@@ -26,14 +27,15 @@ export default function EventRow({ event: e, tz }: { event: PublicEventDto; tz: 
         <br />
         <b>{e.teamName}</b>
       </span>
-      <span>
+      <div>
         <h3>{eventHeading(e)}</h3>
         <p>
           {subline(e, tz)} <StateBadge state={e.state} />
         </p>
-      </span>
+      </div>
       <span className="event-place">{e.location ?? ''}</span>
       <span className="event-arrow" aria-hidden="true">↗</span>
     </Link>
+    </li>
   );
 }

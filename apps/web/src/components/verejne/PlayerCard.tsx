@@ -9,7 +9,7 @@ export default function PlayerCard({ player }: { player: PublicPlayerDto }) {
     <article className="player" aria-label={name}>
       {player.photoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img className="portrait-img" src={publicPhotoSrc(player.photoUrl)} alt={name} loading="lazy" />
+        <img className="portrait-img" src={publicPhotoSrc(player.photoUrl)} alt={name} width={300} height={400} loading="lazy" decoding="async" />
       ) : (
         <span className="portrait ph" aria-hidden="true" />
       )}

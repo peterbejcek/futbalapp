@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Barlow, Barlow_Condensed } from 'next/font/google';
 import type { CSSProperties } from 'react';
 import './public.css';
+import { SITE_NAME, SITE_URL } from '@/lib/verejne/site';
 import PublicHeader from '@/components/verejne/PublicHeader';
 import PublicFooter from '@/components/verejne/PublicFooter';
 
@@ -9,6 +10,8 @@ const body = Barlow({ subsets: ['latin', 'latin-ext'], weight: ['400', '500', '6
 const head = Barlow_Condensed({ subsets: ['latin', 'latin-ext'], weight: ['500', '600', '700', '800', '900'], display: 'swap' });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  applicationName: SITE_NAME,
   title: { default: 'FK Košická Nová Ves — Naša štvrť. Náš futbal.', template: '%s · FK Košická Nová Ves' },
   description: 'FK Košická Nová Ves: mužstvá, zápasy, tréningy a príbeh klubu od roku 1935.',
 };
@@ -18,8 +21,9 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
   const fonts = { '--head': `${head.style.fontFamily}, 'Arial Narrow', Impact, sans-serif`, '--body': `${body.style.fontFamily}, Arial, sans-serif` } as CSSProperties;
   return (
     <div className="fk-pub" style={fonts}>
+      <a className="skip-link" href="#obsah">Preskočiť na obsah</a>
       <PublicHeader />
-      <main id="app">{children}</main>
+      <main id="obsah" tabIndex={-1}>{children}</main>
       <PublicFooter />
     </div>
   );

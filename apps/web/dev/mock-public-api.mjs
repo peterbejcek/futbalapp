@@ -68,11 +68,44 @@ const events = [
 ];
 
 const articles = [
-  { id: 'a1', slug: 'ukazkovy-clanok-jedna', title: 'Ukážkový článok číslo jedna', excerpt: 'Krátky úryvok ukážkového článku (mock).', publishedAt: at(-3, 8),
+  { id: 'a1', slug: 'ukazkovy-clanok-jedna', title: 'Ukážkový článok číslo jedna', excerpt: 'Krátky úryvok ukážkového článku (mock).', publishedAt: at(-3, 8), isArchive: false, sourceUrl: null,
     paragraphs: ['Prvý odsek ukážkového článku. Všetky údaje sú fiktívne.', 'Druhý odsek s <b>HTML</b>, ktoré sa musí zobraziť ako text.'] },
-  { id: 'a2', slug: 'ukazkovy-clanok-dva', title: 'Ukážkový článok číslo dva', excerpt: 'Druhý ukážkový úryvok (mock).', publishedAt: at(-10, 8),
+  { id: 'a2', slug: 'ukazkovy-clanok-dva', title: 'Ukážkový článok číslo dva', excerpt: 'Druhý ukážkový úryvok (mock).', publishedAt: at(-10, 8), isArchive: false, sourceUrl: null,
     paragraphs: ['Jediný odsek druhého ukážkového článku.'] },
+  { id: 'a3', slug: 'ukazkovy-archivny-oznam', title: 'Ukážkový archívny oznam', excerpt: 'Archívny oznam z pôvodného webu (mock).', publishedAt: at(-700, 8), isArchive: true, sourceUrl: 'https://example.com/povodny-oznam',
+    paragraphs: ['Archívny ukážkový oznam. Údaje sú fiktívne a nemusia byť aktuálne.'] },
 ];
+
+// ---- Obsahové stránky, osoby, dokumenty (FIKTÍVNE ukážkové dáta). DRAFT sa verejne nezobrazuje (404 / vynechané).
+const pages = [
+  { slug: 'o-klube', title: 'O klube (ukážka)', status: 'PUBLISHED', sourceUrl: null, sourceNote: null, updatedAt: at(-5, 8),
+    sections: [{ heading: null, paragraphs: ['Ukážkový text stránky O klube. FIKTÍVNE údaje pre vývoj.'] }, { heading: 'Podnadpis ukážky', paragraphs: ['Ďalší ukážkový odsek.'] }] },
+  { slug: 'historia', title: 'História (ukážka)', status: 'ARCHIVED', sourceUrl: 'https://example.com/historia', sourceNote: 'Ukážková poznámka k zdroju: text prevzatý z pôvodného webu (mock).', updatedAt: at(-300, 8),
+    sections: [{ heading: 'Ukážkové obdobie', paragraphs: ['Fiktívny archívny text histórie.'] }] },
+  { slug: 'podpora', title: 'Podpora (ukážka)', status: 'ARCHIVED', sourceUrl: 'https://example.com/podpora', sourceNote: 'Archív dotácií (mock).', updatedAt: at(-400, 8),
+    sections: [{ heading: null, paragraphs: ['Fiktívny archív podpory a financovania.'] }] },
+  // 'kontakt' a 'zverejnovanie' zámerne chýbajú -> web zobrazí „Aktuálne informácie pripravujeme.“
+  { slug: 'koncept-stranka', title: 'Koncept (ukážka)', status: 'DRAFT', sourceUrl: null, sourceNote: null, updatedAt: at(-1, 8), sections: [] },
+];
+const publicPages = () => pages.filter((p) => p.status !== 'DRAFT');
+
+const people = [
+  { id: 'o1', name: 'Fiktívny Predseda', role: 'Predseda (ukážka)', group: 'MANAGEMENT', teamNote: null, phone: null, email: null, status: 'PUBLISHED', sourceUrl: null, sourceNote: null },
+  { id: 'o2', name: 'Fiktívny Tréner', role: 'Tréner (ukážka)', group: 'COACH', teamNote: 'U13 A', phone: '+421 900 000 000', email: 'trener@example.com', status: 'PUBLISHED', sourceUrl: null, sourceNote: null },
+  { id: 'o3', name: 'Fiktívny Archívny Funkcionár', role: 'Člen výboru (archív)', group: 'MANAGEMENT', teamNote: null, phone: null, email: null, status: 'ARCHIVED', sourceUrl: 'https://example.com/funkcionari', sourceNote: 'Údaje z pôvodného webu (mock), nemusia byť aktuálne.' },
+  { id: 'o4', name: 'Fiktívny Koncept', role: 'DRAFT – nesmie sa zobraziť', group: 'OTHER', teamNote: null, phone: null, email: null, status: 'DRAFT', sourceUrl: null, sourceNote: null },
+];
+const publicPeople = () => people.filter((p) => p.status !== 'DRAFT');
+
+const documents = [
+  { id: 'd1', title: 'Ukážková zmluva č. 1', description: 'Fiktívna zmluva (mock).', category: 'CONTRACT', documentDate: '2025-03-01', status: 'PUBLISHED', mimeType: 'application/pdf', sizeBytes: null, downloadUrl: `${PREFIX}/documents/d1/file`, sourceUrl: 'https://example.com/zmluva-1', sourceNote: null },
+  { id: 'd2', title: 'Ukážková dotácia (archív)', description: null, category: 'SUBSIDY', documentDate: '2022-06-15', status: 'ARCHIVED', mimeType: 'application/pdf', sizeBytes: null, downloadUrl: `${PREFIX}/documents/d1/file`, sourceUrl: 'https://example.com/dotacia', sourceNote: 'Archívny dokument (mock).' },
+  { id: 'd3', title: 'Dokument bez súboru', description: 'Súbor sa nepodarilo prevziať – zobrazí sa len odkaz na zdroj.', category: 'OTHER', documentDate: null, status: 'PUBLISHED', mimeType: null, sizeBytes: null, downloadUrl: null, sourceUrl: 'https://example.com/povodny-dokument', sourceNote: null },
+  { id: 'd4', title: 'Koncept dokumentu', description: 'DRAFT – nesmie sa zobraziť', category: 'OTHER', documentDate: null, status: 'DRAFT', mimeType: null, sizeBytes: null, downloadUrl: null, sourceUrl: null, sourceNote: null },
+];
+// Malé testovacie PDF (FIKTÍVNE).
+const TEST_PDF = Buffer.from('%PDF-1.1\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n4 0 obj<</Length 44>>stream\nBT /F1 14 Tf 10 50 Td (Testovacie PDF - mock) Tj ET\nendstream endobj\n5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\ntrailer<</Root 1 0 R/Size 6>>\n%%EOF\n');
+const publicDocuments = () => documents.filter((d) => d.status !== 'DRAFT').map((d) => (d.downloadUrl ? { ...d, sizeBytes: TEST_PDF.length } : d));
 
 const json = (res, status, body) => {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
@@ -118,6 +151,22 @@ const server = http.createServer((req, res) => {
   if (parts[0] === 'events' && parts.length === 2) {
     const e = events.find((x) => x.id === parts[1]);
     return e ? json(res, 200, { club, event: e }) : json(res, 404, { message: 'Not Found' });
+  }
+  if (parts[0] === 'pages' && parts.length === 1) return json(res, 200, publicPages());
+  if (parts[0] === 'pages' && parts.length === 2) {
+    const p = publicPages().find((x) => x.slug === parts[1]);
+    return p ? json(res, 200, p) : json(res, 404, { message: 'Not Found' });
+  }
+  if (parts[0] === 'people' && parts.length === 1) return json(res, 200, publicPeople());
+  if (parts[0] === 'documents' && parts.length === 1) {
+    const cat = q.get('category');
+    return json(res, 200, publicDocuments().filter((d) => !cat || d.category === cat));
+  }
+  if (parts[0] === 'documents' && parts[2] === 'file') {
+    const d = publicDocuments().find((x) => x.id === parts[1]);
+    if (!d || !d.downloadUrl) return json(res, 404, { message: 'Not Found' });
+    res.writeHead(200, { 'content-type': 'application/pdf', 'content-disposition': 'attachment; filename="testovacie.pdf"' });
+    return res.end(TEST_PDF);
   }
   if (parts[0] === 'articles' && parts.length === 1) {
     return json(res, 200, articles.map(({ paragraphs, ...item }) => item).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)));

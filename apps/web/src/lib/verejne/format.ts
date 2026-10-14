@@ -1,4 +1,4 @@
-import type { PublicEventDto, PublicEventState, PublicTeamDto } from '@fkknv/shared';
+import type { PublicDocumentCategory, PublicEventDto, PublicEventState, PublicTeamDto } from '@fkknv/shared';
 
 /** Záložné pásmo, ak odpoveď API neobsahuje club.timezone. */
 export const DEFAULT_TZ = 'Europe/Bratislava';
@@ -55,3 +55,32 @@ export function groupByCategory(teams: PublicTeamDto[]) {
   for (const g of out) g.teams.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'sk'));
   return out;
 }
+
+/** Dátum YYYY-MM-DD (bez pásma) ako „1. mája 2024“. */
+export const fmtPlainDate = (ymd: string) =>
+  new Intl.DateTimeFormat('sk-SK', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${ymd.slice(0, 10)}T00:00:00Z`));
+
+export function fmtBytes(n: number | null | undefined): string | null {
+  if (n == null || !Number.isFinite(n) || n < 0) return null;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} kB`;
+  return `${(n / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
+}
+
+const EXT: Record<string, string> = { 'application/pdf': 'pdf', 'text/plain': 'txt', 'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx', 'image/jpeg': 'jpg', 'image/png': 'png' };
+
+/** Názov súboru na stiahnutie z titulu dokumentu (bez diakritiky) + prípona podľa mimeType. */
+export function downloadName(title: string, mimeType: string | null): string {
+  const base = title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'dokument';
+  const ext = mimeType ? EXT[mimeType.toLowerCase()] : undefined;
+  return ext ? `${base}.${ext}` : base;
+}
+
+export const DOC_CATEGORY_ORDER: PublicDocumentCategory[] = ['CONTRACT', 'SUBSIDY', 'TAX_FORM', 'ANNOUNCEMENT', 'OTHER'];
+export const DOC_CATEGORY_LABEL: Record<PublicDocumentCategory, string> = {
+  CONTRACT: 'Zmluvy',
+  SUBSIDY: 'Dotácie a financovanie',
+  TAX_FORM: 'Daňové tlačivá',
+  ANNOUNCEMENT: 'Oznamy',
+  OTHER: 'Ostatné dokumenty',
+};

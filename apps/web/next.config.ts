@@ -7,6 +7,15 @@ const sharedSrc = path.resolve(process.cwd(), '../../packages/shared/src');
 
 const nextConfig: NextConfig = {
   transpilePackages: ['@fkknv/shared'],
+  images: { formats: ['image/avif', 'image/webp'] },
+  async headers() {
+    const noindex = [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }];
+    return [
+      { source: '/portal/:path*', headers: noindex },
+      { source: '/prihlasenie', headers: noindex },
+      { source: '/reset-hesla', headers: noindex },
+    ];
+  },
   webpack: (config) => {
     config.resolve = config.resolve ?? {};
     config.resolve.alias = { ...(config.resolve.alias ?? {}), '@fkknv/shared': sharedSrc };

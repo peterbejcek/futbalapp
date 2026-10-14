@@ -4,12 +4,14 @@ import { getTeams } from '@/lib/verejne/public-api';
 import { groupByCategory } from '@/lib/verejne/format';
 import PageTop from '@/components/verejne/PageTop';
 import TeamTabs from '@/components/verejne/TeamTabs';
+import { pageMeta } from '@/lib/verejne/seo';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMeta({
   title: 'Naše mužstvá',
   description: 'Od prípravky po mužov. Vyber si kategóriu a spoznaj svoj tím FK Košická Nová Ves.',
-};
+  path: '/muzstva',
+});
 
 export default async function MuzstvaPage() {
   const { teams } = await getTeams();
@@ -25,7 +27,7 @@ export default async function MuzstvaPage() {
             {cats.map((c) => (
               <Link key={c.code} className="person" href={`/muzstva/${c.code.toLowerCase()}`}>
                 <span className="label">{c.code}</span>
-                <h3>{c.name}</h3>
+                <h2>{c.name}</h2>
                 <p>{c.teams.map((t) => t.name).join(' · ')}</p>
               </Link>
             ))}

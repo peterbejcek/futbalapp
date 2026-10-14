@@ -1,8 +1,12 @@
 import type {
   PublicArticleDto,
   PublicArticleListItemDto,
+  PublicDocumentCategory,
+  PublicDocumentDto,
   PublicEventDetailDto,
   PublicEventsDto,
+  PublicPageDto,
+  PublicPersonDto,
   PublicSquadDto,
   PublicTeamsDto,
 } from '@fkknv/shared';
@@ -92,14 +96,40 @@ export async function getArticle(slug: string): Promise<PublicArticleDto | null>
   return ensure(await request<PublicArticleDto>(`/articles/${encodeURIComponent(slug)}`), (x) => Array.isArray(x.paragraphs), '/articles/:slug');
 }
 
-/** Absolútna URL fotky pre BROWSER: origin verejnej adresy API + photoUrl ('/api/v1/public/players/:id/photo'). */
-export function publicPhotoSrc(photoUrl: string): string {
-  if (/^https?:\/\//i.test(photoUrl)) return photoUrl;
+export async function getPages(): Promise<PublicPageDto[]> {
+  const d = await request<PublicPageDto[]>('/pages');
+  if (!Array.isArray(d)) throw new PublicDataUnavailableError('Verejné API nevrátilo zoznam stránok');
+  return d;
+}
+
+/** Obsahová stránka podľa slugu; null ak neexistuje alebo je to koncept (404). */
+export async function getPage(slug: string): Promise<PublicPageDto | null> {
+  return ensure(await request<PublicPageDto>(`/pages/${encodeURIComponent(slug)}`), (x) => Array.isArray(x.sections), '/pages/:slug');
+}
+
+export async function getPeople(): Promise<PublicPersonDto[]> {
+  const d = await request<PublicPersonDto[]>('/people');
+  if (!Array.isArray(d)) throw new PublicDataUnavailableError('Verejné API nevrátilo zoznam osôb');
+  return d;
+}
+
+export async function getDocuments(category?: PublicDocumentCategory): Promise<PublicDocumentDto[]> {
+  const d = await request<PublicDocumentDto[]>('/documents', { category });
+  if (!Array.isArray(d)) throw new PublicDataUnavailableError('Verejné API nevrátilo zoznam dokumentov');
+  return d;
+}
+
+/** Absolútna URL pre BROWSER: origin verejnej adresy API + relatívna cesta ('/api/v1/public/...'). */
+export function publicApiUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
   let origin: string;
   try {
     origin = new URL(process.env.NEXT_PUBLIC_API_URL ?? DEFAULT_BASE).origin;
   } catch {
     origin = new URL(DEFAULT_BASE).origin;
   }
-  return `${origin}${photoUrl.startsWith('/') ? '' : '/'}${photoUrl}`;
+  return `${origin}${path.startsWith('/') ? '' : '/'}${path}`;
 }
+
+/** Absolútna URL fotky pre BROWSER (photoUrl = '/api/v1/public/players/:id/photo'). */
+export const publicPhotoSrc = publicApiUrl;

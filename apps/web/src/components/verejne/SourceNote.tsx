@@ -1,15 +1,14 @@
-export const CLUB_BASE = 'https://www.fkkosickanovaves.sk/';
+import type { ReactNode } from 'react';
+import { CLUB_WEB } from '@/lib/verejne/site';
 
-/** Externý odkaz (nová karta, bez referrera). */
-export function ExtLink({ href, className, children }: { href: string; className?: string; children: React.ReactNode }) {
-  return <a className={className} href={href} target="_blank" rel="noopener">{children}</a>;
-}
+export const CLUB_BASE = CLUB_WEB;
 
-/** Poznámka o pôvode údajov z pôvodného klubového webu. */
-export default function SourceNote({ path = '', label = 'Pôvodný klubový web' }: { path?: string; label?: string }) {
+/** Externý odkaz (nová karta, bez referrera) s oznamom pre čítačky obrazovky. */
+export function ExtLink({ href, className, children }: { href: string; className?: string; children: ReactNode }) {
   return (
-    <p className="source">
-      Zdroj: <ExtLink href={CLUB_BASE + path}>{label} ↗</ExtLink>. Údaje pochádzajú z pôvodného klubového webu; platnosť pre sezónu 2026/27 treba potvrdiť.
-    </p>
+    <a className={className} href={href} target="_blank" rel="noopener">
+      {children}
+      <span className="sr-only"> (otvorí sa v novom okne)</span>
+    </a>
   );
 }

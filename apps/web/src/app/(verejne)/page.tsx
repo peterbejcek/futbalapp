@@ -5,12 +5,24 @@ import { getArticles, getEvents } from '@/lib/verejne/public-api';
 import { DEFAULT_TZ, dateKey, shiftDate } from '@/lib/verejne/format';
 import MatchCard from '@/components/verejne/MatchCard';
 import ArticleCard from '@/components/verejne/ArticleCard';
+import { pageMeta } from '@/lib/verejne/seo';
+import { SITE_URL } from '@/lib/verejne/site';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
+  ...pageMeta({ title: 'FK Košická Nová Ves — Naša štvrť. Náš futbal.', description: 'FK Košická Nová Ves: mužstvá, zápasy, tréningy a novinky z klubu.', path: '/' }),
   title: { absolute: 'FK Košická Nová Ves — Naša štvrť. Náš futbal.' },
-  description: 'FK Košická Nová Ves: mužstvá, zápasy, tréningy a príbeh klubu od roku 1935.',
 };
+
+/** Statické štruktúrované dáta – len overené údaje (názov, URL, logo). */
+const JSON_LD = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'SportsOrganization',
+  name: 'FK Košická Nová Ves',
+  url: SITE_URL,
+  logo: `${SITE_URL}/logo.png`,
+  sport: 'Soccer',
+}).replace(/</g, '\\u003c');
 
 export default async function Home() {
   const today = dateKey(new Date(), DEFAULT_TZ);
@@ -25,11 +37,15 @@ export default async function Home() {
     .filter((e) => e.state === 'FINISHED')
     .sort((a, b) => b.startAt.localeCompare(a.startAt))
     .slice(0, 3);
-  const news = [...articles].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).slice(0, 3);
+  const news = [...articles]
+    .sort((a, b) => Number(a.isArchive) - Number(b.isArchive) || b.publishedAt.localeCompare(a.publishedAt))
+    .slice(0, 3);
 
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON_LD }} />
       <section className="hero">
+        <Image className="hero-bg" src="/verejne/hero-blue-crest.png" alt="" fill priority sizes="100vw" quality={70} />
         <div className="hero-grid" />
         <div>
           <div className="eyebrow">KOŠICKÁ NOVÁ VES · OD ROKU 1935</div>
@@ -86,7 +102,7 @@ export default async function Home() {
             <Link href="/muzstva" className="text-link">Preskúmaj mužstvá <span>↗</span></Link>
           </div>
           <figure className="team-art">
-            <Image src="/verejne/hero-blue-crest.png" alt="Ilustračná grafika futbalistov v modrých dresoch" fill sizes="(max-width: 800px) 100vw, 60vw" />
+            <Image src="/verejne/hero-blue-crest.png" alt="Ilustračná grafika futbalistov v modrých dresoch" fill sizes="(max-width: 800px) 100vw, 60vw" quality={70} />
             <figcaption>Ilustračná grafika – AI vizualizácia, nejde o členov klubu</figcaption>
           </figure>
         </div>

@@ -6,6 +6,7 @@ import PageTop from '@/components/verejne/PageTop';
 import TeamTabs from '@/components/verejne/TeamTabs';
 import PlayerCard from '@/components/verejne/PlayerCard';
 import EventRow from '@/components/verejne/EventRow';
+import { pageMeta } from '@/lib/verejne/seo';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,9 +15,14 @@ type Search = Promise<{ tim?: string | string[]; zalozka?: string | string[] }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { kod } = await params;
-  const cat = groupByCategory((await getTeams()).teams).find((c) => c.code.toLowerCase() === kod.toLowerCase());
-  if (!cat) return { title: 'Mužstvo sa nenašlo' };
-  return { title: `${cat.name} — mužstvá`, description: `Súpiska a program mužstva ${cat.name} FK Košická Nová Ves.` };
+  const path = `/muzstva/${encodeURIComponent(kod.toLowerCase())}`;
+  try {
+    const cat = groupByCategory((await getTeams()).teams).find((c) => c.code.toLowerCase() === kod.toLowerCase());
+    if (!cat) return { title: 'Mužstvo sa nenašlo', robots: { index: false } };
+    return pageMeta({ title: `${cat.name} — mužstvá`, description: `Súpiska a program mužstva ${cat.name} FK Košická Nová Ves.`, path });
+  } catch {
+    return pageMeta({ title: 'Naše mužstvá', description: 'Súpiska a program mužstiev FK Košická Nová Ves.', path });
+  }
 }
 
 export default async function MuzstvoPage({ params, searchParams }: { params: Params; searchParams: Search }) {
@@ -73,7 +79,7 @@ export default async function MuzstvoPage({ params, searchParams }: { params: Pa
         )}
         {program ? (
           rows.length ? (
-            <div>{rows.map((e) => <EventRow key={e.id} event={e} tz={tz} />)}</div>
+            <ul className="event-list">{rows.map((e) => <EventRow key={e.id} event={e} tz={tz} />)}</ul>
           ) : (
             <div className="empty">Pre tento tím zatiaľ nie sú naplánované žiadne udalosti.</div>
           )

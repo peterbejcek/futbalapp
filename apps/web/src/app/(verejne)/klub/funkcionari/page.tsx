@@ -1,46 +1,54 @@
 import type { Metadata } from 'next';
+import type { PublicPersonDto } from '@fkknv/shared';
 import PageTop from '@/components/verejne/PageTop';
 import ClubTabs from '@/components/verejne/ClubTabs';
-import SourceNote from '@/components/verejne/SourceNote';
+import PersonCard from '@/components/verejne/PersonCard';
+import { Pending } from '@/components/verejne/Content';
+import { getPeople } from '@/lib/verejne/public-api';
+import { pageMeta } from '@/lib/verejne/seo';
 
-export const metadata: Metadata = { title: 'Funkcionári a tréneri', description: 'Vedenie klubu FK Košická Nová Ves a zoznam trénerov podľa pôvodného klubového webu.' };
+export const dynamic = 'force-dynamic';
+export const metadata: Metadata = pageMeta({ title: 'Funkcionári a tréneri', description: 'Vedenie klubu a tréneri FK Košická Nová Ves.', path: '/klub/funkcionari' });
 
-const LEADERS: [string, string, string][] = [
-  ['Ing. Milan Lesňák', 'Predseda FK', '+421915628912'],
-  ['Miroslav Eperješi', 'Manažér FK', '+421903903936'],
-  ['Martin Horizral', 'Člen výboru', ''],
-  ['Ing. Michal Krcho', 'Člen výboru', ''],
-];
-const COACHES: [string, string][] = [
-  ['Gejza Farkaš', 'Dorast U17'],
-  ['Peter Dziak', 'Žiaci U15'],
-  ['Vladimír Urban', 'Žiaci U13'],
-  ['Ing. Marián Kéda', 'Prípravka U11 a U10'],
-  ['Stanislav Lellák', 'Prípravka U10 a U9'],
+const GROUPS: Array<{ key: PublicPersonDto['group']; heading: string }> = [
+  { key: 'MANAGEMENT', heading: 'VEDENIE KLUBU' },
+  { key: 'COACH', heading: 'TRÉNERI' },
+  { key: 'OTHER', heading: 'ĎALŠÍ ĽUDIA V KLUBE' },
 ];
 
-export default function FunkcionariPage() {
+export default async function FunkcionariPage() {
+  const people = await getPeople();
+  const current = people.filter((p) => p.status === 'PUBLISHED');
+  const archive = people.filter((p) => p.status === 'ARCHIVED');
   return (
     <>
-      <PageTop label="FK KOŠICKÁ NOVÁ VES" title="ĽUDIA ZA KLUBOM." desc="Náš klub, jeho príbeh a ľudia. Informácie z pôvodného klubového webu."><ClubTabs /></PageTop>
+      <PageTop label="FK KOŠICKÁ NOVÁ VES" title="ĽUDIA ZA KLUBOM." desc="Vedenie klubu a tréneri."><ClubTabs /></PageTop>
       <section className="section">
-        <p className="pub-note">Zoznam podľa pôvodného webu · aktuálne obsadenie pre 2026/27 nepotvrdené</p>
-        <h2>VEDENIE KLUBU</h2>
-        <div className="people-grid" style={{ marginTop: 24 }}>
-          {LEADERS.map(([n, r, p]) => (
-            <article className="person" key={n}>
-              <span className="label">{r}</span><h3>{n}</h3>
-              {p && <a href={`tel:${p}`}>{p}</a>}
-            </article>
-          ))}
-        </div>
-        <h2 style={{ marginTop: 48 }}>TRÉNERI · ZDROJOVÝ ZOZNAM</h2>
-        <div className="people-grid" style={{ marginTop: 24 }}>
-          {COACHES.map(([n, r]) => (
-            <article className="person" key={n}><span className="label">{r}</span><h3>{n}</h3></article>
-          ))}
-        </div>
-        <SourceNote path="funkcionari-treneri.html" />
+        {people.length === 0 && <Pending />}
+        {GROUPS.map((g) => {
+          const list = current.filter((p) => p.group === g.key);
+          return list.length ? (
+            <div key={g.key} className="people-section">
+              <h2>{g.heading}</h2>
+              <div className="people-grid">{list.map((p) => <PersonCard key={p.id} person={p} />)}</div>
+            </div>
+          ) : null;
+        })}
+        {archive.length > 0 && (
+          <div className="people-section archive-section">
+            <h2>ARCHÍV – PÔVODNÉ ÚDAJE, NEMUSIA BYŤ AKTUÁLNE</h2>
+            <p>Údaje prevzaté z pôvodného webu klubu. Ich platnosť nebola potvrdená.</p>
+            {GROUPS.map((g) => {
+              const list = archive.filter((p) => p.group === g.key);
+              return list.length ? (
+                <div key={g.key}>
+                  <h3 className="people-sub">{g.heading}</h3>
+                  <div className="people-grid">{list.map((p) => <PersonCard key={p.id} person={p} />)}</div>
+                </div>
+              ) : null;
+            })}
+          </div>
+        )}
       </section>
     </>
   );

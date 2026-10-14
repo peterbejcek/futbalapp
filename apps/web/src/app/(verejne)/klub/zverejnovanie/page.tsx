@@ -2,40 +2,34 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import PageTop from '@/components/verejne/PageTop';
 import ClubTabs from '@/components/verejne/ClubTabs';
-import SourceNote, { CLUB_BASE, ExtLink } from '@/components/verejne/SourceNote';
+import DocumentRow from '@/components/verejne/DocumentRow';
+import { ContentPage, Pending } from '@/components/verejne/Content';
+import { getDocuments, getPage } from '@/lib/verejne/public-api';
+import { DOC_CATEGORY_LABEL, DOC_CATEGORY_ORDER } from '@/lib/verejne/format';
+import { pageMeta } from '@/lib/verejne/seo';
 
-export const metadata: Metadata = { title: 'Zverejňovanie', description: 'Dokumenty a informácie klubu FK Košická Nová Ves zverejňované v záujme transparentnosti.' };
+export const dynamic = 'force-dynamic';
+export const metadata: Metadata = pageMeta({ title: 'Zverejňovanie', description: 'Zmluvy, dotácie a ďalšie dokumenty FK Košická Nová Ves zverejňované v záujme transparentnosti.', path: '/klub/zverejnovanie' });
 
-const DOCS: [string, string, string, string][] = [
-  ['01', 'Zverejňovanie zmlúv', 'Pôvodný register ↗', 'zverejnovanie-zmluv.html'],
-  ['02', 'Dotácie a podpora mesta Košice', 'Klubový web ↗', ''],
-  ['03', 'Podklady k prestrešeniu tenisových kurtov', 'Zmluva a dodatok ↗', ''],
-];
-
-export default function ZverejnovaniePage() {
+export default async function ZverejnovaniePage() {
+  const [page, docs] = await Promise.all([getPage('zverejnovanie'), getDocuments()]);
+  const groups = DOC_CATEGORY_ORDER.map((c) => ({
+    code: c,
+    items: docs.filter((d) => d.category === c).sort((a, b) => (b.documentDate ?? '').localeCompare(a.documentDate ?? '')),
+  })).filter((g) => g.items.length);
   return (
     <>
-      <PageTop label="FK KOŠICKÁ NOVÁ VES" title="OTVORENÝ KLUB." desc="Náš klub, jeho príbeh a ľudia. Informácie z pôvodného klubového webu."><ClubTabs /></PageTop>
+      <PageTop label="FK KOŠICKÁ NOVÁ VES" title="OTVORENÝ KLUB." desc="Dokumenty a informácie zverejňované v záujme transparentnosti."><ClubTabs /></PageTop>
       <section className="section">
-        <div className="club-body">
-          <div>
-            <h2>DOKUMENTY A TRANSPARENTNOSŤ</h2>
-            <p>Prístup k pôvodným dokumentom a informáciám klubu.</p>
-            <div className="documents">
-              {DOCS.map(([n, t, s, path]) => (
-                <ExtLink key={n} href={CLUB_BASE + path}><span>{n}</span><strong>{t}</strong><span>{s}</span></ExtLink>
-              ))}
-              <Link href="/dokumenty/ochrana-osobnych-udajov"><span>04</span><strong>Ochrana osobných údajov</strong><span>Dokument ↗</span></Link>
-            </div>
-            <SourceNote path="zverejnovanie-zmluv.html" />
+        {page && <ContentPage page={page} />}
+        {groups.length === 0 && !page && <Pending />}
+        {groups.map((g) => (
+          <div key={g.code} className="doc-group">
+            <h2>{DOC_CATEGORY_LABEL[g.code]}</h2>
+            <ul className="doc-list">{g.items.map((d) => <DocumentRow key={d.id} doc={d} />)}</ul>
           </div>
-          <aside className="aside-panel">
-            <h3>PODPORTE MLÁDEŽ</h3>
-            <p>Klubový web uvádza možnosti pomoci cez partnerstvá, materiál a služby.</p>
-            <p>Historické daňové tlačivá a termíny nepovažujte za aktuálne.</p>
-            <Link href="/klub/kontakt">Dohodnúť podporu s klubom ↗</Link>
-          </aside>
-        </div>
+        ))}
+        <p className="pub-note"><Link href="/dokumenty/ochrana-osobnych-udajov">Ochrana osobných údajov</Link></p>
       </section>
     </>
   );

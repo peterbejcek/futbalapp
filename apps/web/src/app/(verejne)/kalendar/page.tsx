@@ -2,14 +2,16 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import PageTop from '@/components/verejne/PageTop';
 import EventRow from '@/components/verejne/EventRow';
+import { pageMeta } from '@/lib/verejne/seo';
 import CalendarFilters, { calendarHref, type CalendarState } from '@/components/verejne/CalendarFilters';
 import { getEvents, getTeams } from '@/lib/verejne/public-api';
 import { DEFAULT_TZ, groupByCategory, monthKeyOf } from '@/lib/verejne/format';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMeta({
   title: 'Zápasy a tréningy',
   description: 'Program zápasov a tréningov FK Košická Nová Ves podľa mesiaca a mužstva.',
-};
+  path: '/kalendar',
+});
 export const dynamic = 'force-dynamic';
 
 const MONTHS = ['JANUÁR', 'FEBRUÁR', 'MAREC', 'APRÍL', 'MÁJ', 'JÚN', 'JÚL', 'AUGUST', 'SEPTEMBER', 'OKTÓBER', 'NOVEMBER', 'DECEMBER'];
@@ -63,9 +65,11 @@ export default async function KalendarPage({ searchParams }: { searchParams: Pro
           <h2>{MONTHS[m - 1]} {y}</h2>
           <Link href={calendarHref({ ...state, mesiac: shiftMonth(mesiac, 1) })} aria-label="Nasledujúci mesiac" className="btn outline">→</Link>
         </div>
-        <div>
-          {events.length ? events.map((e) => <EventRow key={e.id} event={e} tz={tz} />) : <div className="empty">Pre tento výber nie sú v tomto mesiaci žiadne udalosti.</div>}
-        </div>
+        {events.length ? (
+          <ul className="event-list">{events.map((e) => <EventRow key={e.id} event={e} tz={tz} />)}</ul>
+        ) : (
+          <div className="empty">Pre tento výber nie sú v tomto mesiaci žiadne udalosti.</div>
+        )}
       </section>
     </>
   );

@@ -8,6 +8,7 @@ const TABS = [
   { href: '/klub/historia', label: 'História' },
   { href: '/klub/funkcionari', label: 'Funkcionári a tréneri' },
   { href: '/klub/zverejnovanie', label: 'Zverejňovanie' },
+  { href: '/klub/podpora', label: 'Podpora' },
   { href: '/klub/kontakt', label: 'Kontakt' },
 ];
 
