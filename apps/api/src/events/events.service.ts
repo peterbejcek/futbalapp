@@ -3,12 +3,14 @@ import { randomUUID } from 'node:crypto';
 import {
   generateOccurrences,
   formatEventDateTimeSk,
+  formatEventTimeSk,
   type CreateEventInput,
   type CreateRecurringTrainingInput,
   type MarkAttendanceInput,
 } from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClubsService } from '../clubs/clubs.service';
+import { EmailService } from '../notifications/email.service';
 import { bySlovakName } from '../members/members.service';
 import { canManageTeam, coachBlockedFromTeam, coachTeamIds, isDemoScope, isStaff } from '../auth/scope';
 import type { AuthUser } from '../auth/current-user.decorator';
@@ -26,6 +28,7 @@ export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly clubs: ClubsService,
+    private readonly email: EmailService,
   ) {}
 
   list(params: { categoryCode?: string; teamId?: string; from?: Date; to?: Date; type?: string; isDemo?: boolean }) {
@@ -311,7 +314,7 @@ export class EventsService {
         eventId,
       );
     }
-    return this.prisma.event.update({
+    const updated = await this.prisma.event.update({
       where: { id: eventId },
       data: {
         title: input.title,
@@ -324,6 +327,78 @@ export class EventsService {
         isPublic: event.type === 'TRAINING' ? input.isPublic : undefined,
       },
     });
+    // zmena termínu → e-mail dotknutým (chyba pri odosielaní nesmie zhodiť uloženie)
+    const time = (d: Date | null) => (d ? d.getTime() : null);
+    if (time(event.startAt) !== time(updated.startAt) || time(event.endAt) !== time(updated.endAt)) {
+      void this.notifyRescheduled(event, updated).catch(() => undefined);
+    }
+    return updated;
+  }
+
+  /**
+   * Oznam o zmene termínu: tréning → hráči družstva, ich rodičia a tréneri družstva;
+   * zápas/turnaj → nominovaní hráči, ich rodičia a tréneri družstva.
+   */
+  private async notifyRescheduled(
+    before: { startAt: Date; endAt: Date | null; type: string; teamId: string | null },
+    after: { id: string; startAt: Date; endAt: Date | null; type: string; teamId: string | null; title: string; location: string | null },
+  ) {
+    if (!after.teamId || after.startAt.getTime() < Date.now()) return;
+    const isMatch = after.type === 'MATCH' || after.type === 'TOURNAMENT';
+    if (!isMatch && after.type !== 'TRAINING') return;
+
+    const memberSelect = {
+      user: { select: { email: true } },
+      guardians: { select: { user: { select: { email: true } } } },
+    } as const;
+    let members: Array<{ user: { email: string | null } | null; guardians: Array<{ user: { email: string | null } }> }>;
+    let heading: string;
+    if (isMatch) {
+      const match = await this.prisma.match.findUnique({
+        where: { eventId: after.id },
+        select: {
+          nominations: { where: { status: { not: 'REMOVED' } }, select: { member: { select: memberSelect } } },
+        },
+      });
+      members = (match?.nominations ?? []).map((n) => n.member);
+      heading = 'Zmena termínu zápasu';
+    } else {
+      members = await this.prisma.member.findMany({
+        where: { memberships: { some: { teamId: after.teamId, season: { isActive: true }, leftAt: null } } },
+        select: memberSelect,
+      });
+      heading = 'Zmena termínu tréningu';
+    }
+    const coaches = await this.prisma.userRole.findMany({
+      where: { role: 'COACH', teamId: after.teamId },
+      select: { user: { select: { email: true } } },
+    });
+
+    const emails = new Set<string>();
+    const add = (e?: string | null) => e && emails.add(e.trim().toLowerCase());
+    for (const m of members) {
+      add(m.user?.email);
+      for (const g of m.guardians) add(g.user.email);
+    }
+    for (const c of coaches) add(c.user.email);
+    if (emails.size === 0) return;
+
+    const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const range = (a: Date, b: Date | null) => formatEventDateTimeSk(a) + (b ? `–${formatEventTimeSk(b)}` : '');
+    const row = (k: string, v: string) => `<tr><td style="color:#6b7280;padding:2px 8px 2px 0">${k}</td><td>${v}</td></tr>`;
+    const html = `
+      <div style="font-family:Arial,Helvetica,sans-serif;color:#16223c">
+        <h2 style="color:#1a2848">${heading}</h2>
+        <table style="margin:10px 0;font-size:15px">
+          ${row('Udalosť:', `<strong>${esc(after.title)}</strong>`)}
+          ${row('Pôvodný termín:', `<s>${esc(range(before.startAt, before.endAt))}</s>`)}
+          ${row('Nový termín:', `<strong>${esc(range(after.startAt, after.endAt))}</strong>`)}
+          ${after.location ? row('Kde:', esc(after.location)) : ''}
+        </table>
+        <p><a href="https://fkknv.sk/prihlasenie" style="display:inline-block;background:#2b4278;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Otvoriť portál</a></p>
+      </div>`;
+    const subject = `${heading} — ${after.title}`;
+    for (const to of emails) await this.email.send([to], subject, html);
   }
 
   /** Zmaže udalosť; pre opakovaný tréning voliteľne celú budúcu sériu. */
