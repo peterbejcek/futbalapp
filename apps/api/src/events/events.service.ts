@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { randomUUID } from 'node:crypto';
 import {
   generateOccurrences,
+  formatEventDateTimeSk,
   type CreateEventInput,
   type CreateRecurringTrainingInput,
   type MarkAttendanceInput,
@@ -16,6 +17,7 @@ import type { AuthUser } from '../auth/current-user.decorator';
 const EVENT_INCLUDE = {
   team: { include: { teamCategory: true } },
   match: true,
+  pitch: { select: { id: true, name: true, surface: true } },
   audienceTeams: { select: { id: true, name: true }, orderBy: { sortOrder: 'asc' } },
 } as const;
 
@@ -120,6 +122,38 @@ export class EventsService {
     return rows.map((r) => r.location).filter((l): l is string => !!l && l.trim().length > 0);
   }
 
+  /** Hracia plocha → miesto a povrch udalosti (pri zadanom pitchId prepíšu textové polia). */
+  private async resolvePitch(pitchId?: string | null) {
+    if (!pitchId) return null;
+    const pitch = await this.prisma.pitch.findUnique({ where: { id: pitchId } });
+    if (!pitch) throw new BadRequestException('Hracia plocha neexistuje');
+    return pitch;
+  }
+
+  /** Odmietne rezerváciu, ak sa plocha v danom čase už používa (bez koncového času sa počíta 90 min). */
+  private async assertPitchFree(pitchId: string, slots: Array<{ startAt: Date; endAt?: Date | null }>, excludeId?: string) {
+    const DEFAULT_MS = 90 * 60_000;
+    const range = slots.map((s) => ({ s: s.startAt.getTime(), e: (s.endAt ?? new Date(s.startAt.getTime() + DEFAULT_MS)).getTime() }));
+    const from = new Date(Math.min(...range.map((r) => r.s)) - 24 * 3600_000);
+    const to = new Date(Math.max(...range.map((r) => r.e)));
+    const existing = await this.prisma.event.findMany({
+      where: { pitchId, id: excludeId ? { not: excludeId } : undefined, startAt: { gte: from, lt: to } },
+      select: { title: true, startAt: true, endAt: true },
+    });
+    for (const r of range) {
+      const clash = existing.find((x) => {
+        const xs = x.startAt.getTime();
+        const xe = (x.endAt ?? new Date(xs + DEFAULT_MS)).getTime();
+        return xs < r.e && xe > r.s;
+      });
+      if (clash) {
+        throw new BadRequestException(
+          `Plocha je v tom čase obsadená (${clash.title}, ${formatEventDateTimeSk(clash.startAt)})`,
+        );
+      }
+    }
+  }
+
   private async resolveTeam(teamId?: string) {
     if (!teamId) return null;
     const team = await this.prisma.team.findUnique({ where: { id: teamId } });
@@ -168,6 +202,10 @@ export class EventsService {
     if (!season) throw new BadRequestException('Neexistuje aktívna sezóna');
     const team = await this.resolveTeam(input.teamId);
     const isMatch = input.type === 'MATCH' || input.type === 'TOURNAMENT';
+    const pitch = await this.resolvePitch(input.pitchId);
+    if (pitch) {
+      await this.assertPitchFree(pitch.id, [{ startAt: input.startAt, endAt: input.endAt }]);
+    }
 
     // logo súpera z registra klubov + doplnenie nového súpera do registra
     let opponentLogo: string | null = null;
@@ -187,8 +225,9 @@ export class EventsService {
         title: input.title,
         startAt: input.startAt,
         endAt: input.endAt,
-        location: input.location,
-        surface: input.surface,
+        location: pitch ? pitch.name : input.location,
+        surface: pitch ? pitch.surface : input.surface,
+        pitchId: pitch?.id,
         isPublic: input.type === 'TRAINING' ? (input.isPublic ?? false) : false,
         createdById,
         match: isMatch
@@ -232,6 +271,8 @@ export class EventsService {
     if (occurrences.length === 0) {
       throw new BadRequestException('V zadanom období nevznikol žiadny tréning');
     }
+    const pitch = await this.resolvePitch(input.pitchId);
+    if (pitch) await this.assertPitchFree(pitch.id, occurrences);
     const recurrenceGroupId = randomUUID();
 
     for (const occ of occurrences) {
@@ -244,8 +285,9 @@ export class EventsService {
           title: input.title,
           startAt: occ.startAt,
           endAt: occ.endAt,
-          location: input.location,
-          surface: input.surface,
+          location: pitch ? pitch.name : input.location,
+          surface: pitch ? pitch.surface : input.surface,
+          pitchId: pitch?.id,
           recurrenceGroupId,
           isPublic: input.isPublic ?? false,
           createdById,
@@ -260,14 +302,24 @@ export class EventsService {
     const event = await this.prisma.event.findUnique({ where: { id: eventId } });
     if (!event) throw new NotFoundException('Udalosť neexistuje');
     if (!canManageTeam(user, event.teamId)) throw new ForbiddenException('Túto udalosť nemôžete upravovať');
+    const pitch = await this.resolvePitch(input.pitchId);
+    const effectivePitchId = pitch ? pitch.id : input.pitchId === undefined ? event.pitchId : null;
+    if (effectivePitchId) {
+      await this.assertPitchFree(
+        effectivePitchId,
+        [{ startAt: input.startAt ?? event.startAt, endAt: input.endAt ?? event.endAt }],
+        eventId,
+      );
+    }
     return this.prisma.event.update({
       where: { id: eventId },
       data: {
         title: input.title,
         startAt: input.startAt,
         endAt: input.endAt,
-        location: input.location,
-        surface: input.surface,
+        location: pitch ? pitch.name : input.location,
+        surface: pitch ? pitch.surface : input.surface,
+        pitchId: pitch ? pitch.id : undefined,
         // verejnosť len pre tréning; pri iných typoch ignoruj
         isPublic: event.type === 'TRAINING' ? input.isPublic : undefined,
       },

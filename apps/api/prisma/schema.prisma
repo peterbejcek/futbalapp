@@ -593,6 +593,8 @@ model Event {
   location String?
   /// Povrch ihriska: PT | UT | VT | MT | MI (prír./umelá tráva, veľká/malá telocvičňa, multifunkčné)
   surface  String?
+  /// Hracia plocha zo zoznamu v nastaveniach (null = iné miesto zadané textom)
+  pitchId  String?
   source   EventSource @default(INTERNAL)
   /// Zverejniť na verejnom webe. Zápasy a turnaje (MATCH, TOURNAMENT) sa
   /// zverejňujú vždy; tréningy len ak je príznak zapnutý. Ostatné typy nikdy.
@@ -605,6 +607,7 @@ model Event {
 
   season      Season       @relation(fields: [seasonId], references: [id])
   team        Team?        @relation(fields: [teamId], references: [id])
+  pitch       Pitch?       @relation(fields: [pitchId], references: [id], onDelete: SetNull)
   attendances Attendance[]
   match       Match?
   /// Družstvá, ktorých sa udalosť týka (napr. rodičovské združenie pre viac
@@ -614,6 +617,20 @@ model Event {
 
   @@index([teamId, startAt])
   @@index([recurrenceGroupId])
+  @@index([pitchId, startAt])
+}
+
+/// Hracia plocha klubu (názov + povrch); ponúka sa pri tvorbe tréningu/zápasu a
+/// slúži na evidenciu obsadenosti.
+model Pitch {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  /// PT | UT | VT | MT | MI
+  surface   String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  events Event[]
 }
 
 model Attendance {

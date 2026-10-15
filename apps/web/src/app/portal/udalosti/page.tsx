@@ -21,6 +21,20 @@ interface Team {
   name: string;
   teamCategory: { code: string; name: string; sortOrder: number };
 }
+interface Pitch {
+  id: string;
+  name: string;
+  surface: SurfaceCode;
+}
+interface Occupancy {
+  id: string;
+  pitchId: string;
+  type: string;
+  title: string;
+  startAt: string;
+  endAt: string | null;
+  teamName: string | null;
+}
 interface EventItem {
   id: string;
   type: string;
@@ -44,6 +58,13 @@ interface EventItem {
     notes: string | null;
     jerseyColor: 'DARK' | 'LIGHT' | null;
   } | null;
+}
+
+/** Miesto udalosti: zvolená plocha (pitchId) alebo text + povrch. */
+function placeFields(pitchId: string, location: string, surface: string) {
+  return pitchId
+    ? { pitchId }
+    : { location: location || undefined, surface: surface || undefined };
 }
 
 const typeLabels: Record<string, string> = {
@@ -156,6 +177,11 @@ export default function EventsPage() {
   const [meetingOpen, setMeetingOpen] = useState(false);
   const [nominatedMatchIds, setNominatedMatchIds] = useState<Set<string>>(new Set());
   const [venues, setVenues] = useState<string[]>([]);
+  const [pitches, setPitches] = useState<Pitch[]>([]);
+  const [occupancy, setOccupancy] = useState<Occupancy[]>([]);
+  const [pitchFilter, setPitchFilter] = useState('');
+  const [dayOpen, setDayOpen] = useState<string | null>(null);
+  const [initialDate, setInitialDate] = useState('');
   const [opponents, setOpponents] = useState<string[]>([]);
   const [view, setView] = useState<'list' | 'month'>('list');
   const [month, setMonth] = useState(() => {
@@ -205,15 +231,23 @@ export default function EventsPage() {
       }
       const list = await api<EventItem[]>(url);
       setEvents(list);
+      if (canManage(me)) {
+        const from = new Date(month.getFullYear(), month.getMonth(), 1);
+        const to = new Date(month.getFullYear(), month.getMonth() + 1, 0, 23, 59, 59);
+        api<Occupancy[]>(`/pitches/occupancy?from=${from.toISOString()}&to=${to.toISOString()}`)
+          .then(setOccupancy)
+          .catch(() => setOccupancy([]));
+      }
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Načítanie zlyhalo');
     }
-  }, [teamFilter, view, month]);
+  }, [teamFilter, view, month, me]);
 
   useEffect(() => {
     api<Team[]>('/seasons/teams').then(setTeams).catch(() => {});
     api<string[]>('/events/locations').then(setVenues).catch(() => {});
+    api<Pitch[]>('/pitches').then(setPitches).catch(() => {});
     api<Array<{ matchId: string }>>('/matches/my/nominated')
       .then((rows) => setNominatedMatchIds(new Set(rows.map((r) => r.matchId))))
       .catch(() => {});
@@ -318,6 +352,19 @@ export default function EventsPage() {
           <Button variant="ghost" onClick={() => { const d = new Date(); setMonth(new Date(d.getFullYear(), d.getMonth(), 1)); }}>
             Dnes
           </Button>
+          {canManage(me) && pitches.length > 0 && (
+            <div className="ml-2 flex items-center gap-2">
+              <label className="text-sm text-gray-600">Obsadenosť plochy:</label>
+              <select value={pitchFilter} onChange={(e) => setPitchFilter(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-sm">
+                <option value="">— zobraziť udalosti —</option>
+                {pitches.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       )}
 
@@ -329,12 +376,36 @@ export default function EventsPage() {
           {grouped.past.length > 0 && <EventList me={me} nominated={nominatedMatchIds} title="Odohrané" events={grouped.past.slice(0, 20)} empty="" />}
         </>
       ) : (
-        <MonthView me={me} nominated={nominatedMatchIds} month={month} events={events} />
+        <MonthView
+          me={me}
+          nominated={nominatedMatchIds}
+          month={month}
+          events={events}
+          pitchOccupancy={pitchFilter ? occupancy.filter((o) => o.pitchId === pitchFilter) : null}
+          onDayClick={canManage(me) ? setDayOpen : undefined}
+        />
       )}
 
+      <DayModal
+        day={dayOpen}
+        pitches={pitches}
+        occupancy={occupancy}
+        onClose={() => setDayOpen(null)}
+        onPick={(kind) => {
+          setInitialDate(dayOpen ?? '');
+          setDayOpen(null);
+          if (kind === 'training') setTrainingOpen(true);
+          else setMatchOpen(true);
+        }}
+      />
       <TrainingModal
         open={trainingOpen}
-        onClose={() => setTrainingOpen(false)}
+        initialDate={initialDate}
+        pitches={pitches}
+        onClose={() => {
+          setTrainingOpen(false);
+          setInitialDate('');
+        }}
         teams={availableTeams}
         onDone={() => {
           setTrainingOpen(false);
@@ -343,7 +414,12 @@ export default function EventsPage() {
       />
       <MatchModal
         open={matchOpen}
-        onClose={() => setMatchOpen(false)}
+        initialDate={initialDate}
+        pitches={pitches}
+        onClose={() => {
+          setMatchOpen(false);
+          setInitialDate('');
+        }}
         teams={availableTeams}
         onDone={() => {
           setMatchOpen(false);
@@ -456,11 +532,17 @@ function MonthView({
   nominated,
   month,
   events,
+  pitchOccupancy,
+  onDayClick,
 }: {
   me: Me | null;
   nominated: Set<string>;
   month: Date;
   events: EventItem[];
+  /** zvolená plocha: namiesto udalostí sa v bunkách zobrazí jej obsadenosť */
+  pitchOccupancy: Occupancy[] | null;
+  /** klik na deň (len pre vedenie/trénera) → vytvorenie tréningu/zápasu */
+  onDayClick?: (day: string) => void;
 }) {
   const year = month.getFullYear();
   const m = month.getMonth();
@@ -477,6 +559,17 @@ function MonthView({
       byDay.set(d.getUTCDate(), arr);
     }
   }
+
+  const occByDay = new Map<number, Occupancy[]>();
+  for (const o of pitchOccupancy ?? []) {
+    const d = new Date(o.startAt);
+    if (d.getUTCFullYear() === year && d.getUTCMonth() === m) {
+      const arr = occByDay.get(d.getUTCDate()) ?? [];
+      arr.push(o);
+      occByDay.set(d.getUTCDate(), arr);
+    }
+  }
+  const dayKey = (d: number) => `${year}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 
   const cells: Array<number | null> = [];
   for (let i = 0; i < startWeekday; i++) cells.push(null);
@@ -500,13 +593,30 @@ function MonthView({
           {cells.map((d, i) => (
             <div
               key={i}
-              className={`min-h-[6rem] rounded border p-1 ${d ? 'border-club-100 bg-white' : 'border-transparent'}`}
+              onClick={d && onDayClick ? () => onDayClick(dayKey(d)) : undefined}
+              className={`min-h-[6rem] rounded border p-1 ${d ? 'border-club-100 bg-white' : 'border-transparent'} ${
+                d && onDayClick ? 'cursor-pointer hover:bg-club-50' : ''
+              }`}
             >
               {d && (
                 <>
                   <div className={`mb-1 text-xs font-semibold ${isToday(d) ? 'text-club-700' : 'text-gray-400'}`}>{d}</div>
                   <div className="space-y-1">
-                    {(byDay.get(d) ?? [])
+                    {pitchOccupancy &&
+                      (occByDay.get(d) ?? []).map((o) => (
+                        <div
+                          key={o.id}
+                          title={`${formatEventTimeSk(o.startAt)}${o.endAt ? `–${formatEventTimeSk(o.endAt)}` : ''} · ${o.teamName ?? ''} ${o.title}`}
+                          className="truncate rounded bg-amber-100 px-1 py-0.5 text-[11px] text-amber-900"
+                        >
+                          {formatEventTimeSk(o.startAt)}
+                          {o.endAt ? `–${formatEventTimeSk(o.endAt)}` : ''} {o.teamName ?? o.title}
+                        </div>
+                      ))}
+                    {pitchOccupancy && (occByDay.get(d) ?? []).length === 0 && (
+                      <div className="text-[11px] text-green-700">voľné</div>
+                    )}
+                    {(pitchOccupancy ? [] : byDay.get(d) ?? [])
                       .slice()
                       .sort((a, b) => a.startAt.localeCompare(b.startAt))
                       .map((e) => {
@@ -535,6 +645,7 @@ function MonthView({
                             key={e.id}
                             href={href}
                             title={`${time} · ${label}`}
+                            onClick={(ev) => ev.stopPropagation()}
                             className="flex items-center gap-0.5 truncate rounded px-1 py-0.5 text-[11px]"
                             style={{ backgroundColor: c.bg, color: c.text }}
                           >
@@ -564,18 +675,140 @@ function MonthView({
   );
 }
 
+/** Výber hracej plochy zo zoznamu z nastavení, alebo „Iné" = miesto a povrch textom. */
+function PitchPicker({
+  pitches,
+  pitchId,
+  onPitch,
+  location,
+  onLocation,
+  surface,
+  onSurface,
+}: {
+  pitches: Pitch[];
+  pitchId: string;
+  onPitch: (id: string) => void;
+  location: string;
+  onLocation: (v: string) => void;
+  surface: string;
+  onSurface: (v: string) => void;
+}) {
+  const other = !pitchId;
+  return (
+    <>
+      {pitches.length > 0 && (
+        <div>
+          <label className={labelCls}>Hracia plocha</label>
+          <select value={pitchId} onChange={(e) => onPitch(e.target.value)} className={inputCls}>
+            {pitches.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} — {SURFACE_LABELS_SK[p.surface]}
+              </option>
+            ))}
+            <option value="">Iné (napísať)…</option>
+          </select>
+        </div>
+      )}
+      {other && (
+        <>
+          <div>
+            <label className={labelCls}>Miesto</label>
+            <input value={location} onChange={(e) => onLocation(e.target.value)} className={inputCls} placeholder="Ihrisko KNV" list="venue-list" />
+          </div>
+          <div>
+            <label className={labelCls}>Povrch</label>
+            <select value={surface} onChange={(e) => onSurface(e.target.value)} className={inputCls}>
+              <option value="">—</option>
+              {SURFACE_CODES.map((s) => (
+                <option key={s} value={s}>
+                  {s} — {SURFACE_LABELS_SK[s]}
+                </option>
+              ))}
+            </select>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+/** Klik na deň v kalendári: obsadenosť plôch v ten deň + rezervácia (tréning / zápas). */
+function DayModal({
+  day,
+  pitches,
+  occupancy,
+  onClose,
+  onPick,
+}: {
+  day: string | null;
+  pitches: Pitch[];
+  occupancy: Occupancy[];
+  onClose: () => void;
+  onPick: (kind: 'training' | 'match') => void;
+}) {
+  const items = day ? occupancy.filter((o) => o.startAt.slice(0, 10) === day) : [];
+  const [y, mo, d] = (day ?? '').split('-');
+  return (
+    <Modal open={!!day} onClose={onClose} title={day ? `${Number(d)}. ${Number(mo)}. ${y}` : ''}>
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-club-800">Obsadenosť plôch</h3>
+          {pitches.length === 0 && <p className="text-sm text-gray-500">Hracie plochy pridáte v Nastaveniach.</p>}
+          {pitches.map((p) => {
+            const mine = items.filter((o) => o.pitchId === p.id);
+            return (
+              <div key={p.id} className="rounded border border-club-100 p-2 text-sm">
+                <div className="font-medium text-club-900">
+                  {p.name} <span className="font-normal text-gray-500">· {SURFACE_LABELS_SK[p.surface]}</span>
+                </div>
+                {mine.length === 0 ? (
+                  <div className="text-green-700">Voľné celý deň</div>
+                ) : (
+                  <ul className="text-amber-900">
+                    {mine.map((o) => (
+                      <li key={o.id}>
+                        {formatEventTimeSk(o.startAt)}
+                        {o.endAt ? `–${formatEventTimeSk(o.endAt)}` : ''} · {o.teamName ? `${o.teamName} · ` : ''}
+                        {o.title}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            Zavrieť
+          </Button>
+          <Button variant="ghost" onClick={() => onPick('training')}>
+            + Tréning
+          </Button>
+          <Button onClick={() => onPick('match')}>+ Zápas</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function TrainingModal({
   open,
+  initialDate,
+  pitches,
   onClose,
   teams,
   onDone,
 }: {
   open: boolean;
+  initialDate: string;
+  pitches: Pitch[];
   onClose: () => void;
   teams: Team[];
   onDone: () => void;
 }) {
   const [recurring, setRecurring] = useState(true);
+  const [pitchId, setPitchId] = useState('');
   const [teamId, setTeamId] = useState('');
   const [title, setTitle] = useState('Tréning');
   const [location, setLocation] = useState('');
@@ -593,6 +826,15 @@ function TrainingModal({
   useEffect(() => {
     if (open && teams[0] && !teamId) setTeamId(teams[0].id);
   }, [open, teams, teamId]);
+  useEffect(() => {
+    if (open && pitches[0] && !pitchId) setPitchId(pitches[0].id);
+  }, [open, pitches, pitchId]);
+  useEffect(() => {
+    if (open && initialDate) {
+      setRecurring(false);
+      setDate(initialDate);
+    }
+  }, [open, initialDate]);
 
   function toggleDay(d: number) {
     setWeekdays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
@@ -605,12 +847,20 @@ function TrainingModal({
       if (recurring) {
         await api('/events/recurring', {
           method: 'POST',
-          body: JSON.stringify({ title, teamId, weekdays, startTime, endTime, from, until, location: location || undefined, surface: surface || undefined, isPublic }),
+          body: JSON.stringify({ title, teamId, weekdays, startTime, endTime, from, until, ...placeFields(pitchId, location, surface), isPublic }),
         });
       } else {
         await api('/events', {
           method: 'POST',
-          body: JSON.stringify({ type: 'TRAINING', title, teamId, startAt: `${date}T${startTime}:00.000Z`, location: location || undefined, surface: surface || undefined, isPublic }),
+          body: JSON.stringify({
+            type: 'TRAINING',
+            title,
+            teamId,
+            startAt: `${date}T${startTime}:00.000Z`,
+            endAt: endTime ? `${date}T${endTime}:00.000Z` : undefined,
+            ...placeFields(pitchId, location, surface),
+            isPublic,
+          }),
         });
       }
       onDone();
@@ -693,21 +943,7 @@ function TrainingModal({
             <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={inputCls} />
           </div>
         </div>
-        <div>
-          <label className={labelCls}>Miesto</label>
-          <input value={location} onChange={(e) => setLocation(e.target.value)} className={inputCls} placeholder="Ihrisko KNV" list="venue-list" />
-        </div>
-        <div>
-          <label className={labelCls}>Povrch</label>
-          <select value={surface} onChange={(e) => setSurface(e.target.value)} className={inputCls}>
-            <option value="">—</option>
-            {SURFACE_CODES.map((s) => (
-              <option key={s} value={s}>
-                {s} — {SURFACE_LABELS_SK[s]}
-              </option>
-            ))}
-          </select>
-        </div>
+        <PitchPicker pitches={pitches} pitchId={pitchId} onPitch={setPitchId} location={location} onLocation={setLocation} surface={surface} onSurface={setSurface} />
 
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />
@@ -730,15 +966,20 @@ function TrainingModal({
 
 function MatchModal({
   open,
+  initialDate,
+  pitches,
   onClose,
   teams,
   onDone,
 }: {
   open: boolean;
+  initialDate: string;
+  pitches: Pitch[];
   onClose: () => void;
   teams: Team[];
   onDone: () => void;
 }) {
+  const [pitchId, setPitchId] = useState('');
   const [teamId, setTeamId] = useState('');
   const [type, setType] = useState<'MATCH' | 'TOURNAMENT'>('MATCH');
   const [opponent, setOpponent] = useState('');
@@ -754,6 +995,12 @@ function MatchModal({
   useEffect(() => {
     if (open && teams[0] && !teamId) setTeamId(teams[0].id);
   }, [open, teams, teamId]);
+  useEffect(() => {
+    if (open && pitches[0] && !pitchId) setPitchId(pitches[0].id);
+  }, [open, pitches, pitchId]);
+  useEffect(() => {
+    if (open && initialDate) setDate(initialDate);
+  }, [open, initialDate]);
 
   async function submit() {
     setBusy(true);
@@ -767,8 +1014,7 @@ function MatchModal({
           title: isHome ? `${team?.name} vs ${opponent}` : `${opponent} vs ${team?.name}`,
           teamId,
           startAt: `${date}T${time}:00.000Z`,
-          location: location || undefined,
-          surface: surface || undefined,
+          ...placeFields(isHome ? pitchId : '', location, surface),
           opponent,
           isHome,
           jerseyColor: jerseyColor || undefined,
@@ -846,21 +1092,11 @@ function MatchModal({
             <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={inputCls} />
           </div>
         </div>
-        <div>
-          <label className={labelCls}>Miesto</label>
-          <input value={location} onChange={(e) => setLocation(e.target.value)} className={inputCls} list="venue-list" />
-        </div>
-        <div>
-          <label className={labelCls}>Povrch</label>
-          <select value={surface} onChange={(e) => setSurface(e.target.value)} className={inputCls}>
-            <option value="">—</option>
-            {SURFACE_CODES.map((s) => (
-              <option key={s} value={s}>
-                {s} — {SURFACE_LABELS_SK[s]}
-              </option>
-            ))}
-          </select>
-        </div>
+        {isHome ? (
+          <PitchPicker pitches={pitches} pitchId={pitchId} onPitch={setPitchId} location={location} onLocation={setLocation} surface={surface} onSurface={setSurface} />
+        ) : (
+          <PitchPicker pitches={[]} pitchId="" onPitch={() => {}} location={location} onLocation={setLocation} surface={surface} onSurface={setSurface} />
+        )}
         <ErrorText>{error}</ErrorText>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>

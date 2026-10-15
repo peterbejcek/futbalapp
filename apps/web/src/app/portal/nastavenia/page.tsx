@@ -2,7 +2,107 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { API_URL, api, getToken } from '@/lib/api';
+import { SURFACE_CODES, SURFACE_LABELS_SK, type SurfaceCode } from '@fkknv/shared';
 import { Button, Card, ErrorText, inputCls } from '@/components/ui';
+
+interface PitchRow {
+  id: string;
+  name: string;
+  surface: SurfaceCode;
+}
+
+/** Hracie plochy klubu: názov + povrch; ponúkajú sa pri tvorbe tréningu/zápasu a v kalendári (obsadenosť). */
+function PitchesCard({ onErr }: { onErr: (m: string | null) => void }) {
+  const [pitches, setPitches] = useState<PitchRow[]>([]);
+  const [name, setName] = useState('');
+  const [surface, setSurface] = useState<SurfaceCode>('PT');
+
+  const load = useCallback(async () => {
+    try {
+      setPitches(await api<PitchRow[]>('/pitches'));
+    } catch (e) {
+      onErr(e instanceof Error ? e.message : 'Chyba');
+    }
+  }, [onErr]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function run(fn: () => Promise<unknown>) {
+    onErr(null);
+    try {
+      await fn();
+      await load();
+    } catch (e) {
+      onErr(e instanceof Error ? e.message : 'Chyba');
+    }
+  }
+
+  return (
+    <Card className="space-y-3">
+      <h2 className="font-semibold text-club-800">Hracie plochy</h2>
+      <p className="text-sm text-gray-500">
+        Zadané plochy sa ponúkajú pri tvorbe tréningu a domáceho zápasu (alebo si možno miesto napísať) a v kalendári
+        sa podľa nich eviduje obsadenosť.
+      </p>
+      <div className="space-y-2">
+        {pitches.length === 0 && <p className="text-sm text-gray-500">Zatiaľ žiadna plocha.</p>}
+        {pitches.map((p) => (
+          <div key={p.id} className="flex flex-wrap items-center gap-2 border-b border-club-50 py-2">
+            <input
+              defaultValue={p.name}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (v && v !== p.name) void run(() => api(`/pitches/${p.id}`, { method: 'PATCH', body: JSON.stringify({ name: v }) }));
+              }}
+              className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
+            />
+            <select
+              value={p.surface}
+              onChange={(e) => run(() => api(`/pitches/${p.id}`, { method: 'PATCH', body: JSON.stringify({ surface: e.target.value }) }))}
+              className="rounded border border-gray-300 px-2 py-1 text-sm"
+            >
+              {SURFACE_CODES.map((c) => (
+                <option key={c} value={c}>
+                  {SURFACE_LABELS_SK[c]}
+                </option>
+              ))}
+            </select>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                if (confirm(`Odstrániť plochu „${p.name}"? Existujúce udalosti ostanú.`)) void run(() => api(`/pitches/${p.id}`, { method: 'DELETE' }));
+              }}
+            >
+              Odstrániť
+            </Button>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Názov (napr. Ihrisko KNV – hlavné)" className="min-w-[14rem] flex-1 rounded border border-gray-300 px-2 py-1 text-sm" />
+        <select value={surface} onChange={(e) => setSurface(e.target.value as SurfaceCode)} className="rounded border border-gray-300 px-2 py-1 text-sm">
+          {SURFACE_CODES.map((c) => (
+            <option key={c} value={c}>
+              {SURFACE_LABELS_SK[c]}
+            </option>
+          ))}
+        </select>
+        <Button
+          onClick={() =>
+            run(async () => {
+              if (!name.trim()) return;
+              await api('/pitches', { method: 'POST', body: JSON.stringify({ name: name.trim(), surface }) });
+              setName('');
+            })
+          }
+        >
+          Pridať plochu
+        </Button>
+      </div>
+    </Card>
+  );
+}
 
 interface TeamRow {
   id: string;
@@ -106,6 +206,8 @@ export default function SettingsPage() {
           ))}
         </div>
       </Card>
+
+      <PitchesCard onErr={setError} />
 
       <Card className="space-y-3">
         <h2 className="font-semibold text-club-800">Zaradenie a kanály</h2>
