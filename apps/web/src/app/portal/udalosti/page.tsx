@@ -4,14 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   WEEKDAY_SHORT_SK,
-  eventTypeColor,
-  categoryColor,
   SURFACE_CODES,
   SURFACE_LABELS_SK,
   formatEventDateTimeSk,
   formatEventTimeSk,
   type SurfaceCode,
 } from '@fkknv/shared';
+import { categoryColor, eventTypeColor } from '@/lib/colors';
 import { api } from '@/lib/api';
 import { canManage, canManageTeam, coachTeams, isStaff, useMe, type Me } from '@/lib/auth';
 import { Button, Card, ErrorText, Modal, inputCls, labelCls } from '@/components/ui';
@@ -594,13 +593,26 @@ function MonthView({
             <div
               key={i}
               onClick={d && onDayClick ? () => onDayClick(dayKey(d)) : undefined}
-              className={`min-h-[6rem] rounded border p-1 ${d ? 'border-club-100 bg-white' : 'border-transparent'} ${
+              className={`min-h-[7.5rem] rounded border p-1.5 ${
+                d ? (isToday(d) ? 'border-club-500 bg-club-50' : 'border-club-100 bg-white') : 'border-transparent'
+              } ${d && !isToday(d) && i % 7 >= 5 ? 'bg-club-50/40' : ''} ${
                 d && onDayClick ? 'cursor-pointer hover:bg-club-50' : ''
               }`}
             >
               {d && (
                 <>
-                  <div className={`mb-1 text-xs font-semibold ${isToday(d) ? 'text-club-700' : 'text-gray-400'}`}>{d}</div>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <span
+                      className={`text-sm font-bold ${
+                        isToday(d) ? 'rounded-sm bg-club-500 px-1.5 text-white' : 'text-gray-400'
+                      }`}
+                    >
+                      {d}
+                    </span>
+                    {(byDay.get(d) ?? []).length > 0 && !pitchOccupancy && (
+                      <span className="text-[10px] text-gray-400">{(byDay.get(d) ?? []).length}×</span>
+                    )}
+                  </div>
                   <div className="space-y-1">
                     {pitchOccupancy &&
                       (occByDay.get(d) ?? []).map((o) => (
@@ -646,21 +658,25 @@ function MonthView({
                             href={href}
                             title={`${time} · ${label}`}
                             onClick={(ev) => ev.stopPropagation()}
-                            className="flex items-center gap-0.5 truncate rounded px-1 py-0.5 text-[11px]"
-                            style={{ backgroundColor: c.bg, color: c.text }}
+                            className={`flex items-center gap-1 truncate rounded-sm py-0.5 pl-1.5 pr-1 text-[11px] leading-snug hover:brightness-125 ${
+                              e.match ? 'font-semibold' : 'opacity-80'
+                            }`}
+                            style={{ backgroundColor: c.bg, color: c.text, borderLeft: `3px solid ${c.text}` }}
                           >
                             {jersey}
-                            <span className="truncate">{time} {label}</span>
+                            <span className="truncate"><b className="mr-1 font-bold tabular-nums">{time}</b>{label}</span>
                           </Link>
                         ) : (
                           <div
                             key={e.id}
                             title={`${time} · ${label}`}
-                            className="flex items-center gap-0.5 truncate rounded px-1 py-0.5 text-[11px]"
-                            style={{ backgroundColor: c.bg, color: c.text }}
+                            className={`flex items-center gap-1 truncate rounded-sm py-0.5 pl-1.5 pr-1 text-[11px] leading-snug hover:brightness-125 ${
+                              e.match ? 'font-semibold' : 'opacity-80'
+                            }`}
+                            style={{ backgroundColor: c.bg, color: c.text, borderLeft: `3px solid ${c.text}` }}
                           >
                             {jersey}
-                            <span className="truncate">{time} {label}</span>
+                            <span className="truncate"><b className="mr-1 font-bold tabular-nums">{time}</b>{label}</span>
                           </div>
                         );
                       })}

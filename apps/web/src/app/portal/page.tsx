@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import { categoryColor, formatEventDateTimeSk } from '@fkknv/shared';
+import { formatEventDateTimeSk } from '@fkknv/shared';
+import { categoryColor } from '@/lib/colors';
 import { canManage, coachTeams, isParent, isPlayer, isStaff, useMe } from '@/lib/auth';
 import { Card } from '@/components/ui';
 
@@ -40,7 +41,7 @@ function DashMatchTeams({ e }: { e: EventItem }) {
   const home = m.isHome ? our : opp;
   const away = m.isHome ? opp : our;
   return (
-    <div className="mt-2 space-y-1">
+    <div className="space-y-0.5">
       <div className="flex items-center gap-2">
         {home.logo && <DashLogo src={home.logo} />}
         <span className="font-medium text-club-900">{home.name}</span>
@@ -146,32 +147,50 @@ export default function DashboardPage() {
   );
 }
 
+const MONTHS_SK = ['JAN', 'FEB', 'MAR', 'APR', 'MÁJ', 'JÚN', 'JÚL', 'AUG', 'SEP', 'OKT', 'NOV', 'DEC'];
+
 function EventList({ title, events }: { title: string; events: EventItem[] }) {
   return (
     <section>
-      <h2 className="mb-3 font-semibold text-club-800">{title}</h2>
+      <h2 className="mb-3 text-2xl font-bold text-club-900">{title}</h2>
       {events.length === 0 ? (
         <Card className="text-sm text-gray-500">Zatiaľ žiadne naplánované.</Card>
       ) : (
-        <ul className="divide-y divide-club-100 rounded-lg border border-club-100 bg-white">
+        <ul className="border border-club-100 bg-white">
           {events.map((e) => {
             const href = e.match ? `/portal/zapasy/${e.match.id}` : `/portal/dochadzka/${e.id}`;
             const c = categoryColor(e.team?.teamCategory?.code);
+            // čas udalosti je vedený ako UTC „nástenný" čas
+            const d = new Date(e.startAt);
+            const time = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
             return (
-              <li key={e.id}>
-                <Link href={href} className="block px-4 py-3 hover:bg-club-50">
+              <li key={e.id} className="border-b border-club-100 last:border-b-0">
+                <Link
+                  href={href}
+                  className="grid grid-cols-[3.5rem_1fr_auto] items-center gap-4 px-4 py-3 hover:bg-club-50"
+                  style={{ borderLeft: `4px solid ${c.text}` }}
+                >
+                  <div className="text-center leading-none">
+                    <div className="font-[family-name:var(--head-font)] text-3xl font-bold text-club-900">{d.getUTCDate()}</div>
+                    <div className="mt-1 text-[11px] font-semibold tracking-widest text-gray-400">{MONTHS_SK[d.getUTCMonth()]}</div>
+                  </div>
+                  <div className="min-w-0">
+                    {e.match ? (
+                      <DashMatchTeams e={e} />
+                    ) : (
+                      <div className="font-semibold text-club-900">{e.title}</div>
+                    )}
+                    <div className="mt-1 truncate text-xs text-gray-500">
+                      {time}
+                      {e.location ? ` · ${e.location}` : ''}
+                    </div>
+                  </div>
                   <span
-                    className="inline-block rounded px-2 py-0.5 text-xs font-medium"
+                    className="whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide"
                     style={{ backgroundColor: c.bg, color: c.text }}
                   >
-                    {typeLabels[e.type] ?? e.type}
-                    {e.team ? ` · ${e.team.name}` : ''}
+                    {e.team?.name ?? typeLabels[e.type] ?? e.type}
                   </span>
-                  <div className="mt-1 text-sm text-gray-600">
-                    {formatEventDateTimeSk(e.startAt)}
-                  </div>
-                  {e.match ? <DashMatchTeams e={e} /> : <div className="mt-1 font-medium">{e.title}</div>}
-                  {e.location && <div className="mt-1 text-xs text-gray-500">{e.location}</div>}
                 </Link>
               </li>
             );
