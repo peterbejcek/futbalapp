@@ -26,5 +26,114 @@
 }
 
 body {
-  @apply bg-white text-gray-900 antialiased;
+  @apply antialiased;
 }
+
+/* ===== Tmavý štýl portálu (zjednotený s novým webom fkknv.sk) =====
+   Tailwind farby sa v rámci `.fk-app` premapujú na tmavú paletu webu, takže
+   existujúce stránky portálu fungujú bez zmien tried. Verejný web má vlastné
+   štýly scoped pod `.fk-pub` a týmto nie je dotknutý. */
+.fk-app {
+  --bg: #080e13;
+  --panel: #111b23;
+  --line: #26343e;
+  --muted: #a2b0b9;
+  --ink: #f2f5f5;
+  --lime: #c8f567;
+  --blue: #2874ed;
+
+  /* club: invertovaná rampa (50 = najtmavší podklad … 900 = svetlý text) */
+  --color-club-50: #0d161d;
+  --color-club-100: #26343e;
+  --color-club-200: #a2b0b9;
+  --color-club-300: #3d4e5a;
+  --color-club-400: #5c7a99;
+  --color-club-500: #2874ed;
+  --color-club-600: #2874ed;
+  --color-club-700: #6c9fff;
+  --color-club-800: #e0e5e8;
+  --color-club-900: #f2f5f5;
+
+  --color-gray-50: #111b23;
+  --color-gray-100: #17222b;
+  --color-gray-200: #26343e;
+  --color-gray-300: #3d4e5a;
+  --color-gray-400: #81909a;
+  --color-gray-500: #a2b0b9;
+  --color-gray-600: #b4c0c7;
+  --color-gray-700: #c8d1d7;
+  --color-gray-800: #e0e5e8;
+  --color-gray-900: #f2f5f5;
+
+  --color-red-50: #3a1420;
+  --color-red-100: #4a1a28;
+  --color-red-200: #6b2433;
+  --color-red-300: #8a2f42;
+  --color-red-400: #ff6b89;
+  --color-red-500: #ed1744;
+  --color-red-600: #ed1744;
+  --color-red-700: #ff6b89;
+  --color-red-800: #ff8fa5;
+  --color-green-50: #12301f;
+  --color-green-100: #163a25;
+  --color-green-200: #1f5133;
+  --color-green-600: #3bbf6a;
+  --color-green-700: #86e0a0;
+  --color-green-800: #a6ecbb;
+  --color-amber-50: #33270d;
+  --color-amber-100: #3d2e0e;
+  --color-amber-200: #5c4512;
+  --color-amber-300: #7a5c16;
+  --color-amber-500: #e0a526;
+  --color-amber-600: #f0c05a;
+  --color-amber-700: #f0c05a;
+  --color-amber-800: #f5d27a;
+  --color-amber-900: #f8dd96;
+  --color-blue-100: #14305a;
+  --color-blue-700: #8ab4ff;
+
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body-font, Barlow), Arial, sans-serif;
+}
+
+.fk-app .bg-white { background-color: var(--panel); }
+.fk-app .bg-white\/70 { background-color: color-mix(in srgb, var(--panel) 70%, transparent); }
+.fk-app .bg-club-900 { background-color: #0a1118; }
+.fk-app .hover\:bg-club-900:hover { background-color: #0a1118; }
+.fk-app .text-club-100 { color: #dfe6ea; }
+.fk-app .bg-black\/40,
+.fk-app .bg-black\/60 { background-color: rgb(3 7 13 / 0.82); backdrop-filter: blur(6px); }
+
+/* štvorcové tvary ako na webe */
+.fk-app .rounded-lg,
+.fk-app .rounded-md,
+.fk-app .rounded { border-radius: 2px; }
+
+/* nadpisy: Barlow Condensed, verzálky */
+.fk-app h1,
+.fk-app h2,
+.fk-app h3 {
+  font-family: var(--head-font, 'Barlow Condensed'), 'Arial Narrow', Impact, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  line-height: 1.05;
+}
+.fk-app h1 { font-weight: 800; }
+
+/* formulárové prvky */
+.fk-app input,
+.fk-app select,
+.fk-app textarea {
+  background-color: var(--panel);
+  color: var(--ink);
+  color-scheme: dark;
+}
+.fk-app input::placeholder,
+.fk-app textarea::placeholder { color: #6f7f8a; }
+.fk-app input:focus,
+.fk-app select:focus,
+.fk-app textarea:focus { border-color: var(--blue); }
+.fk-app :focus-visible { outline: 3px solid var(--lime); outline-offset: 2px; }
+.fk-app table { color-scheme: dark; }
+.fk-app a { text-underline-offset: 3px; }
