@@ -36,12 +36,15 @@ Očakávanie: `/` 200, `/prihlasenie` 200, `public/teams` vráti JSON s mužstva
 Limit nahrávania dokumentov je 15 MB (Caddy ho nekráti, `request_body` nie je v `Caddyfile` nastavený). Otestujte nahratie najväčšieho dokumentu (13,4 MB) cez `/portal/obsah`.
 
 ## 4. Spustenie obsahu (po potvrdení klubom)
-Najprv skontrolujte `docs/11-obsah-webu-na-potvrdenie.md`. Potom importér (nezapisuje, kým nepoužijete `--apply`):
+Najprv skontrolujte `docs/11-obsah-webu-na-potvrdenie.md`. Importér sa spúšťa V KONTAJNERI `api` (má vygenerovaného Prisma klienta, ts-node, manifest a už nastavenú `DATABASE_URL`; PostgreSQL nie je publikovaný na hostiteľa). Nezadávajte `DATABASE_URL` ručne. Najprv dry-run (nič nezapisuje, vypíše cieľový host a plán):
 ```
-cd /opt/fkknv/app/apps/api && DATABASE_URL="<produkčná DATABASE_URL z infra/.env>" pnpm content:import
-cd /opt/fkknv/app/apps/api && DATABASE_URL="<produkčná DATABASE_URL z infra/.env>" pnpm content:import -- --apply --verify-files
+cd /opt/fkknv/app/infra && docker compose --env-file .env exec api npx ts-node prisma/import-club-content.ts --verify-files
 ```
-Pozor: po `--apply` je 60 archívnych článkov verejných. Ak ich klub nechce, odstráňte ich pred importom z `apps/api/prisma/content-import/club-content.json`. Importér beží na hostiteľovi (nie v kontajneri), preto musí byť `DATABASE_URL` dosiahnuteľná z hostiteľa. Ak PostgreSQL nie je publikovaný na hostiteľa, spustite importér v kontajneri `api` (`docker compose --env-file .env exec api ...`) alebo začnite bez importu a obsah zadajte ručne v `/portal/obsah`.
+Ak plán sedí, zápis:
+```
+cd /opt/fkknv/app/infra && docker compose --env-file .env exec api npx ts-node prisma/import-club-content.ts --apply --verify-files
+```
+Pozor: po `--apply` je 60 archívnych článkov verejných. Ak ich klub nechce, odstráňte ich pred importom z `apps/api/prisma/content-import/club-content.json` a znova zostavte kontajner (`docker compose --env-file .env up -d --build api`), lebo manifest je súčasťou obrazu. Importér je idempotentný a záznamy potvrdené klubom ani ručne upravené nepreprisuje.
 
 ## 5. Spustenie verejných údajov
 1. Súhlasy hráčov: v `/portal/clenovia` pri úprave člena (sekcia „Zverejnenie na webe"). Bez súhlasu sa hráč na webe nezobrazí.
