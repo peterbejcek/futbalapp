@@ -7,6 +7,8 @@ import { useEffect, useState } from 'react';
 import { api, getToken, setToken } from '@/lib/api';
 import { canManage, isStaff, useMe } from '@/lib/auth';
 
+const PUBLIC_SITE_URL = 'https://fkknv.sk';
+
 type Ctx = { staff: boolean; manage: boolean };
 interface Leaf {
   href: string;
@@ -76,10 +78,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <header className="relative border-b border-club-100 bg-club-900 text-white">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-6 py-3">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-            <Link href="/portal" className="flex items-center gap-2 font-semibold">
+            <a href={PUBLIC_SITE_URL} className="flex items-center gap-2 font-semibold" title="Verejný web klubu">
               <Image src="/logo.png" alt="FKKNV" width={24} height={38} className="h-8 w-auto" />
               FKKNV portál
-            </Link>
+            </a>
             <nav className="flex flex-wrap items-center gap-4 text-sm">
               {navigation.map((entry) => {
                 if (entry.kind === 'leaf') {
@@ -151,7 +153,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             <button
               onClick={() => {
                 setToken(null);
-                router.push('/prihlasenie');
+                window.location.href = PUBLIC_SITE_URL;
               }}
               className="border border-[#63707a] px-3 py-1 text-club-100 hover:bg-white/10"
             >
