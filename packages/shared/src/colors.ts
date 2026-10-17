@@ -7,20 +7,20 @@ export interface ColorPair {
 }
 
 /**
- * Veľmi svetlé, navzájom ladiace farby pre vekové kategórie. Používajú sa všade,
+ * Výrazné pastelové, navzájom dobre odlíšiteľné farby pre vekové kategórie. Používajú sa všade,
  * kde sa kategória spomína (karty, štítky). Hodnoty sú hex (inline štýl), aby
  * neboli závislé od generovania Tailwind tried.
  */
 export const CATEGORY_COLORS: Record<CategoryCode, ColorPair> = {
-  U8: { bg: '#e0f2fe', text: '#075985' }, // sky
-  U9: { bg: '#cffafe', text: '#155e75' }, // cyan
-  U10: { bg: '#ccfbf1', text: '#115e59' }, // teal
-  U11: { bg: '#dcfce7', text: '#166534' }, // green
-  U13: { bg: '#ecfccb', text: '#3f6212' }, // lime
-  U15: { bg: '#fef9c3', text: '#854d0e' }, // yellow
-  U17: { bg: '#ffedd5', text: '#9a3412' }, // orange
-  U19: { bg: '#ffe4e6', text: '#9f1239' }, // rose
-  MUZI: { bg: '#e0e7ff', text: '#3730a3' }, // indigo
+  U8: { bg: '#7dd3fc', text: '#0369a1' }, // nebeská modrá
+  U9: { bg: '#f9a8d4', text: '#9d174d' }, // ružová
+  U10: { bg: '#5eead4', text: '#0f766e' }, // tyrkysová
+  U11: { bg: '#fcd34d', text: '#92400e' }, // jantárová
+  U13: { bg: '#c4b5fd', text: '#5b21b6' }, // fialová
+  U15: { bg: '#bef264', text: '#3f6212' }, // limetková
+  U17: { bg: '#fdba74', text: '#9a3412' }, // oranžová
+  U19: { bg: '#fca5a5', text: '#991b1b' }, // koralová červená
+  MUZI: { bg: '#a5b4fc', text: '#3730a3' }, // indigo
 };
 
 const NEUTRAL: ColorPair = { bg: '#f1f5f9', text: '#475569' };
