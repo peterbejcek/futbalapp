@@ -9,14 +9,13 @@ import { ZodValidationPipe } from '../common/zod.pipe';
 export class PitchesController {
   constructor(private readonly pitches: PitchesService) {}
 
+  // čítanie zoznamu plôch a obsadenosti je dostupné každému prihlásenému (mobil: Obsadenosť ihrísk)
   @Get()
-  @Roles('ADMIN', 'MANAGER', 'COACH')
   list() {
     return this.pitches.list();
   }
 
   @Get('occupancy')
-  @Roles('ADMIN', 'MANAGER', 'COACH')
   occupancy(@CurrentUser() user: AuthUser, @Query('from') from?: string, @Query('to') to?: string) {
     return this.pitches.occupancy(from ? new Date(from) : undefined, to ? new Date(to) : undefined, !!user.isDemo);
   }

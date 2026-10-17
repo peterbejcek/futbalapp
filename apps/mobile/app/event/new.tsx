@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { WEEKDAY_SHORT_SK } from '@fkknv/shared';
+import { addMinutesToHhmm, defaultEventMinutes, SURFACE_CODES, WEEKDAY_SHORT_SK } from '@fkknv/shared';
 import { api } from '@/api';
 import { coachTeams, fetchMe, isStaff, type Me } from '@/auth';
-import { colors } from '@/theme';
+import { ui } from '@/theme';
+import { KeyboardScreen } from '@/KeyboardScreen';
+import { fetchPitches, isHhmm, normHhmm, SURFACE_LABELS, toMin, type Pitch } from '@/pitches';
 import { JerseySwatch } from '@/JerseySwatch';
 
 interface Team {
@@ -34,10 +36,21 @@ export default function NewEventScreen() {
   const [isHome, setIsHome] = useState(true);
   const [jerseyColor, setJerseyColor] = useState<'' | 'DARK' | 'LIGHT'>('');
   const [busy, setBusy] = useState(false);
+  const [pitches, setPitches] = useState<Pitch[]>([]);
+  const [pitchId, setPitchId] = useState('');
+  const [surface, setSurface] = useState('');
+  const [endTouched, setEndTouched] = useState(false);
+  const [clash, setClash] = useState('');
 
   useEffect(() => {
     fetchMe().then(setMe).catch(() => {});
     api<Team[]>('/seasons/teams').then(setTeams).catch(() => {});
+    fetchPitches()
+      .then((p) => {
+        setPitches(p);
+        if (p[0]) setPitchId((cur) => cur || p[0].id);
+      })
+      .catch(() => {});
   }, []);
 
   const myTeams = useMemo(() => {
@@ -50,22 +63,51 @@ export default function NewEventScreen() {
     if (myTeams[0] && !teamId) setTeamId(myTeams[0].id);
   }, [myTeams, teamId]);
 
+  // koniec sa predvyplní podľa predvolenej dĺžky (tréning/zápas podľa kategórie), kým ho používateľ nezmení
+  const categoryCode = teams.find((t) => t.id === teamId)?.teamCategory.code;
+  useEffect(() => {
+    if (endTouched || !isHhmm(startTime)) return;
+    setEndTime(addMinutesToHhmm(startTime, defaultEventMinutes(mode === 'training' ? 'TRAINING' : 'MATCH', categoryCode)));
+  }, [startTime, mode, categoryCode, endTouched]);
+
+  // zápas vonku nemá domáce ihrisko
+  const usePitch = !!pitchId && (mode === 'training' || isHome);
+
   function toggleDay(d: number) {
     setWeekdays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
   }
 
+  function validate(): string | null {
+    if (!isHhmm(startTime)) return 'Začiatok zadajte ako HH:MM';
+    if (endTime && !isHhmm(endTime)) return 'Koniec zadajte ako HH:MM';
+    if (usePitch && !endTime) return 'Pri vybranom ihrisku zadajte koniec';
+    if (endTime && toMin(normHhmm(endTime)) <= toMin(normHhmm(startTime))) return 'Koniec musí byť po začiatku';
+    return null;
+  }
+
   async function submit() {
+    const problem = validate();
+    if (problem) {
+      Alert.alert('Skontrolujte údaje', problem);
+      return;
+    }
+    setClash('');
+    const st = normHhmm(startTime);
+    const en = endTime ? normHhmm(endTime) : '';
+    const place = usePitch
+      ? { pitchId }
+      : { location: location || undefined, surface: surface || undefined };
     setBusy(true);
     try {
       if (mode === 'training' && recurring) {
         await api('/events/recurring', {
           method: 'POST',
-          body: JSON.stringify({ title, teamId, weekdays, startTime, endTime, from, until, location: location || undefined }),
+          body: JSON.stringify({ title, teamId, weekdays, startTime: st, endTime: en || undefined, from, until, ...place }),
         });
       } else if (mode === 'training') {
         await api('/events', {
           method: 'POST',
-          body: JSON.stringify({ type: 'TRAINING', title, teamId, startAt: `${date}T${startTime}:00.000Z`, location: location || undefined }),
+          body: JSON.stringify({ type: 'TRAINING', title, teamId, startAt: `${date}T${st}:00.000Z`, endAt: en ? `${date}T${en}:00.000Z` : undefined, ...place }),
         });
       } else {
         const team = teams.find((t) => t.id === teamId);
@@ -75,8 +117,9 @@ export default function NewEventScreen() {
             type: 'MATCH',
             title: isHome ? `${team?.name} vs ${opponent}` : `${opponent} vs ${team?.name}`,
             teamId,
-            startAt: `${date}T${startTime}:00.000Z`,
-            location: location || undefined,
+            startAt: `${date}T${st}:00.000Z`,
+            endAt: en ? `${date}T${en}:00.000Z` : undefined,
+            ...(isHome ? place : { location: location || undefined, surface: surface || undefined }),
             opponent,
             isHome,
             jerseyColor: jerseyColor || undefined,
@@ -86,17 +129,27 @@ export default function NewEventScreen() {
       Alert.alert('Hotovo', 'Udalosť bola vytvorená.');
       router.back();
     } catch (e) {
-      Alert.alert('Chyba', e instanceof Error ? e.message : 'Uloženie zlyhalo');
+      const msg = e instanceof Error ? e.message : 'Uloženie zlyhalo';
+      if (/obsaden/i.test(msg)) {
+        setClash(msg);
+        Alert.alert('Ihrisko je obsadené', `${msg}\n\nZvoľte iný čas alebo iné ihrisko.`);
+      } else {
+        Alert.alert('Chyba', msg);
+      }
     } finally {
       setBusy(false);
     }
   }
 
+  const inputProps = {
+    placeholderTextColor: ui.placeholder,
+    keyboardAppearance: 'dark' as const,
+  };
   const chip = (active: boolean) => [styles.chip, active && styles.chipActive];
   const chipTxt = (active: boolean) => [styles.chipText, active && styles.chipTextActive];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+    <KeyboardScreen>
       <View style={styles.row}>
         <Pressable style={chip(mode === 'training')} onPress={() => setMode('training')}>
           <Text style={chipTxt(mode === 'training')}>Tréning</Text>
@@ -126,7 +179,7 @@ export default function NewEventScreen() {
             </Pressable>
           </View>
           <Text style={styles.label}>Názov</Text>
-          <TextInput style={styles.input} value={title} onChangeText={setTitle} />
+          <TextInput {...inputProps} style={styles.input} value={title} onChangeText={setTitle} />
           {recurring ? (
             <>
               <Text style={styles.label}>Dni v týždni</Text>
@@ -138,24 +191,24 @@ export default function NewEventScreen() {
                 ))}
               </View>
               <Text style={styles.label}>Od (RRRR-MM-DD)</Text>
-              <TextInput style={styles.input} value={from} onChangeText={setFrom} placeholder="2026-09-01" />
+              <TextInput {...inputProps} style={styles.input} value={from} onChangeText={setFrom} placeholder="2026-09-01" />
               <Text style={styles.label}>Do (RRRR-MM-DD)</Text>
-              <TextInput style={styles.input} value={until} onChangeText={setUntil} placeholder="2026-12-20" />
+              <TextInput {...inputProps} style={styles.input} value={until} onChangeText={setUntil} placeholder="2026-12-20" />
             </>
           ) : (
             <>
               <Text style={styles.label}>Dátum (RRRR-MM-DD)</Text>
-              <TextInput style={styles.input} value={date} onChangeText={setDate} placeholder="2026-09-05" />
+              <TextInput {...inputProps} style={styles.input} value={date} onChangeText={setDate} placeholder="2026-09-05" />
             </>
           )}
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Začiatok</Text>
-              <TextInput style={styles.input} value={startTime} onChangeText={setStartTime} placeholder="16:00" />
+              <TextInput {...inputProps} style={styles.input} value={startTime} onChangeText={setStartTime} placeholder="16:00" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Koniec</Text>
-              <TextInput style={styles.input} value={endTime} onChangeText={setEndTime} placeholder="17:00" />
+              <TextInput {...inputProps} style={styles.input} value={endTime} onChangeText={(v) => { setEndTouched(true); setEndTime(v); }} placeholder="17:00" />
             </View>
           </View>
         </>
@@ -170,7 +223,7 @@ export default function NewEventScreen() {
             </Pressable>
           </View>
           <Text style={styles.label}>Súper</Text>
-          <TextInput style={styles.input} value={opponent} onChangeText={setOpponent} />
+          <TextInput {...inputProps} style={styles.input} value={opponent} onChangeText={setOpponent} />
           <Text style={styles.label}>Dres</Text>
           <View style={styles.row}>
             <Pressable
@@ -193,39 +246,85 @@ export default function NewEventScreen() {
             </Pressable>
           </View>
           <Text style={styles.label}>Dátum (RRRR-MM-DD)</Text>
-          <TextInput style={styles.input} value={date} onChangeText={setDate} placeholder="2026-09-12" />
-          <Text style={styles.label}>Čas</Text>
-          <TextInput style={styles.input} value={startTime} onChangeText={setStartTime} placeholder="10:00" />
+          <TextInput {...inputProps} style={styles.input} value={date} onChangeText={setDate} placeholder="2026-09-12" />
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Začiatok</Text>
+              <TextInput {...inputProps} style={styles.input} value={startTime} onChangeText={setStartTime} placeholder="10:00" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Koniec{usePitch ? ' *' : ''}</Text>
+              <TextInput {...inputProps} style={styles.input} value={endTime} onChangeText={(v) => { setEndTouched(true); setEndTime(v); }} placeholder="11:30" />
+            </View>
+          </View>
         </>
       )}
 
-      <Text style={styles.label}>Miesto</Text>
-      <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="Ihrisko KNV" />
+      {mode === 'match' && !isHome ? null : (
+        <>
+          <Text style={styles.label}>Ihrisko</Text>
+          <View style={styles.wrapRow}>
+            {pitches.map((p) => (
+              <Pressable key={p.id} style={chip(pitchId === p.id)} onPress={() => setPitchId(p.id)}>
+                <Text style={chipTxt(pitchId === p.id)}>
+                  {p.name} · {p.surface}
+                </Text>
+              </Pressable>
+            ))}
+            <Pressable style={chip(!pitchId)} onPress={() => setPitchId('')}>
+              <Text style={chipTxt(!pitchId)}>Iné</Text>
+            </Pressable>
+          </View>
+          <Pressable onPress={() => router.push('/pitches')}>
+            <Text style={styles.link}>Pozrieť obsadenosť ihrísk ›</Text>
+          </Pressable>
+        </>
+      )}
+      {!!clash && <Text style={styles.clash}>{clash}</Text>}
+      {!usePitch && (
+        <>
+          <Text style={styles.label}>Miesto</Text>
+          <TextInput {...inputProps} style={styles.input} value={location} onChangeText={setLocation} placeholder="Ihrisko KNV" />
+          <Text style={styles.label}>Povrch</Text>
+          <View style={styles.wrapRow}>
+            <Pressable style={chip(!surface)} onPress={() => setSurface('')}>
+              <Text style={chipTxt(!surface)}>—</Text>
+            </Pressable>
+            {SURFACE_CODES.map((c) => (
+              <Pressable key={c} style={chip(surface === c)} onPress={() => setSurface(c)}>
+                <Text style={chipTxt(surface === c)}>{c} · {SURFACE_LABELS[c]}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      )}
 
       <Pressable style={[styles.submit, busy && { opacity: 0.6 }]} onPress={submit} disabled={busy || !teamId}>
         <Text style={styles.submitText}>{busy ? 'Ukladám…' : 'Vytvoriť'}</Text>
       </Pressable>
-    </ScrollView>
+    </KeyboardScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.club50, padding: 16 },
   row: { flexDirection: 'row', gap: 8 },
   wrapRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
-  label: { fontSize: 13, fontWeight: '600', color: colors.club800, marginTop: 12, marginBottom: 4 },
+  label: { fontSize: 13, fontWeight: '600', color: ui.muted, marginTop: 12, marginBottom: 4 },
   input: {
-    backgroundColor: colors.white,
+    backgroundColor: ui.panel,
+    color: ui.ink,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     borderRadius: 8,
     padding: 12,
     fontSize: 15,
   },
-  chip: { borderWidth: 1, borderColor: colors.club100, borderRadius: 20, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: colors.white },
-  chipActive: { backgroundColor: colors.club600, borderColor: colors.club600 },
-  chipText: { color: colors.club700, fontWeight: '600', fontSize: 13 },
-  chipTextActive: { color: colors.white },
-  submit: { backgroundColor: colors.club600, borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 24 },
-  submitText: { color: colors.white, fontWeight: '700', fontSize: 16 },
+  chip: { borderWidth: 1, borderColor: ui.line, borderRadius: 20, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: ui.panel },
+  chipActive: { backgroundColor: ui.blue, borderColor: ui.blue },
+  chipText: { color: ui.ink, fontWeight: '600', fontSize: 13 },
+  chipTextActive: { color: ui.onAccent },
+  link: { color: ui.blueHi, fontSize: 13, marginTop: 8 },
+  clash: { color: ui.red, fontSize: 13, marginTop: 10, fontWeight: '600' },
+  submit: { backgroundColor: ui.blue, borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 24 },
+  submitText: { color: ui.onAccent, fontWeight: '700', fontSize: 16 },
 });
