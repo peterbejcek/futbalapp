@@ -1,0 +1,10 @@
+-- CreateEnum
+CREATE TYPE "MatchTimerPhase" AS ENUM ('NOT_STARTED', 'FIRST_HALF', 'HALF_TIME', 'SECOND_HALF', 'FINISHED');
+
+-- AlterTable
+ALTER TABLE "Match" ADD COLUMN "halfLengthMin" INTEGER NOT NULL DEFAULT 45,
+ADD COLUMN "timerPhase" "MatchTimerPhase" NOT NULL DEFAULT 'NOT_STARTED',
+ADD COLUMN "firstHalfStartedAt" TIMESTAMP(3),
+ADD COLUMN "firstHalfEndedAt" TIMESTAMP(3),
+ADD COLUMN "secondHalfStartedAt" TIMESTAMP(3),
+ADD COLUMN "secondHalfEndedAt" TIMESTAMP(3);

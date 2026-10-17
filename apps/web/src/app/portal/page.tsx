@@ -7,6 +7,7 @@ import { formatEventDateTimeSk } from '@fkknv/shared';
 import { categoryColor } from '@/lib/colors';
 import { canManage, coachTeams, isParent, isPlayer, isStaff, useMe } from '@/lib/auth';
 import { Card } from '@/components/ui';
+import { NominationRequestsPanel } from '@/components/cross-nomination';
 
 interface EventItem {
   id: string;
@@ -135,6 +136,7 @@ export default function DashboardPage() {
 
       {staff && <StaffTiles />}
       <MatchConfirmations />
+      <NominationRequestsPanel />
       <RegistrationCards staff={staff} />
       {isParent(me) && me && <ChildrenPayments children={me.children} />}
       {isPlayer(me) && me?.memberId && <MyPayments memberId={me.memberId} />}

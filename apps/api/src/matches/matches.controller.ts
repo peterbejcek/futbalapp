@@ -14,7 +14,12 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
-import { matchEventSchema, type MatchEventInput } from '@fkknv/shared';
+import {
+  matchEventSchema,
+  matchTimerActionSchema,
+  type MatchEventInput,
+  type MatchTimerActionInput,
+} from '@fkknv/shared';
 import { MatchesService } from './matches.service';
 import { Roles } from '../auth/roles.decorator';
 import { Public } from '../auth/public.decorator';
@@ -103,7 +108,13 @@ export class MatchesController {
   @Roles('ADMIN', 'MANAGER', 'COACH')
   setDetails(
     @Param('id') matchId: string,
-    @Body() body: { meetAt?: string | null; notes?: string | null; jerseyColor?: 'DARK' | 'LIGHT' | null },
+    @Body()
+    body: {
+      meetAt?: string | null;
+      notes?: string | null;
+      jerseyColor?: 'DARK' | 'LIGHT' | null;
+      halfLengthMin?: number | null;
+    },
     @CurrentUser() user: AuthUser,
   ) {
     return this.matchesService.setDetails(matchId, body, user);
@@ -117,6 +128,17 @@ export class MatchesController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.matchesService.setState(matchId, body.state, user);
+  }
+
+  /** Časomiera: výkop / prestávka / 2. polčas / koniec / späť / vynulovať. */
+  @Post(':id/timer')
+  @Roles('ADMIN', 'MANAGER', 'COACH')
+  timer(
+    @Param('id') matchId: string,
+    @Body(new ZodValidationPipe(matchTimerActionSchema)) body: MatchTimerActionInput,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.matchesService.timerAction(matchId, body.action, user);
   }
 
   @Post(':id/events')
