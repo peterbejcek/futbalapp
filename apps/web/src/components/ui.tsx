@@ -52,7 +52,7 @@ export function Modal({
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4">
       <div className={`mt-10 w-full border border-[#435461] bg-white shadow-2xl ${wide ? 'max-w-3xl' : 'max-w-lg'}`}>
         <div className="flex items-center justify-between border-b border-club-100 px-5 py-3">
-          <h2 className="font-semibold text-club-900">{title}</h2>
+          <h2 className="fk-h-sm text-xl font-bold text-club-900">{title}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white" aria-label="Zavrieť">
             ✕
           </button>
@@ -64,7 +64,7 @@ export function Modal({
 }
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-lg border border-club-100 bg-white p-5 ${className}`}>{children}</div>;
+  return <div className={`fk-card ${className}`}>{children}</div>;
 }
 
 export function ErrorText({ children }: { children: ReactNode }) {

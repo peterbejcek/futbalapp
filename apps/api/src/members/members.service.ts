@@ -919,13 +919,18 @@ export class MembersService {
    *  - ADMIN/MANAGER: všetci hráči s preukazom,
    *  - COACH: hráči z jeho družstiev,
    *  - PLAYER/PARENT: vlastný preukaz + preukazy detí.
+   * Vždy iba AKTÍVNI členovia (status ACTIVE).
    * Zoradené od najskoršej platnosti; po platnosti sú zvýraznené (expired).
    */
   async registrationCards(user: AuthUser) {
     const staff = user.roles.some((r) => r.role === 'ADMIN' || r.role === 'MANAGER');
     const teamIds = user.roles.filter((r) => r.role === 'COACH' && r.teamId).map((r) => r.teamId as string);
 
-    let where: Record<string, unknown> = { isDemo: user.isDemo, registrationValidUntil: { not: null } };
+    let where: Record<string, unknown> = {
+      isDemo: user.isDemo,
+      status: 'ACTIVE' as MemberStatus,
+      registrationValidUntil: { not: null },
+    };
     if (!staff) {
       const or: Array<Record<string, unknown>> = [];
       if (teamIds.length) {
@@ -944,6 +949,7 @@ export class MembersService {
       where = {
         AND: [
           { isDemo: user.isDemo },
+          { status: 'ACTIVE' as MemberStatus },
           { OR: or },
           { NOT: { user: { roles: { some: { role: { in: ['ADMIN', 'MANAGER', 'COACH', 'PARENT'] as never } } } } } },
         ],

@@ -107,25 +107,27 @@ export default function DashboardPage() {
       </div>
 
       {canManage(me) && (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Link
             href="/portal/prehlady/dochadzka"
-            className="flex items-center gap-3 rounded-lg border border-club-100 bg-white p-4 shadow-sm hover:border-club-300"
+            className="fk-card fk-link flex items-center gap-4"
           >
-            <span className="text-2xl">📋</span>
+            <span className="text-3xl">📋</span>
             <span>
-              <span className="block font-semibold text-club-800">Dochádzka</span>
-              <span className="block text-xs text-gray-500">Dochádzkový list družstva za mesiac</span>
+              <span className="fk-kicker">Dochádzka</span>
+              <span className="fk-title mt-1">Dochádzka</span>
+              <span className="fk-desc mt-1 block">Dochádzkový list družstva za mesiac</span>
             </span>
           </Link>
           <Link
             href="/portal/ulohy"
-            className="flex items-center gap-3 rounded-lg border border-club-100 bg-white p-4 shadow-sm hover:border-club-300"
+            className="fk-card fk-link flex items-center gap-4"
           >
-            <span className="text-2xl">✅</span>
+            <span className="text-3xl">✅</span>
             <span>
-              <span className="block font-semibold text-club-800">Úlohy</span>
-              <span className="block text-xs text-gray-500">Zadania a ich plnenie</span>
+              <span className="fk-kicker">Úlohy</span>
+              <span className="fk-title mt-1">Úlohy</span>
+              <span className="fk-desc mt-1 block">Zadania a ich plnenie</span>
             </span>
           </Link>
         </div>
@@ -152,7 +154,7 @@ const MONTHS_SK = ['JAN', 'FEB', 'MAR', 'APR', 'MÁJ', 'JÚN', 'JÚL', 'AUG', 'S
 function EventList({ title, events }: { title: string; events: EventItem[] }) {
   return (
     <section>
-      <h2 className="mb-3 text-2xl font-bold text-club-900">{title}</h2>
+      <h2 className="mb-3 font-bold text-club-900">{title}</h2>
       {events.length === 0 ? (
         <Card className="text-sm text-gray-500">Zatiaľ žiadne naplánované.</Card>
       ) : (
@@ -242,9 +244,9 @@ function PlayersByGroup() {
 
   return (
     <section className="space-y-3">
-      <div className="flex items-baseline justify-between">
-        <h2 className="font-semibold text-club-800">Hráči podľa skupín</h2>
-        <Link href="/portal/clenovia" className="text-xs text-club-600 hover:underline">
+      <div className="flex items-end justify-between">
+        <h2 className="font-bold text-club-900">Hráči podľa skupín</h2>
+        <Link href="/portal/clenovia" className="text-sm font-semibold text-club-700 hover:text-[#c8f567]">
           Všetci členovia →
         </Link>
       </div>
@@ -257,18 +259,21 @@ function PlayersByGroup() {
             return (
               <div
                 key={group}
-                className="rounded-lg border p-4"
-                style={{ backgroundColor: c.bg, borderColor: c.text + '33' }}
+                className="fk-grp"
+                style={{ backgroundColor: c.bg, borderColor: c.text + '55', borderTopColor: c.text }}
               >
-                <div className="flex items-baseline justify-between border-b pb-1" style={{ borderColor: c.text + '22' }}>
-                  <span className="font-semibold" style={{ color: c.text }}>
+                <div className="flex items-center justify-between gap-2 border-b pb-2" style={{ borderColor: c.text + '33' }}>
+                  <span
+                    className="px-2 py-0.5 text-[11px] font-bold uppercase tracking-[1.4px]"
+                    style={{ backgroundColor: c.text, color: '#080e13' }}
+                  >
                     {group}
                   </span>
-                  <span className="text-xs" style={{ color: c.text }}>
+                  <span className="font-[family-name:var(--head-font)] text-3xl font-extrabold leading-none text-white">
                     {g.players.length}
                   </span>
                 </div>
-                <ul className="mt-1 max-h-48 space-y-0.5 overflow-y-auto text-sm" style={{ color: c.text }}>
+                <ul className="mt-2 max-h-48 space-y-0.5 overflow-y-auto text-sm text-[#f2f5f5]">
                   {g.players
                     .sort((a, b) => (a.lastName + a.firstName).localeCompare(b.lastName + b.firstName, 'sk'))
                     .map((p) => (
@@ -317,7 +322,7 @@ function MatchConfirmations() {
 
   return (
     <section className="space-y-3">
-      <h2 className="font-semibold text-club-800">Potvrdenie účasti na zápase</h2>
+      <h2 className="font-bold text-club-900">Potvrdenie účasti na zápase</h2>
       <ul className="divide-y divide-club-100 rounded-lg border border-club-100 bg-white">
         {noms.map((n) => {
           const c = categoryColor(n.category);
@@ -385,36 +390,36 @@ function RegistrationCards({ staff }: { staff: boolean }) {
 
   return (
     <section className="space-y-3">
-      <div className="flex items-baseline justify-between">
-        <h2 className="font-semibold text-club-800">
+      <div className="flex items-end justify-between">
+        <h2 className="font-bold text-club-900">
           {staff ? 'Platnosť registračných preukazov' : 'Registračný preukaz'}
         </h2>
         {staff && (expiredCount > 0 || soonCount > 0) && (
-          <span className="text-xs text-gray-500">
-            {expiredCount > 0 && <span className="font-semibold text-red-600">{expiredCount} po platnosti</span>}
+          <span className="text-sm text-gray-500">
+            {expiredCount > 0 && <span className="font-bold text-[#ff6b89]">{expiredCount} po platnosti</span>}
             {expiredCount > 0 && soonCount > 0 && ' · '}
-            {soonCount > 0 && <span className="text-amber-600">{soonCount} do 30 dní</span>}
+            {soonCount > 0 && <span className="font-bold text-[#f0c05a]">{soonCount} do 30 dní</span>}
           </span>
         )}
       </div>
-      <ul className="divide-y divide-club-100 rounded-lg border border-club-100 bg-white">
+      <ul className="border border-club-100 bg-white">
         {shown.map((c) => {
           const until = new Date(c.registrationValidUntil).toLocaleDateString('sk-SK');
           const badgeCls = c.expired
-            ? 'bg-red-100 text-red-700'
+            ? 'bg-[#4a1a28] text-[#ff6b89]'
             : c.daysLeft <= 30
-              ? 'bg-amber-100 text-amber-700'
-              : 'bg-gray-100 text-gray-600';
+              ? 'bg-[#3d2e0e] text-[#f0c05a]'
+              : 'bg-[#163a25] text-[#86e0a0]';
           return (
-            <li key={c.id} className="flex items-center justify-between px-4 py-2.5">
+            <li key={c.id} className="fk-row flex items-center justify-between px-4 py-3 last:border-b-0">
               <div className="min-w-0">
-                <span className="font-medium text-club-900">
+                <span className="fk-row-name font-semibold text-club-900">
                   {c.lastName} {c.firstName}
                 </span>
                 {staff && c.team && <span className="ml-2 text-xs text-gray-500">{c.team}</span>}
               </div>
               <div className="flex items-center gap-2 whitespace-nowrap">
-                <span className={`rounded px-2 py-0.5 text-xs font-medium ${badgeCls}`}>
+                <span className={`rounded px-2 py-0.5 text-xs font-bold ${badgeCls}`}>
                   {c.expired ? `po platnosti (${until})` : `do ${until}`}
                 </span>
                 {!c.expired && (
@@ -444,11 +449,11 @@ function StaffTiles() {
   const [members, setMembers] = useState<number | null>(null);
   const [debtors, setDebtors] = useState<number | null>(null);
   useEffect(() => {
-    api<unknown[]>('/members').then((m) => setMembers(m.length)).catch(() => {});
+    api<unknown[]>('/members?status=ACTIVE').then((m) => setMembers(m.length)).catch(() => {});
     api<unknown[]>('/finance/debtors').then((d) => setDebtors(d.length)).catch(() => {});
   }, []);
   return (
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="grid gap-4 sm:grid-cols-3">
       <Tile label="Aktívnych členov" value={members} href="/portal/clenovia" />
       <Tile label="Dlžníkov" value={debtors} href="/portal/platby" danger={!!debtors} />
       <Tile label="Registrácie" value={null} href="/portal/registracie" hint="Na schválenie" />
@@ -470,12 +475,11 @@ function Tile({
   hint?: string;
 }) {
   return (
-    <Link href={href}>
-      <Card className="hover:border-club-300">
-        <div className={`text-3xl font-bold ${danger ? 'text-red-600' : 'text-club-700'}`}>
-          {value ?? (hint ? '→' : '…')}
-        </div>
-        <div className="text-sm text-gray-500">{label}</div>
+    <Link href={href} className="block">
+      <Card className="h-full">
+        <span className="fk-kicker">{label}</span>
+        <div className={`fk-num ${danger ? 'fk-danger' : ''}`}>{value ?? (hint ? '→' : '…')}</div>
+        <p className="fk-desc">{hint ?? 'Zobraziť zoznam'}</p>
       </Card>
     </Link>
   );
@@ -484,7 +488,7 @@ function Tile({
 function ChildrenPayments({ children }: { children: Array<{ id: string; firstName: string; lastName: string }> }) {
   return (
     <section className="space-y-3">
-      <h2 className="font-semibold text-club-800">Moje deti</h2>
+      <h2 className="font-bold text-club-900">Moje deti</h2>
       <div className="grid gap-3 sm:grid-cols-2">
         {children.map((c) => (
           <MyPayments key={c.id} memberId={c.id} name={`${c.firstName} ${c.lastName}`} />
