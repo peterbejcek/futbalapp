@@ -50,7 +50,13 @@ services:
       # Verejné API (klubový web) — voliteľné
       CLUB_NAME: ${CLUB_NAME:-}
       CLUB_TIMEZONE: ${CLUB_TIMEZONE:-}
+      # Videá zo zápasov nahrané z telefónu — ukladajú sa na disk (named volume nižšie)
+      UPLOADS_DIR: /data/uploads
+      MAX_VIDEO_MB: ${MAX_VIDEO_MB:-500}
       PORT: 3001
+    volumes:
+      # súbory prežijú rebuild/reštart kontajnera
+      - uploads_data:/data/uploads
     # migrácie prebehnú automaticky pri štarte (viď Dockerfile.api CMD)
 
   web:
@@ -84,5 +90,6 @@ services:
 
 volumes:
   postgres_data:
+  uploads_data:
   caddy_data:
   caddy_config:

@@ -15,11 +15,12 @@ import {
   type MatchTimerPhase,
   type SurfaceCode,
 } from '@fkknv/shared';
-import { api, apiUpload, API_URL } from '@/lib/api';
+import { api } from '@/lib/api';
 import { coachTeams, isStaff, useMe } from '@/lib/auth';
 import { Button, Card } from '@/components/ui';
 import { EventAdminActions } from '@/components/event-admin-actions';
 import { CrossNomination } from '@/components/cross-nomination';
+import { MatchMedia, type MatchPhotoItem, type MatchVideoItem } from '@/components/match-media';
 
 interface Member {
   id: string;
@@ -69,7 +70,9 @@ interface MatchDetail {
   };
   nominations: Nomination[];
   events: MatchEventRow[];
-  photos: Array<{ id: string; mimeType: string; size: number; createdAt: string }>;
+  photos: MatchPhotoItem[];
+  /** Videá nahrané z telefónu (staršie API pole nemusí posielať). */
+  videos?: MatchVideoItem[];
 }
 
 // logo nášho klubu (FK Košická Nová Ves) z futbalnetu
@@ -231,7 +234,6 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   const [videoBusy, setVideoBusy] = useState(false);
   const [veoBusy, setVeoBusy] = useState(false);
   const [veoCandidates, setVeoCandidates] = useState<Array<{ url: string; title: string; recordedAt: string | null }> | null>(null);
-  const [photoBusy, setPhotoBusy] = useState(false);
   const [halfDraft, setHalfDraft] = useState(String(DEFAULT_HALF_LENGTH_MIN));
   const [timerBusy, setTimerBusy] = useState(false);
   // minúta/nadstavenie udalosti sa predvypĺňa z časomiery, kým ju používateľ ručne neprepíše
@@ -417,32 +419,6 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
       setError(e instanceof Error ? e.message : 'Hľadanie Veo videa zlyhalo');
     } finally {
       setVeoBusy(false);
-    }
-  }
-
-  async function uploadPhotos(files: FileList | null) {
-    if (!files || !files.length) return;
-    setPhotoBusy(true);
-    setError(null);
-    try {
-      for (const file of Array.from(files)) {
-        await apiUpload(`/matches/${id}/photos`, file);
-      }
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Nahratie fotky zlyhalo');
-    } finally {
-      setPhotoBusy(false);
-    }
-  }
-
-  async function deletePhoto(photoId: string) {
-    setError(null);
-    try {
-      await api(`/matches/${id}/photos/${photoId}`, { method: 'DELETE' });
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Zmazanie fotky zlyhalo');
     }
   }
 
@@ -729,137 +705,101 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
         <Card>
           <h2 className="mb-3 font-semibold text-club-800">Video a fotky zo zápasu</h2>
 
-          {/* Video */}
-          {manage ? (
-            <div className="space-y-2">
-              <label className="block text-xs font-medium text-gray-600">Video zápasu (odkaz, napr. Veo)</label>
-              <div className="flex flex-wrap gap-2">
-                <input
-                  value={videoDraft}
-                  onChange={(e) => setVideoDraft(e.target.value)}
-                  placeholder="https://app.veo.co/matches/…"
-                  className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
-                />
-                <Button variant="ghost" onClick={() => saveVideo(videoDraft || null)} disabled={videoBusy}>
-                  {videoBusy ? 'Ukladám…' : 'Uložiť odkaz'}
-                </Button>
-                <Button onClick={findVeoVideo} disabled={veoBusy}>
-                  {veoBusy ? 'Hľadám…' : 'Nájsť video (Veo)'}
-                </Button>
-              </div>
-              {veoCandidates && (
-                <div className="rounded-md border border-club-100 bg-club-50 p-2">
-                  <p className="mb-1 text-xs text-gray-600">Nájdených viac videí — vyberte správne:</p>
-                  <ul className="space-y-1">
-                    {veoCandidates.map((c) => (
-                      <li key={c.url} className="flex items-center justify-between gap-2 text-sm">
-                        <span className="truncate">
-                          {c.title}
-                          {c.recordedAt ? ` · ${formatEventDateTimeSk(c.recordedAt)}` : ''}
-                        </span>
-                        <Button variant="ghost" onClick={() => saveVideo(c.url)}>
-                          Vybrať
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
+          {/* Nahrávanie fotiek/videí z telefónu + galéria (navrchu, výrazne) */}
+          <MatchMedia
+            matchId={id}
+            manage={manage}
+            photos={match.photos}
+            videos={match.videos ?? []}
+            onChanged={load}
+          />
+
+          {/* Odkazy na video (Veo) a highlighty */}
+          <div className="mt-5 border-t border-club-100 pt-4">
+            {manage ? (
+              <div className="space-y-2">
+                <label className="block text-xs font-medium text-gray-600">Video zápasu (odkaz, napr. Veo)</label>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    value={videoDraft}
+                    onChange={(e) => setVideoDraft(e.target.value)}
+                    placeholder="https://app.veo.co/matches/…"
+                    className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  />
+                  <Button variant="ghost" onClick={() => saveVideo(videoDraft || null)} disabled={videoBusy}>
+                    {videoBusy ? 'Ukladám…' : 'Uložiť odkaz'}
+                  </Button>
+                  <Button onClick={findVeoVideo} disabled={veoBusy}>
+                    {veoBusy ? 'Hľadám…' : 'Nájsť video (Veo)'}
+                  </Button>
                 </div>
-              )}
-              {match.videoUrl && (
-                <div className="flex items-center gap-2 text-sm">
+                {veoCandidates && (
+                  <div className="rounded-md border border-club-100 bg-club-50 p-2">
+                    <p className="mb-1 text-xs text-gray-600">Nájdených viac videí — vyberte správne:</p>
+                    <ul className="space-y-1">
+                      {veoCandidates.map((c) => (
+                        <li key={c.url} className="flex items-center justify-between gap-2 text-sm">
+                          <span className="truncate">
+                            {c.title}
+                            {c.recordedAt ? ` · ${formatEventDateTimeSk(c.recordedAt)}` : ''}
+                          </span>
+                          <Button variant="ghost" onClick={() => saveVideo(c.url)}>
+                            Vybrať
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {match.videoUrl && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <a href={match.videoUrl} target="_blank" rel="noopener noreferrer" className="text-club-700 underline">
+                      ▶ Video zápasu
+                    </a>
+                    <button onClick={() => saveVideo(null)} className="text-xs text-red-600 hover:underline">
+                      odstrániť
+                    </button>
+                  </div>
+                )}
+
+                <label className="block pt-2 text-xs font-medium text-gray-600">Highlighty (odkaz)</label>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    value={highlightsDraft}
+                    onChange={(e) => setHighlightsDraft(e.target.value)}
+                    placeholder="https://…"
+                    className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  />
+                  <Button variant="ghost" onClick={() => saveHighlights(highlightsDraft || null)} disabled={videoBusy}>
+                    {videoBusy ? 'Ukladám…' : 'Uložiť odkaz'}
+                  </Button>
+                </div>
+                {match.highlightsUrl && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <a href={match.highlightsUrl} target="_blank" rel="noopener noreferrer" className="text-club-700 underline">
+                      ▶ Highlighty
+                    </a>
+                    <button onClick={() => saveHighlights(null)} className="text-xs text-red-600 hover:underline">
+                      odstrániť
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : match.videoUrl || match.highlightsUrl ? (
+              <div className="flex flex-wrap gap-4 text-sm">
+                {match.videoUrl && (
                   <a href={match.videoUrl} target="_blank" rel="noopener noreferrer" className="text-club-700 underline">
                     ▶ Video zápasu
                   </a>
-                  <button onClick={() => saveVideo(null)} className="text-xs text-red-600 hover:underline">
-                    odstrániť
-                  </button>
-                </div>
-              )}
-
-              <label className="block pt-2 text-xs font-medium text-gray-600">Highlighty (odkaz)</label>
-              <div className="flex flex-wrap gap-2">
-                <input
-                  value={highlightsDraft}
-                  onChange={(e) => setHighlightsDraft(e.target.value)}
-                  placeholder="https://…"
-                  className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
-                />
-                <Button variant="ghost" onClick={() => saveHighlights(highlightsDraft || null)} disabled={videoBusy}>
-                  {videoBusy ? 'Ukladám…' : 'Uložiť odkaz'}
-                </Button>
-              </div>
-              {match.highlightsUrl && (
-                <div className="flex items-center gap-2 text-sm">
+                )}
+                {match.highlightsUrl && (
                   <a href={match.highlightsUrl} target="_blank" rel="noopener noreferrer" className="text-club-700 underline">
                     ▶ Highlighty
                   </a>
-                  <button onClick={() => saveHighlights(null)} className="text-xs text-red-600 hover:underline">
-                    odstrániť
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : match.videoUrl || match.highlightsUrl ? (
-            <div className="flex flex-wrap gap-4 text-sm">
-              {match.videoUrl && (
-                <a href={match.videoUrl} target="_blank" rel="noopener noreferrer" className="text-club-700 underline">
-                  ▶ Video zápasu
-                </a>
-              )}
-              {match.highlightsUrl && (
-                <a href={match.highlightsUrl} target="_blank" rel="noopener noreferrer" className="text-club-700 underline">
-                  ▶ Highlighty
-                </a>
-              )}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500">Video zatiaľ nie je pridané.</p>
-          )}
-
-          {/* Fotky */}
-          <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-medium text-gray-700">Fotky ({match.photos.length})</h3>
-              {manage && (
-                <label className="cursor-pointer text-sm text-club-700 hover:underline">
-                  {photoBusy ? 'Nahrávam…' : '+ Pridať fotky'}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    disabled={photoBusy}
-                    onChange={(e) => uploadPhotos(e.target.files)}
-                  />
-                </label>
-              )}
-            </div>
-            {match.photos.length ? (
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                {match.photos.map((p) => (
-                  <div key={p.id} className="group relative">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <a href={`${API_URL}/matches/photos/${p.id}`} target="_blank" rel="noopener noreferrer">
-                      <img
-                        src={`${API_URL}/matches/photos/${p.id}`}
-                        alt="Fotka zo zápasu"
-                        className="aspect-square w-full rounded-md object-cover"
-                      />
-                    </a>
-                    {manage && (
-                      <button
-                        onClick={() => deletePhoto(p.id)}
-                        className="absolute right-1 top-1 hidden rounded bg-black/60 px-1.5 text-xs text-white group-hover:block"
-                        title="Zmazať fotku"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                ))}
+                )}
               </div>
             ) : (
-              <p className="text-sm text-gray-500">Zatiaľ žiadne fotky.</p>
+              <p className="text-sm text-gray-500">Odkaz na video (Veo) zatiaľ nie je pridaný.</p>
             )}
           </div>
         </Card>

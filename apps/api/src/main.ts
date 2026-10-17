@@ -19,6 +19,10 @@ async function bootstrap() {
   });
   const port = Number(process.env.PORT ?? 3001);
   await app.listen(port);
+  // Node 18+ má predvolený requestTimeout 5 min — nahrávanie videa (stovky MB cez
+  // mobilné dáta) by to nestihlo. Upload sa streamuje na disk, preto stačí dlhý limit.
+  const server = app.getHttpServer() as import('node:http').Server;
+  server.requestTimeout = Number(process.env.UPLOAD_TIMEOUT_MIN ?? 60) * 60 * 1000;
   // eslint-disable-next-line no-console
   console.log(`FKKNV API beží na porte ${port}`);
 }

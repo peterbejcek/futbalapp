@@ -51,3 +51,58 @@ export async function apiUpload<T>(path: string, file: File, field = 'file'): Pr
   }
   return response.json() as Promise<T>;
 }
+
+/** Priebežný upload s možnosťou zrušiť (XMLHttpRequest kvôli priebehu nahrávania). */
+export interface UploadHandle<T> {
+  promise: Promise<T>;
+  abort: () => void;
+}
+
+/**
+ * Upload súboru s priebehom (onProgress 0–1) — fetch neposkytuje priebeh odosielania,
+ * preto XMLHttpRequest. Vhodné pre veľké videá z telefónu.
+ */
+export function apiUploadWithProgress<T>(
+  path: string,
+  file: File,
+  onProgress?: (fraction: number) => void,
+  extra?: Record<string, string>,
+  field = 'file',
+): UploadHandle<T> {
+  const xhr = new XMLHttpRequest();
+  const promise = new Promise<T>((resolve, reject) => {
+    const form = new FormData();
+    // textové polia pred súborom — multer ich má k dispozícii hneď
+    for (const [k, v] of Object.entries(extra ?? {})) form.append(k, v);
+    form.append(field, file);
+    xhr.open('POST', `${API_URL}${path}`);
+    const token = getToken();
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+    };
+    xhr.onload = () => {
+      if (xhr.status === 401 && typeof window !== 'undefined') {
+        setToken(null);
+        window.location.href = '/prihlasenie';
+      }
+      let body: { message?: string | string[] } = {};
+      try {
+        body = JSON.parse(xhr.responseText || '{}');
+      } catch {
+        // nie JSON
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(body as T);
+        return;
+      }
+      const msg = Array.isArray(body.message) ? body.message.join(', ') : body.message;
+      if (xhr.status === 413) reject(new Error('Súbor je príliš veľký'));
+      else reject(new Error(msg ?? `Chyba servera (${xhr.status})`));
+    };
+    xhr.onerror = () => reject(new Error('Sieťová chyba pri nahrávaní — skúste znova (ideálne cez Wi-Fi)'));
+    xhr.onabort = () => reject(new Error('Nahrávanie zrušené'));
+    xhr.send(form);
+  });
+  return { promise, abort: () => xhr.abort() };
+}

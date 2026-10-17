@@ -33,6 +33,8 @@ www.fkknv.sk {
 }
 
 # API (NestJS) — vrátane WebSocket chatu (Caddy rieši upgrade automaticky)
+# Veľkosť tela požiadavky Caddy predvolene neobmedzuje (upload videí z telefónu
+# až MAX_VIDEO_MB) — limit vynucuje API. Videá (video/*) encode gzip nekomprimuje.
 api.fkknv.sk {
 	reverse_proxy api:3001
 	encode gzip

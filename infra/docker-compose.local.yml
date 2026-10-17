@@ -42,6 +42,9 @@ services:
       PORT: 3001
       SEED_ADMIN_EMAIL: admin@fkknv.sk
       SEED_ADMIN_PASSWORD: fkknv-admin
+      UPLOADS_DIR: /data/uploads
+    volumes:
+      - local_uploads:/data/uploads
     # migrácie + seed (idempotentný — kategórie, sezóna 2026/2027, admin) + štart
     # (spúšťa sa v /repo/apps/api — WORKDIR z Dockerfile.api)
     # POZOR: musí byť jeden riadok — YAML blok by rozbil sh -c skript novými riadkami
@@ -63,3 +66,4 @@ services:
 
 volumes:
   local_pg_data:
+  local_uploads:

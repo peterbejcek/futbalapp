@@ -27,8 +27,8 @@ export class MatchesService {
     private readonly veo: VeoService,
   ) {}
 
-  /** Tréner smie spravovať zápas len svojho družstva. */
-  private async assertMatchTeam(matchId: string, user: AuthUser) {
+  /** Tréner smie spravovať zápas len svojho družstva (používa aj MatchVideosService). */
+  async assertMatchTeam(matchId: string, user: AuthUser) {
     const match = await this.prisma.match.findUnique({
       where: { id: matchId },
       select: { event: { select: { teamId: true } } },
@@ -56,6 +56,10 @@ export class MatchesService {
           orderBy: [{ minute: 'asc' }, { createdAt: 'asc' }],
         },
         photos: { select: { id: true, mimeType: true, size: true, createdAt: true }, orderBy: { createdAt: 'asc' } },
+        videos: {
+          select: { id: true, mimeType: true, size: true, filename: true, title: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
+        },
       },
     });
     if (!match) throw new NotFoundException('Zápas neexistuje');
@@ -81,6 +85,7 @@ export class MatchesService {
         highlightsUrl: true,
         event: { select: { title: true, startAt: true, team: { select: { name: true } } } },
         photos: { select: { id: true }, orderBy: { createdAt: 'asc' } },
+        videos: { select: { id: true, mimeType: true, title: true }, orderBy: { createdAt: 'asc' } },
       },
       orderBy: { event: { startAt: 'desc' } },
       take: 200,
