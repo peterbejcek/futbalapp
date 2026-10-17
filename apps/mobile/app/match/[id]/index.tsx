@@ -1,14 +1,23 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Alert, FlatList, Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Image, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Link, useLocalSearchParams } from 'expo-router';
 import * as Crypto from 'expo-crypto';
 import * as ImagePicker from 'expo-image-picker';
-import { MATCH_EVENT_LABELS_SK, formatEventTimeSk, type MatchEventType } from '@fkknv/shared';
+import {
+  DEFAULT_HALF_LENGTH_MIN,
+  MATCH_EVENT_LABELS_SK,
+  computeMatchClock,
+  formatEventTimeSk,
+  type MatchEventType,
+  type MatchTimerAction,
+} from '@fkknv/shared';
 import { API_URL, api, getToken } from '@/api';
 import { canManageTeam, fetchMe, type Me } from '@/auth';
 import { enqueue, flush } from '@/offline';
-import { colors } from '@/theme';
+import { ui } from '@/theme';
 import { JerseySwatch } from '@/JerseySwatch';
+import { KeyboardScreen } from '@/KeyboardScreen';
+import { MatchTimerCard, timerOf, type MatchTimerFields } from '@/MatchTimerCard';
 
 interface Nomination {
   id: string;
@@ -23,7 +32,7 @@ interface MatchEventRow {
   member: { lastName: string } | null;
 }
 
-interface MatchDetail {
+interface MatchDetail extends MatchTimerFields {
   id: string;
   opponent: string;
   isHome: boolean;
@@ -69,12 +78,20 @@ export default function MatchLiveScreen() {
   const [videoBusy, setVideoBusy] = useState(false);
   const [veoBusy, setVeoBusy] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [halfDraft, setHalfDraft] = useState(String(DEFAULT_HALF_LENGTH_MIN));
+  const [timerBusy, setTimerBusy] = useState(false);
+  // minúta/nadstavenie udalosti sa predvypĺňa z časomiery, kým ju používateľ ručne neprepíše
+  const [minuteAuto, setMinuteAuto] = useState(true);
+  // posun hodín servera voči telefónu (ms) a tikajúci „teraz" pre časomieru
+  const clockOffset = useRef(0);
+  const [now, setNow] = useState(() => Date.now());
 
   const load = useCallback(async () => {
     const { pending: p } = await flush();
     setPending(p);
     try {
       const detail = await api<MatchDetail>(`/matches/${id}`);
+      if (detail.serverNow) clockOffset.current = new Date(detail.serverNow).getTime() - Date.now();
       setMatch(detail);
     } catch {
       // offline — pracujeme s poslednym stavom
@@ -87,6 +104,53 @@ export default function MatchLiveScreen() {
   useEffect(() => {
     fetchMe().then(setMe).catch(() => {});
   }, []);
+
+  const timerPhase = match?.timerPhase ?? 'NOT_STARTED';
+  const timerRunning = timerPhase === 'FIRST_HALF' || timerPhase === 'SECOND_HALF';
+
+  // tikanie časomiery (zobrazenie sa počíta z časových značiek servera)
+  useEffect(() => {
+    const tick = () => setNow(Date.now() + clockOffset.current);
+    tick();
+    if (!timerRunning) return;
+    const h = setInterval(tick, 1000);
+    return () => clearInterval(h);
+  }, [timerRunning, match?.firstHalfStartedAt, match?.secondHalfStartedAt, match?.serverNow]);
+
+  // počas živého zápasu obnovuj stav (časomiera, skóre, udalosti) a odosielaj offline frontu
+  useEffect(() => {
+    if (match?.state !== 'LIVE') return;
+    const h = setInterval(() => {
+      void load().catch(() => undefined);
+    }, 30_000);
+    return () => clearInterval(h);
+  }, [match?.state, load]);
+
+  useEffect(() => {
+    if (match) setHalfDraft(String(match.halfLengthMin ?? DEFAULT_HALF_LENGTH_MIN));
+  }, [match?.halfLengthMin]);
+
+  // predvyplnenie minúty udalosti z časomiery
+  const clock = match ? computeMatchClock(timerOf(match), now) : null;
+  const timerMinute = clock && clock.phase !== 'NOT_STARTED' ? clock : null;
+  useEffect(() => {
+    if (!minuteAuto || !timerMinute) return;
+    setMinute(String(timerMinute.minute));
+    setStoppage(timerMinute.stoppage ? String(timerMinute.stoppage) : '');
+  }, [minuteAuto, timerMinute?.minute, timerMinute?.stoppage]);
+
+  async function timerAction(action: MatchTimerAction) {
+    setTimerBusy(true);
+    try {
+      await api(`/matches/${id}/timer`, { method: 'POST', body: JSON.stringify({ action }) });
+      await load();
+      setMinuteAuto(true);
+    } catch (e) {
+      Alert.alert('Časomiera', e instanceof Error ? e.message : 'Akcia zlyhala');
+    } finally {
+      setTimerBusy(false);
+    }
+  }
 
   // skóre v poliach drž zosynchronizované s načítaným zápasom
   useEffect(() => {
@@ -108,6 +172,11 @@ export default function MatchLiveScreen() {
 
   async function saveDetails() {
     if (!match) return;
+    const halfLengthMin = Math.trunc(Number(halfDraft));
+    if (!(halfLengthMin >= 1 && halfLengthMin <= 60)) {
+      Alert.alert('Chyba', 'Dĺžka polčasu musí byť 1–60 minút.');
+      return;
+    }
     setDetailsBusy(true);
     try {
       const start = new Date(match.event.startAt);
@@ -115,9 +184,12 @@ export default function MatchLiveScreen() {
       const meetAt = m
         ? new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate(), Number(m[1]), Number(m[2]))).toISOString()
         : null;
-      await api(`/matches/${id}/details`, { method: 'POST', body: JSON.stringify({ meetAt, notes: notesDraft }) });
+      await api(`/matches/${id}/details`, {
+        method: 'POST',
+        body: JSON.stringify({ meetAt, notes: notesDraft, halfLengthMin }),
+      });
       await load();
-      Alert.alert('Uložené', 'Zraz a poznámky boli uložené.');
+      Alert.alert('Uložené', 'Nastavenia zápasu boli uložené.');
     } catch (e) {
       Alert.alert('Chyba', e instanceof Error ? e.message : 'Uloženie zlyhalo');
     } finally {
@@ -272,8 +344,14 @@ export default function MatchLiveScreen() {
       Alert.alert('Vyberte hráča', 'Najprv ťuknite na hráča v zozname nižšie.');
       return;
     }
-    const min = Number(minute) || 0;
-    const stop = Number(stoppage) > 0 ? Number(stoppage) : undefined;
+    let min = Number(minute) || 0;
+    let stop = Number(stoppage) > 0 ? Number(stoppage) : undefined;
+    if (minuteAuto && match && timerMinute) {
+      // automaticky: presná minúta z časomiery v okamihu ťuknutia
+      const c = computeMatchClock(timerOf(match), Date.now() + clockOffset.current);
+      min = c.minute;
+      stop = c.stoppage;
+    }
     const payload = {
       clientId: Crypto.randomUUID(),
       minute: min,
@@ -304,12 +382,13 @@ export default function MatchLiveScreen() {
     const { pending: p } = await enqueue({ kind: 'matchEvent', matchId: id, payload });
     setPending(p);
     setSelected(null);
+    setMinuteAuto(true);
   }
 
   if (!match) {
     return (
       <View style={styles.center}>
-        <Text style={{ color: colors.gray }}>Načítavam zápas…</Text>
+        <Text style={{ color: ui.muted }}>Načítavam zápas…</Text>
       </View>
     );
   }
@@ -320,7 +399,7 @@ export default function MatchLiveScreen() {
   const myChildren = me?.children ?? [];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
+    <KeyboardScreen style={styles.container}>
       <Text style={styles.title}>{match.event.title}</Text>
       <Text style={styles.score}>
         {(match.isHome ? match.scoreUs : match.scoreThem) ?? 0} : {(match.isHome ? match.scoreThem : match.scoreUs) ?? 0}
@@ -330,8 +409,10 @@ export default function MatchLiveScreen() {
       </Text>
       {pending > 0 && <Text style={styles.offline}>Offline — {pending} udalostí čaká na odoslanie.</Text>}
 
+      <MatchTimerCard timer={match} matchState={match.state} now={now} manage={canControl} busy={timerBusy} onAction={timerAction} />
+
       {/* Zraz a poznámky */}
-      {canManageTeam(me, match.event.team?.id) ? (
+      {canControl ? (
         <View style={styles.meetBox}>
           <Text style={styles.meetLabel}>Čas zrazu (HH:MM)</Text>
           <TextInput
@@ -339,7 +420,18 @@ export default function MatchLiveScreen() {
             value={meetDraft}
             onChangeText={setMeetDraft}
             placeholder="napr. 15:30"
+            placeholderTextColor={ui.placeholder}
             keyboardType="numbers-and-punctuation"
+          />
+          <Text style={[styles.meetLabel, { marginTop: 8 }]}>Dĺžka polčasu (min)</Text>
+          <TextInput
+            style={[styles.meetInput, { width: 96 }]}
+            value={halfDraft}
+            onChangeText={setHalfDraft}
+            placeholder="45"
+            placeholderTextColor={ui.placeholder}
+            keyboardType="number-pad"
+            maxLength={2}
           />
           <Text style={[styles.meetLabel, { marginTop: 8 }]}>Poznámky k zápasu</Text>
           <TextInput
@@ -347,6 +439,7 @@ export default function MatchLiveScreen() {
             value={notesDraft}
             onChangeText={setNotesDraft}
             placeholder="výstroj, doprava, zraz pri klubovni…"
+            placeholderTextColor={ui.placeholder}
             multiline
           />
           <Text style={[styles.meetLabel, { marginTop: 8 }]}>Dres</Text>
@@ -371,7 +464,7 @@ export default function MatchLiveScreen() {
             onPress={saveDetails}
             disabled={detailsBusy}
           >
-            <Text style={styles.saveScoreText}>{detailsBusy ? 'Ukladám…' : 'Uložiť zraz a poznámky'}</Text>
+            <Text style={styles.saveScoreText}>{detailsBusy ? 'Ukladám…' : 'Uložiť nastavenia'}</Text>
           </Pressable>
         </View>
       ) : (
@@ -387,6 +480,10 @@ export default function MatchLiveScreen() {
               <Text style={styles.meetNotes}>{match.jerseyColor === 'DARK' ? 'tmavý' : 'svetlý'}</Text>
             </View>
           ) : null}
+          <Text style={styles.meetLine}>
+            <Text style={styles.meetLabel}>Polčas: </Text>
+            {match.halfLengthMin ?? DEFAULT_HALF_LENGTH_MIN} min
+          </Text>
           {match.notes ? (
             <Text style={styles.meetNotes}>
               <Text style={styles.meetLabel}>Poznámky: </Text>
@@ -408,6 +505,7 @@ export default function MatchLiveScreen() {
                 value={videoDraft}
                 onChangeText={setVideoDraft}
                 placeholder="https://app.veo.co/matches/…"
+                placeholderTextColor={ui.placeholder}
                 autoCapitalize="none"
                 keyboardType="url"
               />
@@ -433,6 +531,7 @@ export default function MatchLiveScreen() {
                 value={highlightsDraft}
                 onChangeText={setHighlightsDraft}
                 placeholder="https://…"
+                placeholderTextColor={ui.placeholder}
                 autoCapitalize="none"
                 keyboardType="url"
               />
@@ -527,7 +626,7 @@ export default function MatchLiveScreen() {
             </Pressable>
           )}
           {match.state === 'LIVE' && (
-            <Pressable style={[styles.primaryBtn, { backgroundColor: colors.danger }]} onPress={() => setState('FINISHED')}>
+            <Pressable style={[styles.primaryBtn, { backgroundColor: ui.red }]} onPress={() => setState('FINISHED')}>
               <Text style={styles.primaryBtnText}>Ukončiť zápas</Text>
             </Pressable>
           )}
@@ -590,7 +689,10 @@ export default function MatchLiveScreen() {
                 style={styles.numInput}
                 keyboardType="number-pad"
                 value={minute}
-                onChangeText={setMinute}
+                onChangeText={(v) => {
+                  setMinuteAuto(false);
+                  setMinute(v);
+                }}
               />
             </View>
             <Text style={styles.plus}>+</Text>
@@ -600,11 +702,29 @@ export default function MatchLiveScreen() {
                 style={styles.numInput}
                 keyboardType="number-pad"
                 value={stoppage}
-                onChangeText={setStoppage}
+                onChangeText={(v) => {
+                  setMinuteAuto(false);
+                  setStoppage(v);
+                }}
                 placeholder="0"
+                placeholderTextColor={ui.placeholder}
               />
             </View>
           </View>
+
+          {timerMinute && (
+            <View style={styles.autoRow}>
+              {minuteAuto ? (
+                <Text style={styles.autoText}>Minúta sa dopĺňa z časomiery ({timerMinute.label}) — môžete ju ručne upraviť.</Text>
+              ) : (
+                <Pressable onPress={() => setMinuteAuto(true)} hitSlop={8}>
+                  <Text style={styles.autoText}>
+                    Ručne upravená minúta · <Text style={styles.autoLink}>↻ podľa časomiery ({timerMinute.label})</Text>
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          )}
 
           {selected && (
             <Text style={styles.selectedHint}>
@@ -625,23 +745,19 @@ export default function MatchLiveScreen() {
           </View>
 
           <Text style={styles.sectionTitle}>Hráč — ťuknutím vyberte</Text>
-          <FlatList
-            data={match.nominations}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            ListEmptyComponent={<Text style={styles.empty}>Najprv pridajte hráčov cez „Nominácia".</Text>}
-            renderItem={({ item }) => (
-              <Pressable
-                style={[styles.playerRow, selected?.id === item.id && styles.playerRowSelected]}
-                onPress={() => setSelected(selected?.id === item.id ? null : item)}
-              >
-                <Text style={styles.playerName}>
-                  {item.member.lastName} {item.member.firstName}
-                </Text>
-                {selected?.id === item.id && <Text style={styles.check}>✓</Text>}
-              </Pressable>
-            )}
-          />
+          {match.nominations.length === 0 && <Text style={styles.empty}>Najprv pridajte hráčov cez „Nominácia".</Text>}
+          {match.nominations.map((item) => (
+            <Pressable
+              key={item.id}
+              style={[styles.playerRow, selected?.id === item.id && styles.playerRowSelected]}
+              onPress={() => setSelected(selected?.id === item.id ? null : item)}
+            >
+              <Text style={styles.playerName}>
+                {item.member.lastName} {item.member.firstName}
+              </Text>
+              {selected?.id === item.id && <Text style={styles.check}>✓</Text>}
+            </Pressable>
+          ))}
         </>
       )}
 
@@ -656,38 +772,52 @@ export default function MatchLiveScreen() {
           </Text>
         </View>
       ))}
-    </ScrollView>
+    </KeyboardScreen>
   );
 }
 
+const input = {
+  backgroundColor: ui.bg,
+  color: ui.ink,
+  borderWidth: 1,
+  borderColor: ui.line,
+  borderRadius: 8,
+} as const;
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.club50, padding: 16 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 16, fontWeight: '600', color: colors.club900, textAlign: 'center' },
-  score: { fontSize: 48, fontWeight: '800', color: colors.club800, textAlign: 'center', marginVertical: 4 },
-  stateText: { textAlign: 'center', color: colors.club600, fontWeight: '700', marginBottom: 12 },
-  offline: { backgroundColor: '#fef3c7', color: '#92400e', padding: 8, borderRadius: 6, marginBottom: 8, fontSize: 13 },
+  container: { flex: 1, backgroundColor: ui.bg },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: ui.bg },
+  title: { fontSize: 16, fontWeight: '600', color: ui.ink, textAlign: 'center' },
+  score: { fontSize: 48, fontWeight: '800', color: ui.ink, textAlign: 'center', marginVertical: 4, fontVariant: ['tabular-nums'] },
+  stateText: { textAlign: 'center', color: ui.lime, fontWeight: '700', marginBottom: 12 },
+  offline: {
+    backgroundColor: ui.panel,
+    borderWidth: 1,
+    borderColor: ui.warn,
+    color: ui.warn,
+    padding: 8,
+    borderRadius: 6,
+    marginBottom: 8,
+    fontSize: 13,
+  },
   meetBox: {
-    backgroundColor: colors.white,
+    backgroundColor: ui.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     padding: 12,
     marginBottom: 12,
     gap: 4,
   },
-  meetLine: { fontSize: 15, color: colors.club900 },
-  meetNotes: { fontSize: 14, color: colors.club800 },
-  meetLabel: { color: colors.gray },
+  meetLine: { fontSize: 15, color: ui.ink },
+  meetNotes: { fontSize: 14, color: ui.ink },
+  meetLabel: { color: ui.muted },
   meetInput: {
-    borderWidth: 1,
-    borderColor: colors.club100,
-    borderRadius: 8,
+    ...input,
     paddingHorizontal: 10,
     paddingVertical: 8,
     fontSize: 15,
     marginTop: 4,
-    backgroundColor: colors.club50,
   },
   meetNotesInput: { minHeight: 64, textAlignVertical: 'top' },
   jerseyRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
@@ -697,105 +827,106 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  jerseyChipActive: { borderColor: colors.club600, backgroundColor: colors.club50 },
-  jerseyChipText: { color: colors.club900, fontWeight: '600', fontSize: 13 },
+  jerseyChipActive: { borderColor: ui.lime, backgroundColor: ui.panel2 },
+  jerseyChipText: { color: ui.ink, fontWeight: '600', fontSize: 13 },
   videoBtnRow: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
-  primaryBtnSmall: { backgroundColor: colors.club600, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
-  videoLink: { color: colors.club600, fontWeight: '700', marginTop: 8 },
+  primaryBtnSmall: { backgroundColor: ui.blue, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
+  videoLink: { color: ui.blueHi, fontWeight: '700', marginTop: 8 },
   photosHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
-  photoThumb: { width: 72, height: 72, borderRadius: 6, backgroundColor: colors.club100 },
-  photoHint: { color: colors.gray, fontSize: 11, marginTop: 6 },
+  photoThumb: { width: 72, height: 72, borderRadius: 6, backgroundColor: ui.panel2 },
+  photoHint: { color: ui.muted, fontSize: 11, marginTop: 6 },
   scoreEditRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 8, marginBottom: 14 },
   scoreEditCol: { alignItems: 'center' },
-  scoreEditLabel: { fontSize: 11, color: colors.gray, marginBottom: 2 },
-  scoreColon: { fontSize: 20, fontWeight: '800', color: colors.gray, paddingBottom: 8 },
+  scoreEditLabel: { fontSize: 11, color: ui.muted, marginBottom: 2 },
+  scoreColon: { fontSize: 20, fontWeight: '800', color: ui.muted, paddingBottom: 8 },
   saveScoreBtn: {
-    backgroundColor: colors.club100,
+    backgroundColor: ui.panel2,
+    borderWidth: 1,
+    borderColor: ui.line,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     alignSelf: 'flex-end',
   },
-  saveScoreText: { color: colors.club800, fontWeight: '700' },
+  saveScoreText: { color: ui.ink, fontWeight: '700' },
   buttonRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  primaryBtn: { flex: 1, backgroundColor: colors.club600, borderRadius: 8, padding: 14, alignItems: 'center' },
-  primaryBtnText: { color: colors.white, fontWeight: '700' },
+  primaryBtn: { flex: 1, backgroundColor: ui.blue, borderRadius: 8, padding: 14, alignItems: 'center' },
+  primaryBtnText: { color: ui.onAccent, fontWeight: '700' },
   secondaryBtn: {
     flex: 1,
-    borderColor: colors.club600,
+    borderColor: ui.blue,
     borderWidth: 1,
     borderRadius: 8,
     padding: 14,
     alignItems: 'center',
   },
-  secondaryBtnText: { color: colors.club600, fontWeight: '700' },
-  minuteRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 12, marginBottom: 12 },
+  secondaryBtnText: { color: ui.blueHi, fontWeight: '700' },
+  minuteRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 12, marginBottom: 8 },
   minuteCol: { alignItems: 'center' },
-  minuteLabel: { fontSize: 11, color: colors.gray, marginBottom: 2 },
-  plus: { fontSize: 22, fontWeight: '800', color: colors.gray, paddingBottom: 8 },
+  minuteLabel: { fontSize: 11, color: ui.muted, marginBottom: 2 },
+  plus: { fontSize: 22, fontWeight: '800', color: ui.muted, paddingBottom: 8 },
   numInput: {
+    ...input,
     width: 72,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.club100,
-    borderRadius: 8,
     paddingVertical: 8,
     textAlign: 'center',
     fontSize: 18,
     fontWeight: '700',
-    color: colors.club900,
   },
-  selectedHint: { textAlign: 'center', color: colors.club700, marginBottom: 8, fontSize: 13 },
+  autoRow: { alignItems: 'center', marginBottom: 12 },
+  autoText: { color: ui.muted, fontSize: 12, textAlign: 'center' },
+  autoLink: { color: ui.blueHi, fontWeight: '700' },
+  selectedHint: { textAlign: 'center', color: ui.lime, marginBottom: 8, fontSize: 13 },
   actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   actionBtn: {
     flexBasis: '48%',
     flexGrow: 1,
-    backgroundColor: colors.white,
+    backgroundColor: ui.panel,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: 'center',
   },
-  teamActionBtn: { backgroundColor: colors.club50 },
-  actionText: { fontWeight: '700', color: colors.club900, fontSize: 13 },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: colors.club800, marginTop: 8, marginBottom: 8 },
+  teamActionBtn: { backgroundColor: ui.panel2 },
+  actionText: { fontWeight: '700', color: ui.ink, fontSize: 13 },
+  sectionTitle: { fontSize: 14, fontWeight: '700', color: ui.ink, marginTop: 8, marginBottom: 8 },
   playerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: colors.white,
+    backgroundColor: ui.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     padding: 12,
     marginBottom: 6,
   },
-  playerRowSelected: { borderColor: colors.club600, backgroundColor: colors.club100 },
-  playerName: { fontWeight: '600', color: colors.club900 },
-  check: { color: colors.club600, fontWeight: '800' },
+  playerRowSelected: { borderColor: ui.lime, backgroundColor: ui.panel2 },
+  playerName: { fontWeight: '600', color: ui.ink },
+  check: { color: ui.lime, fontWeight: '800' },
   nomBox: { marginBottom: 8 },
   nomChildRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: ui.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.club600,
+    borderColor: ui.blue,
     padding: 12,
     marginBottom: 8,
   },
   nomBadge: { fontSize: 12, fontWeight: '700', borderRadius: 6, paddingVertical: 3, paddingHorizontal: 8, overflow: 'hidden' },
-  nomYes: { backgroundColor: '#dcfce7', color: '#166534' },
-  nomNo: { backgroundColor: '#f3f4f6', color: '#6b7280' },
-  logRow: { flexDirection: 'row', gap: 12, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.club100 },
-  logMinute: { width: 44, fontWeight: '700', color: colors.club600 },
-  logText: { color: colors.club900 },
-  empty: { color: colors.gray, fontSize: 13 },
+  nomYes: { backgroundColor: '#163322', color: ui.ok },
+  nomNo: { backgroundColor: ui.panel2, color: ui.muted },
+  logRow: { flexDirection: 'row', gap: 12, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: ui.line },
+  logMinute: { width: 44, fontWeight: '700', color: ui.lime },
+  logText: { color: ui.ink },
+  empty: { color: ui.muted, fontSize: 13 },
 });
