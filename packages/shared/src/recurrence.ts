@@ -60,3 +60,29 @@ export function generateOccurrences(input: RecurrenceInput): Occurrence[] {
 
 export const WEEKDAY_LABELS_SK = ['Nedeľa', 'Pondelok', 'Utorok', 'Streda', 'Štvrtok', 'Piatok', 'Sobota'];
 export const WEEKDAY_SHORT_SK = ['Ne', 'Po', 'Ut', 'St', 'Št', 'Pi', 'So'];
+
+/** Predvolená dĺžka udalosti v minútach (tréning 90, zápas podľa kategórie, inak 90). */
+export function defaultEventMinutes(type: 'TRAINING' | 'MATCH' | 'TOURNAMENT' | string, categoryCode?: string | null): number {
+  if (type === 'TRAINING') return 90;
+  if (type === 'TOURNAMENT') return 180;
+  switch (categoryCode) {
+    case 'U8':
+    case 'U9':
+      return 60;
+    case 'U10':
+    case 'U11':
+      return 70;
+    case 'U13':
+      return 80;
+    default:
+      return 90;
+  }
+}
+
+/** „HH:MM" + minúty → „HH:MM" (v rámci dňa, max 23:59). */
+export function addMinutesToHhmm(time: string, minutes: number): string {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
+  if (!m) return time;
+  const total = Math.min(23 * 60 + 59, Number(m[1]) * 60 + Number(m[2]) + minutes);
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}

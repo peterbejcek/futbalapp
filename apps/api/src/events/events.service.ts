@@ -133,6 +133,15 @@ export class EventsService {
     return pitch;
   }
 
+  /** Koniec musí byť po začiatku; pri vybranej hracej ploche je povinný. */
+  private assertEndAfterStart(startAt: Date, endAt: Date | null | undefined, pitchSelected: boolean) {
+    if (!endAt) {
+      if (pitchSelected) throw new BadRequestException('Pri vybranej hracej ploche zadajte koniec');
+      return;
+    }
+    if (endAt.getTime() <= startAt.getTime()) throw new BadRequestException('Koniec musí byť po začiatku');
+  }
+
   /** Odmietne rezerváciu, ak sa plocha v danom čase už používa (bez koncového času sa počíta 90 min). */
   private async assertPitchFree(pitchId: string, slots: Array<{ startAt: Date; endAt?: Date | null }>, excludeId?: string) {
     const DEFAULT_MS = 90 * 60_000;
@@ -206,6 +215,7 @@ export class EventsService {
     const team = await this.resolveTeam(input.teamId);
     const isMatch = input.type === 'MATCH' || input.type === 'TOURNAMENT';
     const pitch = await this.resolvePitch(input.pitchId);
+    this.assertEndAfterStart(input.startAt, input.endAt, !!pitch);
     if (pitch) {
       await this.assertPitchFree(pitch.id, [{ startAt: input.startAt, endAt: input.endAt }]);
     }
@@ -275,6 +285,8 @@ export class EventsService {
       throw new BadRequestException('V zadanom období nevznikol žiadny tréning');
     }
     const pitch = await this.resolvePitch(input.pitchId);
+    if (pitch && !input.endTime) throw new BadRequestException('Pri vybranej hracej ploche zadajte koniec');
+    for (const occ of occurrences) this.assertEndAfterStart(occ.startAt, occ.endAt, !!pitch);
     if (pitch) await this.assertPitchFree(pitch.id, occurrences);
     const recurrenceGroupId = randomUUID();
 
@@ -307,12 +319,15 @@ export class EventsService {
     if (!canManageTeam(user, event.teamId)) throw new ForbiddenException('Túto udalosť nemôžete upravovať');
     const pitch = await this.resolvePitch(input.pitchId);
     const effectivePitchId = pitch ? pitch.id : input.pitchId === undefined ? event.pitchId : null;
+    const newStart = input.startAt ?? event.startAt;
+    const newEnd = input.endAt ?? event.endAt;
+    // starý klient mení len začiatok → koniec sa nesmie ocitnúť pred novým začiatkom
+    if (input.startAt && !input.endAt && newEnd && newEnd.getTime() <= newStart.getTime()) {
+      throw new BadRequestException('Koniec musí byť po začiatku');
+    }
+    this.assertEndAfterStart(newStart, newEnd, !!effectivePitchId && (input.endAt !== undefined || input.pitchId !== undefined));
     if (effectivePitchId) {
-      await this.assertPitchFree(
-        effectivePitchId,
-        [{ startAt: input.startAt ?? event.startAt, endAt: input.endAt ?? event.endAt }],
-        eventId,
-      );
+      await this.assertPitchFree(effectivePitchId, [{ startAt: newStart, endAt: newEnd }], eventId);
     }
     const updated = await this.prisma.event.update({
       where: { id: eventId },

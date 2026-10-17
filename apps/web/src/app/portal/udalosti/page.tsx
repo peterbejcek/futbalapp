@@ -6,6 +6,8 @@ import {
   WEEKDAY_SHORT_SK,
   SURFACE_CODES,
   SURFACE_LABELS_SK,
+  addMinutesToHhmm,
+  defaultEventMinutes,
   formatEventDateTimeSk,
   formatEventTimeSk,
   type SurfaceCode,
@@ -481,6 +483,7 @@ function EventList({
                 )}
                 <div className="mt-1 text-sm text-gray-600">
                   {formatEventDateTimeSk(e.startAt)}
+                  {e.endAt ? `–${formatEventTimeSk(e.endAt)}` : ''}
                 </div>
                 {e.match ? <MatchTeams e={e} /> : <div className="mt-1 font-medium">{e.title}</div>}
                 {e.match && (
@@ -656,7 +659,7 @@ function MonthView({
                           <Link
                             key={e.id}
                             href={href}
-                            title={`${time} · ${label}`}
+                            title={`${time}${e.endAt ? `–${formatEventTimeSk(e.endAt)}` : ''} · ${label}`}
                             onClick={(ev) => ev.stopPropagation()}
                             className={`flex items-center gap-1 truncate rounded-sm py-0.5 pl-1.5 pr-1 text-[11px] leading-snug hover:brightness-125 ${
                               e.match ? 'font-semibold' : 'opacity-80'
@@ -669,7 +672,7 @@ function MonthView({
                         ) : (
                           <div
                             key={e.id}
-                            title={`${time} · ${label}`}
+                            title={`${time}${e.endAt ? `–${formatEventTimeSk(e.endAt)}` : ''} · ${label}`}
                             className={`flex items-center gap-1 truncate rounded-sm py-0.5 pl-1.5 pr-1 text-[11px] leading-snug hover:brightness-125 ${
                               e.match ? 'font-semibold' : 'opacity-80'
                             }`}
@@ -852,11 +855,20 @@ function TrainingModal({
     }
   }, [open, initialDate]);
 
+  function onStartChange(v: string) {
+    setStartTime(v);
+    if (v) setEndTime(addMinutesToHhmm(v, defaultEventMinutes('TRAINING')));
+  }
+  const endInvalid = !!startTime && !!endTime && endTime <= startTime;
+  const endMissing = !!pitchId && !endTime;
+
   function toggleDay(d: number) {
     setWeekdays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
   }
 
   async function submit() {
+    if (endInvalid) return setError('Koniec musí byť po začiatku');
+    if (endMissing) return setError('Pri vybranej hracej ploche zadajte koniec');
     setBusy(true);
     setError(null);
     try {
@@ -952,10 +964,10 @@ function TrainingModal({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelCls}>Začiatok</label>
-            <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className={inputCls} />
+            <input type="time" value={startTime} onChange={(e) => onStartChange(e.target.value)} className={inputCls} />
           </div>
           <div>
-            <label className={labelCls}>Koniec</label>
+            <label className={labelCls}>Koniec{pitchId ? ' *' : ''}</label>
             <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={inputCls} />
           </div>
         </div>
@@ -971,7 +983,7 @@ function TrainingModal({
           <Button variant="ghost" onClick={onClose}>
             Zrušiť
           </Button>
-          <Button onClick={submit} disabled={busy || !teamId}>
+          <Button onClick={submit} disabled={busy || !teamId || endInvalid || endMissing}>
             {busy ? 'Ukladám…' : recurring ? 'Vytvoriť sériu' : 'Vytvoriť'}
           </Button>
         </div>
@@ -1003,10 +1015,20 @@ function MatchModal({
   const [jerseyColor, setJerseyColor] = useState<'' | 'DARK' | 'LIGHT'>('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('10:00');
+  const [endTime, setEndTime] = useState('11:30');
   const [location, setLocation] = useState('');
   const [surface, setSurface] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // predvolený koniec = začiatok + dĺžka podľa kategórie družstva / typu
+  const catCode = teams.find((t) => t.id === teamId)?.teamCategory.code;
+  useEffect(() => {
+    if (time) setEndTime(addMinutesToHhmm(time, defaultEventMinutes(type, catCode)));
+  }, [time, type, catCode]);
+  const usePitch = isHome && !!pitchId;
+  const endInvalid = !!time && !!endTime && endTime <= time;
+  const endMissing = usePitch && !endTime;
 
   useEffect(() => {
     if (open && teams[0] && !teamId) setTeamId(teams[0].id);
@@ -1019,6 +1041,8 @@ function MatchModal({
   }, [open, initialDate]);
 
   async function submit() {
+    if (endInvalid) return setError('Koniec musí byť po začiatku');
+    if (endMissing) return setError('Pri vybranej hracej ploche zadajte koniec');
     setBusy(true);
     setError(null);
     try {
@@ -1030,6 +1054,7 @@ function MatchModal({
           title: isHome ? `${team?.name} vs ${opponent}` : `${opponent} vs ${team?.name}`,
           teamId,
           startAt: `${date}T${time}:00.000Z`,
+          endAt: endTime ? `${date}T${endTime}:00.000Z` : undefined,
           ...placeFields(isHome ? pitchId : '', location, surface),
           opponent,
           isHome,
@@ -1098,14 +1123,18 @@ function MatchModal({
             ))}
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <div>
             <label className={labelCls}>Dátum</label>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
           </div>
           <div>
-            <label className={labelCls}>Čas</label>
+            <label className={labelCls}>Začiatok</label>
             <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Koniec{usePitch ? ' *' : ''}</label>
+            <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={inputCls} />
           </div>
         </div>
         {isHome ? (
@@ -1118,7 +1147,7 @@ function MatchModal({
           <Button variant="ghost" onClick={onClose}>
             Zrušiť
           </Button>
-          <Button onClick={submit} disabled={busy || !teamId || !opponent || !date}>
+          <Button onClick={submit} disabled={busy || !teamId || !opponent || !date || endInvalid || endMissing}>
             {busy ? 'Ukladám…' : 'Vytvoriť'}
           </Button>
         </div>
