@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { SURFACE_CODES, SURFACE_LABELS_SK } from '@fkknv/shared';
+import { SURFACE_CODES, SURFACE_LABELS_SK, addMinutesToHhmm } from '@fkknv/shared';
 import { api } from '@/lib/api';
 import { Button, ErrorText, Modal, inputCls, labelCls } from '@/components/ui';
 
@@ -46,6 +46,8 @@ export function EventAdminActions({
   const d = new Date(startAt);
   const [date, setDate] = useState(`${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`);
   const [time, setTime] = useState(`${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`);
+  const e0 = endAt ? new Date(endAt) : null;
+  const [endTime, setEndTime] = useState(e0 ? `${pad(e0.getUTCHours())}:${pad(e0.getUTCMinutes())}` : '');
   const [titleVal, setTitleVal] = useState(title ?? '');
   const [locationVal, setLocationVal] = useState(location ?? '');
   const [surfaceVal, setSurfaceVal] = useState(surface ?? '');
@@ -66,7 +68,10 @@ export function EventAdminActions({
   const canReschedule = kind === 'training' || matchState === 'PLANNED';
   const canCancel = kind === 'match' && matchState === 'PLANNED';
 
+  const endInvalid = !!time && !!endTime && endTime <= time;
+
   async function save() {
+    if (endInvalid) return setError('Koniec musí byť po začiatku');
     setBusy(true);
     setError(null);
     try {
@@ -77,7 +82,9 @@ export function EventAdminActions({
         surface: surfaceVal || undefined,
       };
       if (titleVal.trim()) body.title = titleVal.trim();
-      if (endAt) {
+      if (endTime) {
+        body.endAt = new Date(Date.parse(`${date}T${endTime}:00Z`)).toISOString();
+      } else if (endAt) {
         const dur = Date.parse(endAt) - Date.parse(startAt);
         if (dur > 0) body.endAt = new Date(startMs + dur).toISOString();
       }
@@ -136,14 +143,32 @@ export function EventAdminActions({
       {/* Upraviť (termín, miesto, povrch, názov) */}
       <Modal open={moveOpen} onClose={() => setMoveOpen(false)} title={`Upraviť ${label}`}>
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <label className={labelCls}>Dátum</label>
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Čas</label>
-              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={inputCls} />
+              <label className={labelCls}>Začiatok</label>
+              <input
+                type="time"
+                value={time}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  // posun konca spolu so začiatkom (zachová dĺžku) alebo predvolená dĺžka
+                  if (v) {
+                    const [h, m] = v.split(':').map(Number);
+                    const dur = endAt ? Math.max(1, Math.round((Date.parse(endAt) - Date.parse(startAt)) / 60000)) : 90;
+                    setEndTime(addMinutesToHhmm(`${pad(h)}:${pad(m)}`, dur));
+                  }
+                  setTime(v);
+                }}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Koniec</label>
+              <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={inputCls} />
             </div>
           </div>
           {title !== undefined && (
@@ -177,7 +202,7 @@ export function EventAdminActions({
             <Button variant="ghost" onClick={() => setMoveOpen(false)}>
               Späť
             </Button>
-            <Button onClick={save} disabled={busy || !date || !time}>
+            <Button onClick={save} disabled={busy || !date || !time || endInvalid}>
               {busy ? 'Ukladám…' : 'Uložiť'}
             </Button>
           </div>

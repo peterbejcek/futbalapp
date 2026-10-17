@@ -69,11 +69,11 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
   const flatCls = (active: boolean) =>
-    active ? 'font-semibold text-white' : 'text-club-200 hover:text-white';
+    active ? 'border-b-[3px] border-club-500 py-1 font-bold text-white' : 'py-1 text-club-200 hover:text-[var(--lime)]';
 
   return (
-    <div className="min-h-screen bg-club-50">
-      <header className="relative bg-club-900 text-white">
+    <div className="min-h-screen bg-[var(--bg)]">
+      <header className="relative border-b border-club-100 bg-club-900 text-white">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-6 py-3">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             <Link href="/portal" className="flex items-center gap-2 font-semibold">
@@ -115,7 +115,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                       <span className="text-[0.6rem]">▾</span>
                     </button>
                     {open && (
-                      <div className="absolute left-0 top-full z-40 mt-2 min-w-[12rem] overflow-hidden rounded-md border border-club-100 bg-white py-1 text-club-800 shadow-lg">
+                      <div className="absolute left-0 top-full z-40 mt-2 min-w-[12rem] overflow-hidden border border-[#435461] bg-white py-1 text-club-800 shadow-2xl">
                         {children.map((c) => {
                           const showBadge = c.href === '/portal/registracie' && pendingRegs > 0;
                           return (
@@ -153,7 +153,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 setToken(null);
                 router.push('/prihlasenie');
               }}
-              className="rounded border border-club-400 px-3 py-1 text-club-100 hover:bg-club-700"
+              className="border border-[#63707a] px-3 py-1 text-club-100 hover:bg-white/10"
             >
               Odhlásiť
             </button>

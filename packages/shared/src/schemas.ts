@@ -124,6 +124,8 @@ export const createEventSchema = z.object({
   endAt: z.coerce.date().optional(),
   location: z.string().max(200).optional(),
   surface: z.enum(SURFACE_CODES).optional(),
+  /// hracia plocha z nastavení; ak je zadaná, miesto a povrch sa preberú z nej
+  pitchId: z.string().optional(),
   opponent: z.string().max(120).optional(),
   isHome: z.boolean().optional(),
   /// farba dresu pri zápase: tmavý / svetlý
@@ -132,6 +134,13 @@ export const createEventSchema = z.object({
   isPublic: z.boolean().optional(),
 });
 export type CreateEventInput = z.infer<typeof createEventSchema>;
+
+/// Hracia plocha klubu (nastavenia): názov + povrch.
+export const createPitchSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+  surface: z.enum(SURFACE_CODES),
+});
+export type CreatePitchInput = z.infer<typeof createPitchSchema>;
 
 export const createRecurringTrainingSchema = z.object({
   title: z.string().min(2).max(120),
@@ -143,6 +152,7 @@ export const createRecurringTrainingSchema = z.object({
   until: z.coerce.date(),
   location: z.string().max(200).optional(),
   surface: z.enum(SURFACE_CODES).optional(),
+  pitchId: z.string().optional(),
   /// zobraziť v kalendári na verejnom webe
   isPublic: z.boolean().optional(),
 });

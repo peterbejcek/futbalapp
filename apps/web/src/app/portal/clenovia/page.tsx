@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api, apiUpload, API_URL } from '@/lib/api';
-import { categoryColor } from '@fkknv/shared';
+import { categoryColor } from '@/lib/colors';
 import { isAdmin, isStaff, useMe } from '@/lib/auth';
 import { PlayerFitnessPanel } from '@/components/fitness';
 import { MemberAttendancePanel } from '@/components/member-attendance';
@@ -122,7 +122,7 @@ function MembersTable() {
   const [teamFilter, setTeamFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [search, setSearch] = useState('');
-  const [hideInactive, setHideInactive] = useState(false);
+  const [hideInactive, setHideInactive] = useState(true);
   const [sortBy, setSortBy] = useState<'lastName' | 'team' | 'card'>('lastName');
   const [pageSize, setPageSize] = useState(25);
   const [page, setPage] = useState(1);

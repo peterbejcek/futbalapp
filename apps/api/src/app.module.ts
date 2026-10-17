@@ -24,6 +24,8 @@ import { CaptchaModule } from './captcha/captcha.module';
 import { PublicModule } from './public/public.module';
 import { ArticlesModule } from './articles/articles.module';
 import { ClubContentModule } from './club-content/club-content.module';
+import { PitchesModule } from './pitches/pitches.module';
+import { NominationsModule } from './nominations/nominations.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -49,6 +51,8 @@ import { HealthController } from './health.controller';
     FitnessTestsModule,
     ArticlesModule,
     ClubContentModule,
+    PitchesModule,
+    NominationsModule,
     PublicModule,
   ],
   controllers: [HealthController],

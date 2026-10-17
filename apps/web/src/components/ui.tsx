@@ -21,10 +21,10 @@ export function Button({
   disabled?: boolean;
   className?: string;
 }) {
-  const base = 'rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-50';
+  const base = 'px-4 py-2 text-sm font-bold uppercase tracking-wide transition disabled:opacity-50';
   const styles = {
-    primary: 'bg-club-600 text-white hover:bg-club-700',
-    ghost: 'border border-club-300 text-club-700 hover:bg-club-50',
+    primary: 'bg-club-600 text-white hover:bg-[#408bff]',
+    ghost: 'border border-[#63707a] text-club-900 hover:bg-white/5',
     danger: 'border border-red-300 text-red-700 hover:bg-red-50',
   }[variant];
   return (
@@ -50,10 +50,10 @@ export function Modal({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4">
-      <div className={`mt-10 w-full rounded-lg bg-white shadow-xl ${wide ? 'max-w-3xl' : 'max-w-lg'}`}>
+      <div className={`mt-10 w-full border border-[#435461] bg-white shadow-2xl ${wide ? 'max-w-3xl' : 'max-w-lg'}`}>
         <div className="flex items-center justify-between border-b border-club-100 px-5 py-3">
-          <h2 className="font-semibold text-club-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label="Zavrieť">
+          <h2 className="fk-h-sm text-xl font-bold text-club-900">{title}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white" aria-label="Zavrieť">
             ✕
           </button>
         </div>
@@ -64,7 +64,7 @@ export function Modal({
 }
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-lg border border-club-100 bg-white p-5 ${className}`}>{children}</div>;
+  return <div className={`fk-card ${className}`}>{children}</div>;
 }
 
 export function ErrorText({ children }: { children: ReactNode }) {

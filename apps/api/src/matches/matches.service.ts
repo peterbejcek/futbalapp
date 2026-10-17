@@ -1,11 +1,13 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { formatEventDateTimeSk, type MatchEventInput } from '@fkknv/shared';
+import { formatEventDateTimeSk, type MatchEventInput, type MatchTimerAction } from '@fkknv/shared';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../notifications/push.service';
 import { EmailService } from '../notifications/email.service';
 import { coachBlockedFromTeam } from '../auth/scope';
 import { VeoService } from '../veo/veo.service';
 import type { AuthUser } from '../auth/current-user.decorator';
+import { applyTimerAction } from './match-timer';
 
 /** Kategórie, kde hráč potvrdzuje účasť na zápase. */
 const CONFIRM_CATEGORIES = ['U17', 'U19', 'MUZI'];
@@ -59,7 +61,8 @@ export class MatchesService {
     if (!match) throw new NotFoundException('Zápas neexistuje');
     // demo izolácia: demo konto vidí len demo zápasy a naopak
     if (user && match.event.isDemo !== !!user.isDemo) throw new NotFoundException('Zápas neexistuje');
-    return match;
+    // serverNow: klient si podľa neho zarovná hodiny pre výpočet časomiery
+    return { ...match, serverNow: new Date().toISOString() };
   }
 
   /** Odohrané (ukončené) zápasy — archív s videom a fotkami, od najnovšieho. */
@@ -325,7 +328,47 @@ export class MatchesService {
     // Skóre sa neprepočítava pri ukončení — môže byť zadané ručne (setScore)
     // aj bez zápisu jednotlivých gólov. Pri živom zápise sa skóre dopĺňa
     // priebežne pri každom góle (addMatchEvent → recomputeScore).
-    return this.prisma.match.update({ where: { id: matchId }, data: { state } });
+    const data: Prisma.MatchUpdateInput = { state };
+    if (state === 'FINISHED') {
+      // ukončenie zápasu zastaví aj bežiacu časomieru
+      const cur = await this.prisma.match.findUnique({ where: { id: matchId } });
+      if (cur && cur.timerPhase !== 'NOT_STARTED' && cur.timerPhase !== 'FINISHED') {
+        const r = applyTimerAction(cur, 'END_SECOND', new Date());
+        if (r.ok) Object.assign(data, r.next);
+      }
+    }
+    return this.prisma.match.update({ where: { id: matchId }, data });
+  }
+
+  /**
+   * Časomiera zápasu: výkop, prestávka, 2. polčas, koniec (+ späť / vynulovať).
+   * Výkop prepne plánovaný zápas do stavu LIVE, koniec ho ukončí (FINISHED).
+   */
+  async timerAction(matchId: string, action: MatchTimerAction, user: AuthUser) {
+    await this.assertMatchTeam(matchId, user);
+    const cur = await this.prisma.match.findUnique({ where: { id: matchId } });
+    if (!cur) throw new NotFoundException('Zápas neexistuje');
+    if (cur.state === 'CANCELLED') throw new BadRequestException('Zápas je zrušený');
+    const r = applyTimerAction(cur, action, new Date());
+    if (!r.ok) throw new BadRequestException(r.error);
+    const data: Prisma.MatchUpdateInput = { ...r.next };
+    if (action === 'START_FIRST' && cur.state === 'PLANNED') data.state = 'LIVE';
+    if (action === 'END_SECOND') data.state = 'FINISHED';
+    if (action === 'UNDO' && cur.timerPhase === 'FINISHED' && cur.state === 'FINISHED') data.state = 'LIVE';
+    return this.prisma.match.update({
+      where: { id: matchId },
+      data,
+      select: {
+        id: true,
+        state: true,
+        halfLengthMin: true,
+        timerPhase: true,
+        firstHalfStartedAt: true,
+        firstHalfEndedAt: true,
+        secondHalfStartedAt: true,
+        secondHalfEndedAt: true,
+      },
+    });
   }
 
   /** Ručné nastavenie výsledku (napr. bez zápisu jednotlivých gólov). */
@@ -345,14 +388,29 @@ export class MatchesService {
    */
   async setDetails(
     matchId: string,
-    input: { meetAt?: string | null; notes?: string | null; jerseyColor?: 'DARK' | 'LIGHT' | null },
+    input: {
+      meetAt?: string | null;
+      notes?: string | null;
+      jerseyColor?: 'DARK' | 'LIGHT' | null;
+      halfLengthMin?: number | null;
+    },
     user: AuthUser,
   ) {
     await this.assertMatchTeam(matchId, user);
-    const data: { meetAt?: Date | null; notes?: string | null; jerseyColor?: 'DARK' | 'LIGHT' | null } = {};
+    const data: {
+      meetAt?: Date | null;
+      notes?: string | null;
+      jerseyColor?: 'DARK' | 'LIGHT' | null;
+      halfLengthMin?: number;
+    } = {};
     if (input.meetAt !== undefined) data.meetAt = input.meetAt ? new Date(input.meetAt) : null;
     if (input.notes !== undefined) data.notes = input.notes?.trim() ? input.notes.trim() : null;
     if (input.jerseyColor !== undefined) data.jerseyColor = input.jerseyColor ?? null;
+    if (input.halfLengthMin !== undefined) {
+      const n = input.halfLengthMin == null ? 45 : Math.trunc(Number(input.halfLengthMin));
+      if (!Number.isFinite(n) || n < 1 || n > 60) throw new BadRequestException('Dĺžka polčasu musí byť 1–60 minút');
+      data.halfLengthMin = n;
+    }
     return this.prisma.match.update({ where: { id: matchId }, data });
   }
 
