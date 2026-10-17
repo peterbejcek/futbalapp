@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { api } from '@/api';
-import { colors } from '@/theme';
+import { ui } from '@/theme';
 
 interface MemberRow {
   id: string;
@@ -91,7 +91,7 @@ export default function NominationScreen() {
               <Text style={styles.name}>
                 {item.lastName} {item.firstName}
               </Text>
-              <Text style={[styles.mark, { color: isOn ? colors.club600 : colors.gray }]}>
+              <Text style={[styles.mark, { color: isOn ? ui.lime : ui.muted }]}>
                 {isOn ? '✓ v nominácii' : '+'}
               </Text>
             </Pressable>
@@ -111,25 +111,25 @@ export default function NominationScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.club50, padding: 16 },
-  heading: { fontSize: 16, fontWeight: '700', color: colors.club900, marginBottom: 12 },
-  empty: { color: colors.gray, textAlign: 'center', marginTop: 32 },
+  container: { flex: 1, backgroundColor: ui.bg, padding: 16 },
+  heading: { fontSize: 16, fontWeight: '700', color: ui.ink, marginBottom: 12 },
+  empty: { color: ui.muted, textAlign: 'center', marginTop: 32 },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: ui.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     padding: 14,
     marginBottom: 8,
   },
-  rowOn: { borderColor: colors.club600 },
-  name: { fontSize: 16, fontWeight: '600', color: colors.club900 },
+  rowOn: { borderColor: ui.blue },
+  name: { fontSize: 16, fontWeight: '600', color: ui.ink },
   mark: { fontWeight: '700' },
-  notifyBtn: { backgroundColor: colors.club600, borderRadius: 8, padding: 14, marginTop: 8 },
+  notifyBtn: { backgroundColor: ui.blue, borderRadius: 8, padding: 14, marginTop: 8 },
   notifyBtnDisabled: { opacity: 0.5 },
-  notifyText: { color: colors.white, fontWeight: '700', textAlign: 'center' },
-  hint: { color: colors.gray, fontSize: 12, textAlign: 'center', paddingVertical: 8 },
+  notifyText: { color: ui.onAccent, fontWeight: '700', textAlign: 'center' },
+  hint: { color: ui.muted, fontSize: 12, textAlign: 'center', paddingVertical: 8 },
 });

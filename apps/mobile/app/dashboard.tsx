@@ -7,7 +7,7 @@ import { api, setToken } from '@/api';
 import { flush } from '@/offline';
 import { registerForPushNotifications } from '@/notifications';
 import { canManage, canManageTeam, fetchMe, isParent, type Me } from '@/auth';
-import { colors } from '@/theme';
+import { ui } from '@/theme';
 import { JerseySwatch } from '@/JerseySwatch';
 import { checkForUpdateNow, runningBundleLabel } from '@/updates';
 
@@ -195,21 +195,24 @@ export default function DashboardScreen() {
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom + 8 }]}>
       <View style={styles.topRow}>
-        <Pressable style={[styles.topBtn, { backgroundColor: colors.club800 }]} onPress={() => router.push('/chat')}>
+        <Pressable style={[styles.topBtn, styles.topBtnDark]} onPress={() => router.push('/chat')}>
           <Text style={styles.topBtnText}>💬 Kanály</Text>
         </Pressable>
-        <Pressable style={[styles.topBtn, { backgroundColor: colors.club800 }]} onPress={() => router.push('/statistics')}>
+        <Pressable style={[styles.topBtn, styles.topBtnDark]} onPress={() => router.push('/statistics')}>
           <Text style={styles.topBtnText}>📊 Štatistiky</Text>
         </Pressable>
-        <Pressable style={[styles.topBtn, { backgroundColor: colors.club800 }]} onPress={() => router.push('/matches/played')}>
+        <Pressable style={[styles.topBtn, styles.topBtnDark]} onPress={() => router.push('/matches/played')}>
           <Text style={styles.topBtnText}>🎞 Odohrané</Text>
+        </Pressable>
+        <Pressable style={[styles.topBtn, styles.topBtnDark]} onPress={() => router.push('/pitches')}>
+          <Text style={styles.topBtnText}>🏟 Ihriská</Text>
         </Pressable>
         {canManage(me) && (
           <>
-            <Pressable style={[styles.topBtn, { backgroundColor: colors.club600 }]} onPress={() => router.push('/event/new')}>
+            <Pressable style={[styles.topBtn, { backgroundColor: ui.blue }]} onPress={() => router.push('/event/new')}>
               <Text style={styles.topBtnText}>＋ Udalosť</Text>
             </Pressable>
-            <Pressable style={[styles.topBtn, { backgroundColor: colors.club800 }]} onPress={() => router.push('/tasks')}>
+            <Pressable style={[styles.topBtn, styles.topBtnDark]} onPress={() => router.push('/tasks')}>
               <Text style={styles.topBtnText}>✅ Úlohy</Text>
             </Pressable>
           </>
@@ -236,7 +239,7 @@ export default function DashboardScreen() {
         <FlatList
           data={rows}
           keyExtractor={(r) => r.key}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ui.lime} colors={[ui.blue]} progressBackgroundColor={ui.panel} />}
           ListHeaderComponent={
             cards.length > 0 ? (
               <View style={styles.cardsBlock}>
@@ -383,7 +386,7 @@ function MonthPane({
   return (
     <ScrollView
       style={styles.monthScroll}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ui.lime} colors={[ui.blue]} progressBackgroundColor={ui.panel} />}
     >
       <View style={styles.monthNav}>
         <Pressable style={styles.monthNavBtn} onPress={onPrev} hitSlop={8}>
@@ -425,7 +428,7 @@ function MonthPane({
                     <Text style={[styles.dayNum, selected === d && styles.dayNumSelected]}>{d}</Text>
                     <View style={styles.dotRow}>
                       {dayEvents.slice(0, 3).map((e) => (
-                        <View key={e.id} style={[styles.dot, { backgroundColor: eventTypeColor(e.type).text }]} />
+                        <View key={e.id} style={[styles.dot, { backgroundColor: eventTypeColor(e.type).bg }]} />
                       ))}
                     </View>
                   </>
@@ -480,42 +483,43 @@ function MatchTeams({ item }: { item: EventItem }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.club50, padding: 16 },
+  container: { flex: 1, backgroundColor: ui.bg, padding: 16 },
   teams: { marginTop: 8, gap: 6 },
   teamRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   teamLogo: { width: 26, height: 26, resizeMode: 'contain' },
-  teamName: { fontSize: 15, fontWeight: '600', color: colors.club900, flexShrink: 1 },
+  teamName: { fontSize: 15, fontWeight: '600', color: ui.ink, flexShrink: 1 },
   topRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   topBtn: { flexGrow: 1, flexBasis: '30%', borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
-  topBtnText: { color: colors.white, fontWeight: '700', fontSize: 13 },
+  topBtnDark: { backgroundColor: ui.panel2, borderWidth: 1, borderColor: ui.line },
+  topBtnText: { color: ui.ink, fontWeight: '700', fontSize: 13 },
   viewToggle: {
     flexDirection: 'row',
     alignSelf: 'flex-start',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     overflow: 'hidden',
     marginBottom: 16,
   },
-  toggleBtn: { paddingVertical: 8, paddingHorizontal: 18, backgroundColor: colors.white },
-  toggleBtnActive: { backgroundColor: colors.club600 },
-  toggleText: { color: colors.club700, fontWeight: '600', fontSize: 14 },
-  toggleTextActive: { color: colors.white },
-  heading: { fontSize: 18, fontWeight: '700', color: colors.club900, marginBottom: 12 },
-  empty: { color: colors.gray, textAlign: 'center', marginTop: 24 },
+  toggleBtn: { paddingVertical: 8, paddingHorizontal: 18, backgroundColor: ui.panel },
+  toggleBtnActive: { backgroundColor: ui.blue },
+  toggleText: { color: ui.ink, fontWeight: '600', fontSize: 14 },
+  toggleTextActive: { color: ui.onAccent },
+  heading: { fontSize: 18, fontWeight: '800', color: ui.ink, marginBottom: 12 },
+  empty: { color: ui.muted, textAlign: 'center', marginTop: 24 },
   card: {
-    backgroundColor: colors.white,
+    backgroundColor: ui.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     padding: 14,
     marginBottom: 10,
   },
-  badge: { color: colors.club600, fontSize: 12, fontWeight: '600', marginBottom: 4 },
+  badge: { color: ui.lime, fontSize: 12, fontWeight: '600', marginBottom: 4 },
   badgeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   nomBadge: {
-    color: '#166534',
-    backgroundColor: '#dcfce7',
+    color: ui.ok,
+    backgroundColor: '#12301f',
     fontSize: 11,
     fontWeight: '700',
     paddingHorizontal: 8,
@@ -524,36 +528,36 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 4,
   },
-  audience: { color: colors.club700, fontSize: 12, marginTop: 4 },
+  audience: { color: ui.ink, fontSize: 12, marginTop: 4 },
   meetRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  meetLine: { color: colors.club800, fontSize: 13 },
-  cardTitle: { fontSize: 16, fontWeight: '600', color: colors.club900 },
-  cardMeta: { color: colors.gray, fontSize: 13, marginTop: 4 },
-  cardAction: { color: colors.club600, fontSize: 13, fontWeight: '600', marginTop: 6 },
+  meetLine: { color: ui.ink, fontSize: 13 },
+  cardTitle: { fontSize: 16, fontWeight: '600', color: ui.ink },
+  cardMeta: { color: ui.muted, fontSize: 13, marginTop: 4 },
+  cardAction: { color: ui.lime, fontSize: 13, fontWeight: '600', marginTop: 6 },
   cardsBlock: { marginBottom: 8 },
   regRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: ui.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     paddingVertical: 10,
     paddingHorizontal: 12,
     marginBottom: 6,
   },
-  regName: { color: colors.club900, fontWeight: '600', fontSize: 14, flexShrink: 1 },
-  regTeam: { color: colors.gray, fontWeight: '400', fontSize: 12 },
+  regName: { color: ui.ink, fontWeight: '600', fontSize: 14, flexShrink: 1 },
+  regTeam: { color: ui.muted, fontWeight: '400', fontSize: 12 },
   regBadge: { fontSize: 12, fontWeight: '600', borderRadius: 6, paddingVertical: 2, paddingHorizontal: 8, overflow: 'hidden' },
-  regExpired: { backgroundColor: '#fee2e2', color: '#b91c1c' },
-  regSoon: { backgroundColor: '#fef3c7', color: '#b45309' },
-  regOk: { backgroundColor: '#f3f4f6', color: '#4b5563' },
-  regNone: { backgroundColor: '#e0e7ff', color: '#3730a3' },
+  regExpired: { backgroundColor: '#3a1019', color: '#ff7a93' },
+  regSoon: { backgroundColor: '#3a2e0f', color: ui.warn },
+  regOk: { backgroundColor: ui.panel2, color: ui.muted },
+  regNone: { backgroundColor: '#1b2748', color: '#a5b4fc' },
   logout: { padding: 14, alignItems: 'center' },
-  logoutText: { color: colors.club600, fontWeight: '600' },
+  logoutText: { color: ui.blueHi, fontWeight: '600' },
   updateRow: { paddingBottom: 8, alignItems: 'center' },
-  updateText: { color: colors.gray, fontSize: 11 },
+  updateText: { color: ui.muted, fontSize: 11 },
   // mesačný prehľad
   monthScroll: { flex: 1 },
   monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
@@ -561,16 +565,16 @@ const styles = StyleSheet.create({
     width: 40,
     height: 36,
     borderRadius: 8,
-    backgroundColor: colors.white,
+    backgroundColor: ui.panel,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  monthNavText: { fontSize: 22, color: colors.club700, fontWeight: '700', lineHeight: 24 },
-  monthLabel: { fontSize: 17, fontWeight: '700', color: colors.club900 },
+  monthNavText: { fontSize: 22, color: ui.ink, fontWeight: '700', lineHeight: 24 },
+  monthLabel: { fontSize: 17, fontWeight: '700', color: ui.ink },
   weekHeaderRow: { flexDirection: 'row', marginBottom: 4 },
-  weekHeaderCell: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '600', color: colors.gray },
+  weekHeaderCell: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '600', color: ui.muted },
   weekRow: { flexDirection: 'row' },
   dayCell: {
     flex: 1,
@@ -578,18 +582,18 @@ const styles = StyleSheet.create({
     margin: 2,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.club100,
-    backgroundColor: colors.white,
+    borderColor: ui.line,
+    backgroundColor: ui.panel,
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 4,
   },
-  dayCellToday: { borderColor: colors.club600 },
-  dayCellSelected: { backgroundColor: colors.club600, borderColor: colors.club600 },
-  dayNum: { fontSize: 14, fontWeight: '600', color: colors.club900 },
-  dayNumSelected: { color: colors.white },
+  dayCellToday: { borderColor: ui.blue },
+  dayCellSelected: { backgroundColor: ui.blue, borderColor: ui.blue },
+  dayNum: { fontSize: 14, fontWeight: '600', color: ui.ink },
+  dayNumSelected: { color: ui.onAccent },
   dotRow: { flexDirection: 'row', gap: 2, marginTop: 3, height: 6 },
   dot: { width: 5, height: 5, borderRadius: 3 },
   selectedBlock: { marginTop: 16 },
-  selectedHeading: { fontSize: 16, fontWeight: '700', color: colors.club900, marginBottom: 10 },
+  selectedHeading: { fontSize: 16, fontWeight: '700', color: ui.ink, marginBottom: 10 },
 });

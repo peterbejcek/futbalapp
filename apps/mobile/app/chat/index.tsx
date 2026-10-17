@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { SectionList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { api } from '@/api';
-import { colors } from '@/theme';
+import { ui } from '@/theme';
 
 interface Channel {
   id: string;
@@ -88,39 +88,39 @@ export default function ChannelsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.club50, padding: 16 },
-  error: { color: colors.danger, marginBottom: 8 },
-  empty: { color: colors.gray, textAlign: 'center', marginTop: 32 },
+  container: { flex: 1, backgroundColor: ui.bg, padding: 16 },
+  error: { color: ui.red, marginBottom: 8 },
+  empty: { color: ui.muted, textAlign: 'center', marginTop: 32 },
   sectionRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14, marginBottom: 6 },
   sectionHeader: {
     fontSize: 12,
     fontWeight: '800',
-    color: colors.club700,
+    color: ui.ink,
     textTransform: 'uppercase',
   },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: ui.red },
   row: {
-    backgroundColor: colors.white,
+    backgroundColor: ui.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     padding: 12,
     marginBottom: 6,
   },
-  rowUnread: { borderColor: colors.club600, backgroundColor: '#f5f8ff' },
+  rowUnread: { borderColor: ui.blue, backgroundColor: ui.panel2 },
   rowTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  kind: { fontWeight: '700', color: colors.club900 },
+  kind: { fontWeight: '700', color: ui.ink },
   kindUnread: { fontWeight: '800' },
   badge: {
     minWidth: 20,
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: 10,
-    backgroundColor: colors.danger,
+    backgroundColor: ui.red,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badgeText: { color: colors.white, fontSize: 12, fontWeight: '800' },
-  preview: { color: colors.gray, fontSize: 13, marginTop: 2 },
-  previewUnread: { color: colors.club800 },
+  badgeText: { color: ui.onAccent, fontSize: 12, fontWeight: '800' },
+  preview: { color: ui.muted, fontSize: 13, marginTop: 2 },
+  previewUnread: { color: ui.ink },
 });

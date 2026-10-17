@@ -16,10 +16,10 @@ export interface FitnessTest {
 }
 
 export const trendColor = {
-  better: '#16a34a',
-  worse: '#dc2626',
-  same: '#000000',
-  none: '#16223c',
+  better: '#86e0a0',
+  worse: '#ff6b88',
+  same: '#f2f5f5',
+  none: '#f2f5f5',
 } as const;
 
 export const todayIso = () => {

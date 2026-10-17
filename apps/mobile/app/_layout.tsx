@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
-import { colors } from '@/theme';
+import { ui } from '@/theme';
 import { applyUpdatesOnLaunch } from '@/updates';
 
 export default function RootLayout() {
@@ -28,8 +28,10 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: colors.club800 },
-          headerTintColor: colors.white,
+          headerStyle: { backgroundColor: ui.bar },
+          headerTintColor: ui.ink,
+          headerTitleStyle: { fontWeight: '800' },
+          contentStyle: { backgroundColor: ui.bg },
         }}
       >
         <Stack.Screen name="index" options={{ title: 'FK KNV' }} />

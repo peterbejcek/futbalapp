@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -12,7 +13,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/api';
-import { colors } from '@/theme';
+import { ui } from '@/theme';
+import { inputProps } from '@/inputStyle';
+import { KeyboardScreen } from '@/KeyboardScreen';
 
 interface Task {
   id: string;
@@ -213,14 +216,15 @@ function TaskForm({ onClose, onDone }: { onClose: () => void; onDone: () => void
   }
 
   return (
-    <ScrollView style={styles.formScroll} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}>
+    <KeyboardScreen style={styles.formScroll}>
       <Text style={styles.formTitle}>Nová úloha</Text>
 
       <Text style={styles.label}>Názov</Text>
-      <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Napr. Objednať dresy" />
+      <TextInput {...inputProps} style={styles.input} value={title} onChangeText={setTitle} placeholder="Napr. Objednať dresy" />
 
       <Text style={styles.label}>Popis (nepovinné)</Text>
       <TextInput
+        {...inputProps}
         style={[styles.input, styles.inputMultiline]}
         value={description}
         onChangeText={setDescription}
@@ -267,7 +271,7 @@ function TaskForm({ onClose, onDone }: { onClose: () => void; onDone: () => void
       )}
 
       <Text style={styles.label}>Termín (nepovinné) — RRRR-MM-DD</Text>
-      <TextInput style={styles.input} value={dueDate} onChangeText={setDueDate} placeholder="2026-08-31" autoCapitalize="none" />
+      <TextInput {...inputProps} style={styles.input} value={dueDate} onChangeText={setDueDate} placeholder="2026-08-31" autoCapitalize="none" />
 
       <View style={styles.formBtns}>
         <Pressable style={[styles.formBtn, styles.formBtnGhost]} onPress={onClose}>
@@ -277,7 +281,7 @@ function TaskForm({ onClose, onDone }: { onClose: () => void; onDone: () => void
           <Text style={styles.formBtnPrimaryText}>{busy ? 'Ukladám…' : 'Vytvoriť'}</Text>
         </Pressable>
       </View>
-    </ScrollView>
+    </KeyboardScreen>
   );
 }
 
@@ -310,7 +314,10 @@ function CommentsPane({ task, onClose }: { task: Task; onClose: () => void }) {
   }
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom + 8 }]}>
+    <KeyboardAvoidingView
+      style={[styles.container, { paddingBottom: insets.bottom + 8 }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <View style={styles.commentsHeader}>
         <Text style={styles.commentsTitle} numberOfLines={1}>
           {task.title}
@@ -336,6 +343,7 @@ function CommentsPane({ task, onClose }: { task: Task; onClose: () => void }) {
       />
       <View style={styles.commentInputRow}>
         <TextInput
+          {...inputProps}
           style={styles.commentInput}
           value={text}
           onChangeText={setText}
@@ -346,23 +354,23 @@ function CommentsPane({ task, onClose }: { task: Task; onClose: () => void }) {
           <Text style={styles.commentSendText}>Pridať</Text>
         </Pressable>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.club50, padding: 16 },
-  newBtn: { backgroundColor: colors.club600, borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginBottom: 12 },
-  newBtnText: { color: colors.white, fontWeight: '700', fontSize: 15 },
-  empty: { color: colors.gray, textAlign: 'center', marginTop: 32 },
+  container: { flex: 1, backgroundColor: ui.bg, padding: 16 },
+  newBtn: { backgroundColor: ui.blue, borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginBottom: 12 },
+  newBtnText: { color: ui.onAccent, fontWeight: '700', fontSize: 15 },
+  empty: { color: ui.muted, textAlign: 'center', marginTop: 32 },
   card: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
-    backgroundColor: colors.white,
+    backgroundColor: ui.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     padding: 12,
     marginBottom: 10,
   },
@@ -372,22 +380,22 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: colors.club600,
+    borderColor: ui.blue,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
   },
-  checkboxDisabled: { borderColor: colors.club100, opacity: 0.6 },
-  checkboxMark: { color: colors.club600, fontWeight: '900', fontSize: 15 },
+  checkboxDisabled: { borderColor: ui.line, opacity: 0.6 },
+  checkboxMark: { color: ui.lime, fontWeight: '900', fontSize: 15 },
   cardBody: { flex: 1 },
-  title: { fontSize: 16, fontWeight: '700', color: colors.club900 },
+  title: { fontSize: 16, fontWeight: '800', color: ui.ink },
   titleDone: { textDecorationLine: 'line-through' },
-  desc: { color: colors.club900, fontSize: 14, marginTop: 2 },
+  desc: { color: ui.ink, fontSize: 14, marginTop: 2 },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 6, alignItems: 'center' },
-  metaChip: { backgroundColor: colors.club50, color: colors.club700, fontSize: 12, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, overflow: 'hidden' },
-  meta: { color: colors.gray, fontSize: 12 },
-  metaLink: { color: colors.club600, fontSize: 12, fontWeight: '600' },
-  metaOverdue: { color: colors.danger, fontWeight: '700' },
+  metaChip: { backgroundColor: ui.panel2, color: ui.ink, fontSize: 12, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, overflow: 'hidden' },
+  meta: { color: ui.muted, fontSize: 12 },
+  metaLink: { color: ui.blueHi, fontSize: 12, fontWeight: '600' },
+  metaOverdue: { color: ui.red, fontWeight: '700' },
   commentsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -395,68 +403,70 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 12,
   },
-  commentsTitle: { fontSize: 18, fontWeight: '700', color: colors.club900, flex: 1 },
-  commentsClose: { color: colors.club600, fontWeight: '600' },
+  commentsTitle: { fontSize: 18, fontWeight: '700', color: ui.ink, flex: 1 },
+  commentsClose: { color: ui.blueHi, fontWeight: '600' },
   commentItem: {
-    backgroundColor: colors.white,
+    backgroundColor: ui.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     padding: 10,
     marginBottom: 8,
   },
-  commentAuthor: { fontWeight: '700', color: colors.club800, fontSize: 13 },
-  commentTime: { fontWeight: '400', color: colors.gray, fontSize: 11 },
-  commentBody: { color: colors.club900, marginTop: 2, fontSize: 15 },
+  commentAuthor: { fontWeight: '700', color: ui.ink, fontSize: 13 },
+  commentTime: { fontWeight: '400', color: ui.muted, fontSize: 11 },
+  commentBody: { color: ui.ink, marginTop: 2, fontSize: 15 },
   commentInputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   commentInput: {
     flex: 1,
-    backgroundColor: colors.white,
+    color: ui.ink,
+    backgroundColor: ui.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 15,
     maxHeight: 120,
   },
-  commentSend: { backgroundColor: colors.club600, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 12 },
-  commentSendText: { color: colors.white, fontWeight: '700' },
-  metaSmall: { color: colors.gray, fontSize: 11, marginTop: 4 },
-  remove: { color: colors.gray, fontSize: 16, paddingHorizontal: 4 },
+  commentSend: { backgroundColor: ui.blue, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 12 },
+  commentSendText: { color: ui.onAccent, fontWeight: '700' },
+  metaSmall: { color: ui.muted, fontSize: 11, marginTop: 4 },
+  remove: { color: ui.muted, fontSize: 16, paddingHorizontal: 4 },
   // form
-  formScroll: { flex: 1, backgroundColor: colors.club50 },
-  formTitle: { fontSize: 20, fontWeight: '700', color: colors.club900, marginBottom: 12 },
-  label: { fontSize: 13, fontWeight: '600', color: colors.club800, marginTop: 12, marginBottom: 4 },
+  formScroll: { flex: 1, backgroundColor: ui.bg },
+  formTitle: { fontSize: 22, fontWeight: '800', color: ui.ink, marginBottom: 12 },
+  label: { fontSize: 13, fontWeight: '600', color: ui.ink, marginTop: 12, marginBottom: 4 },
   input: {
-    backgroundColor: colors.white,
+    color: ui.ink,
+    backgroundColor: ui.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 15,
   },
   inputMultiline: { minHeight: 70, textAlignVertical: 'top' },
   segRow: { flexDirection: 'row', gap: 8 },
-  seg: { flex: 1, borderWidth: 1, borderColor: colors.club100, borderRadius: 8, paddingVertical: 8, alignItems: 'center', backgroundColor: colors.white },
-  segActive: { backgroundColor: colors.club600, borderColor: colors.club600 },
-  segText: { color: colors.club700, fontWeight: '600' },
-  segTextActive: { color: colors.white },
+  seg: { flex: 1, borderWidth: 1, borderColor: ui.line, borderRadius: 8, paddingVertical: 8, alignItems: 'center', backgroundColor: ui.panel },
+  segActive: { backgroundColor: ui.blue, borderColor: ui.blue },
+  segText: { color: ui.ink, fontWeight: '600' },
+  segTextActive: { color: ui.onAccent },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  chip: { borderWidth: 1, borderColor: colors.club100, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6, backgroundColor: colors.white },
-  chipActive: { backgroundColor: colors.club600, borderColor: colors.club600 },
-  chipText: { color: colors.club700, fontWeight: '600' },
-  chipTextActive: { color: colors.white },
+  chip: { borderWidth: 1, borderColor: ui.line, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6, backgroundColor: ui.panel },
+  chipActive: { backgroundColor: ui.blue, borderColor: ui.blue },
+  chipText: { color: ui.ink, fontWeight: '600' },
+  chipTextActive: { color: ui.onAccent },
   memberList: { marginTop: 8, gap: 6 },
-  memberItem: { borderWidth: 1, borderColor: colors.club100, borderRadius: 8, padding: 10, backgroundColor: colors.white },
-  memberItemActive: { borderColor: colors.club600, backgroundColor: colors.club50 },
-  memberName: { color: colors.club900, fontWeight: '600' },
-  memberRoles: { color: colors.gray, fontWeight: '400', fontSize: 12 },
+  memberItem: { borderWidth: 1, borderColor: ui.line, borderRadius: 8, padding: 10, backgroundColor: ui.panel },
+  memberItemActive: { borderColor: ui.blue, backgroundColor: ui.blue },
+  memberName: { color: ui.ink, fontWeight: '600' },
+  memberRoles: { color: ui.muted, fontWeight: '400', fontSize: 12 },
   formBtns: { flexDirection: 'row', gap: 8, marginTop: 20 },
   formBtn: { flex: 1, borderRadius: 8, paddingVertical: 14, alignItems: 'center' },
-  formBtnGhost: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.club100 },
-  formBtnGhostText: { color: colors.club700, fontWeight: '700' },
-  formBtnPrimary: { backgroundColor: colors.club600 },
-  formBtnPrimaryText: { color: colors.white, fontWeight: '700' },
+  formBtnGhost: { backgroundColor: ui.panel, borderWidth: 1, borderColor: ui.line },
+  formBtnGhostText: { color: ui.ink, fontWeight: '700' },
+  formBtnPrimary: { backgroundColor: ui.blue },
+  formBtnPrimaryText: { color: ui.onAccent, fontWeight: '700' },
 });

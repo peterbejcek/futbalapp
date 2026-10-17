@@ -1,5 +1,5 @@
 import { View } from 'react-native';
-import { colors } from './theme';
+import { ui } from "./theme";
 
 /**
  * Malý štvorček vo farbe dresu — tmavý (tmavomodrý) alebo svetlý (biely).
@@ -12,9 +12,9 @@ export function JerseySwatch({ color, size = 14 }: { color: 'DARK' | 'LIGHT'; si
         width: size,
         height: size,
         borderRadius: 3,
-        backgroundColor: color === 'DARK' ? colors.club900 : colors.white,
+        backgroundColor: color === 'DARK' ? '#16223c' : '#ffffff',
         borderWidth: 1,
-        borderColor: color === 'DARK' ? colors.club900 : colors.gray,
+        borderColor: color === 'DARK' ? ui.muted : ui.line,
       }}
     />
   );

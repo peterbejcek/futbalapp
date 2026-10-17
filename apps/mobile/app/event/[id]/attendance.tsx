@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { formatEventDateSk } from '@fkknv/shared';
 import { api } from '@/api';
 import { enqueue, flush } from '@/offline';
-import { colors } from '@/theme';
+import { ui } from '@/theme';
 
 interface AttendanceRow {
   id: string;
@@ -33,12 +33,12 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusColors: Record<string, string> = {
-  PRESENT: colors.club600,
-  ABSENT: colors.danger,
-  EXCUSED: '#b45309',
-  INJURED: '#7c3aed',
-  SICK: '#0d9488',
-  UNKNOWN: colors.gray,
+  PRESENT: ui.ok,
+  ABSENT: ui.red,
+  EXCUSED: ui.warn,
+  INJURED: '#c4b5fd',
+  SICK: '#5eead4',
+  UNKNOWN: ui.muted,
 };
 
 export default function AttendanceScreen() {
@@ -109,7 +109,7 @@ export default function AttendanceScreen() {
             <Text style={styles.name}>
               {item.member.lastName} {item.member.firstName}
             </Text>
-            <Text style={[styles.status, { color: statusColors[item.status] ?? colors.gray }]}>
+            <Text style={[styles.status, { color: statusColors[item.status] ?? ui.muted }]}>
               {statusLabels[item.status] ?? item.status}
             </Text>
           </Pressable>
@@ -121,24 +121,24 @@ export default function AttendanceScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.club50, padding: 16 },
-  heading: { fontSize: 16, fontWeight: '700', color: colors.club900, marginBottom: 12 },
-  offline: { backgroundColor: '#fef3c7', color: '#92400e', padding: 8, borderRadius: 6, marginBottom: 8, fontSize: 13 },
-  empty: { color: colors.gray, textAlign: 'center', marginTop: 32 },
+  container: { flex: 1, backgroundColor: ui.bg, padding: 16 },
+  heading: { fontSize: 16, fontWeight: '700', color: ui.ink, marginBottom: 12 },
+  offline: { backgroundColor: '#3a2e0f', color: ui.warn, padding: 8, borderRadius: 6, marginBottom: 8, fontSize: 13 },
+  empty: { color: ui.muted, textAlign: 'center', marginTop: 32 },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: ui.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     padding: 14,
     marginBottom: 8,
   },
-  name: { fontSize: 16, fontWeight: '600', color: colors.club900 },
+  name: { fontSize: 16, fontWeight: '600', color: ui.ink },
   status: { fontSize: 14, fontWeight: '700' },
-  testBtn: { borderWidth: 1, borderColor: colors.club600, borderRadius: 8, padding: 10, alignItems: 'center', marginBottom: 10 },
-  testBtnText: { color: colors.club700, fontWeight: '700', fontSize: 14 },
-  hint: { color: colors.gray, fontSize: 12, textAlign: 'center', paddingVertical: 8 },
+  testBtn: { borderWidth: 1, borderColor: ui.lime, borderRadius: 8, padding: 10, alignItems: 'center', marginBottom: 10 },
+  testBtnText: { color: ui.lime, fontWeight: '700', fontSize: 14 },
+  hint: { color: ui.muted, fontSize: 12, textAlign: 'center', paddingVertical: 8 },
 });

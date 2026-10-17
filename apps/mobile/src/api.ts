@@ -19,6 +19,17 @@ export async function setToken(token: string | null): Promise<void> {
   else await SecureStore.deleteItemAsync(TOKEN_KEY);
 }
 
+/** Chyba z API s HTTP stavom (napr. 401 pri zlom hesle). */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = await getToken();
   const response = await fetch(`${API_URL}${path}`, {
@@ -31,7 +42,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   });
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { message?: string };
-    throw new Error(body.message ?? `Chyba servera (${response.status})`);
+    throw new ApiError(body.message ?? `Chyba servera (${response.status})`, response.status);
   }
   return (await response.json()) as T;
 }

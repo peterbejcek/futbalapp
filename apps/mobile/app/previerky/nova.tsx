@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import {
   FITNESS_DISCIPLINES,
@@ -9,7 +9,9 @@ import {
 } from '@fkknv/shared';
 import { api } from '@/api';
 import { canManage, coachTeams, fetchMe, isStaff, type Me } from '@/auth';
-import { colors } from '@/theme';
+import { ui } from '@/theme';
+import { inputProps } from '@/inputStyle';
+import { KeyboardScreen } from '@/KeyboardScreen';
 import { todayIso, type FitnessTest } from '@/fitness';
 
 interface Team {
@@ -127,9 +129,9 @@ export default function NewFitnessTestScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
+    <KeyboardScreen style={styles.container}>
       <Text style={styles.label}>Dátum (RRRR-MM-DD)</Text>
-      <TextInput value={date} onChangeText={setDate} style={styles.input} autoCapitalize="none" />
+      <TextInput {...inputProps} value={date} onChangeText={setDate} style={styles.input} autoCapitalize="none" />
 
       <Text style={styles.label}>Družstvo</Text>
       {fixedTeam ? (
@@ -148,7 +150,7 @@ export default function NewFitnessTestScreen() {
       {!teamId ? (
         <Text style={styles.empty}>Vyberte družstvo.</Text>
       ) : loading ? (
-        <ActivityIndicator style={{ marginTop: 24 }} />
+        <ActivityIndicator style={{ marginTop: 24 }} color={ui.lime} />
       ) : players.length === 0 ? (
         <Text style={styles.empty}>Družstvo nemá žiadnych hráčov.</Text>
       ) : (
@@ -168,6 +170,7 @@ export default function NewFitnessTestScreen() {
                       {fitnessDisciplineLabel(d, minutes)} ({d.unit})
                     </Text>
                     <TextInput
+                      {...inputProps}
                       value={row.values[d.key]}
                       onChangeText={(v) => setValue(p.id, d.key, v)}
                       keyboardType="decimal-pad"
@@ -192,31 +195,31 @@ export default function NewFitnessTestScreen() {
         })
       )}
       <Text style={styles.hint}>Časy v sekundách (napr. 2,35), skok v cm. Tlačidlo pri hráčovi uloží jeho previerku.</Text>
-    </ScrollView>
+    </KeyboardScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.club50 },
-  label: { fontSize: 12, color: colors.gray, marginBottom: 4, marginTop: 8 },
-  input: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.club100, borderRadius: 8, padding: 10, fontSize: 15 },
-  fixedTeam: { fontSize: 16, fontWeight: '700', color: colors.club900 },
+  container: { flex: 1, backgroundColor: ui.bg },
+  label: { fontSize: 12, color: ui.muted, marginBottom: 4, marginTop: 8 },
+  input: { color: ui.ink, backgroundColor: ui.panel, borderWidth: 1, borderColor: ui.line, borderRadius: 8, padding: 10, fontSize: 15 },
+  fixedTeam: { fontSize: 16, fontWeight: '700', color: ui.ink },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: { borderWidth: 1, borderColor: colors.club100, backgroundColor: colors.white, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
-  chipActive: { backgroundColor: colors.club600, borderColor: colors.club600 },
-  chipText: { color: colors.club700, fontSize: 13 },
-  chipTextActive: { color: colors.white, fontWeight: '600' },
-  card: { backgroundColor: colors.white, borderRadius: 8, borderWidth: 1, borderColor: colors.club100, padding: 12, marginTop: 10 },
-  name: { fontSize: 16, fontWeight: '700', color: colors.club900, marginBottom: 6 },
+  chip: { borderWidth: 1, borderColor: ui.line, backgroundColor: ui.panel, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
+  chipActive: { backgroundColor: ui.blue, borderColor: ui.blue },
+  chipText: { color: ui.ink, fontSize: 13 },
+  chipTextActive: { color: ui.onAccent, fontWeight: '600' },
+  card: { backgroundColor: ui.panel, borderRadius: 8, borderWidth: 1, borderColor: ui.line, padding: 12, marginTop: 10 },
+  name: { fontSize: 16, fontWeight: '700', color: ui.ink, marginBottom: 6 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   cell: { width: '47%' },
-  cellLabel: { fontSize: 11, color: colors.gray, marginBottom: 2 },
-  cellInput: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 6, fontSize: 14 },
+  cellLabel: { fontSize: 11, color: ui.muted, marginBottom: 2 },
+  cellInput: { color: ui.ink, backgroundColor: ui.bg, borderWidth: 1, borderColor: ui.line, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 6, fontSize: 14 },
   footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
-  ok: { color: '#16a34a', fontSize: 12 },
-  btn: { backgroundColor: colors.club600, borderRadius: 6, paddingHorizontal: 18, paddingVertical: 8 },
-  btnText: { color: colors.white, fontWeight: '700', fontSize: 14 },
-  error: { color: colors.danger, fontSize: 12, marginTop: 6 },
-  empty: { color: colors.gray, textAlign: 'center', marginTop: 24 },
-  hint: { color: colors.gray, fontSize: 12, textAlign: 'center', marginTop: 16 },
+  ok: { color: ui.ok, fontSize: 12 },
+  btn: { backgroundColor: ui.blue, borderRadius: 6, paddingHorizontal: 18, paddingVertical: 8 },
+  btnText: { color: ui.onAccent, fontWeight: '700', fontSize: 14 },
+  error: { color: ui.red, fontSize: 12, marginTop: 6 },
+  empty: { color: ui.muted, textAlign: 'center', marginTop: 24 },
+  hint: { color: ui.muted, fontSize: 12, textAlign: 'center', marginTop: 16 },
 });

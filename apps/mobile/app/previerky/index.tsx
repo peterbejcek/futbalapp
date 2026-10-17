@@ -9,7 +9,9 @@ import {
   previousFitnessValue,
 } from '@fkknv/shared';
 import { api } from '@/api';
-import { colors } from '@/theme';
+import { ui } from '@/theme';
+import { inputProps } from '@/inputStyle';
+import { KeyboardScreen } from '@/KeyboardScreen';
 import { trendColor, type FitnessTest } from '@/fitness';
 
 type Mode = 'players' | 'dates';
@@ -154,7 +156,7 @@ export default function FitnessTestsScreen() {
             <TestValues test={t} all={tests} />
           </View>
         ))}
-        <Text style={styles.legend}>Zelená = zlepšenie, červená = zhoršenie, čierna = bez zmeny (v zátvorke rozdiel).</Text>
+        <Text style={styles.legend}>Zelená = zlepšenie, červená = zhoršenie, biela = bez zmeny (v zátvorke rozdiel).</Text>
       </ScrollView>
     );
   }
@@ -189,14 +191,14 @@ export default function FitnessTestsScreen() {
             <TestValues test={t} all={tests} />
           </View>
         ))}
-        <Text style={styles.legend}>Zelená = zlepšenie, červená = zhoršenie, čierna = bez zmeny (v zátvorke rozdiel).</Text>
+        <Text style={styles.legend}>Zelená = zlepšenie, červená = zhoršenie, biela = bez zmeny (v zátvorke rozdiel).</Text>
       </ScrollView>
     );
   }
 
   // ---------- zoznamy ----------
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
+    <KeyboardScreen style={styles.container}>
       <Pressable style={styles.newBtn} onPress={() => router.push('/previerky/nova')}>
         <Text style={styles.newBtnText}>+ Nová previerka</Text>
       </Pressable>
@@ -206,6 +208,7 @@ export default function FitnessTestsScreen() {
         <Chip label="Podľa dátumu" active={mode === 'dates'} onPress={() => { setMode('dates'); setSort('date'); }} />
       </View>
       <TextInput
+        {...inputProps}
         value={search}
         onChangeText={setSearch}
         placeholder={mode === 'players' ? 'Hľadať priezvisko / družstvo…' : 'Hľadať družstvo / dátum…'}
@@ -267,34 +270,34 @@ export default function FitnessTestsScreen() {
       {(mode === 'players' ? players.length : dates.length) === 0 && !error && (
         <Text style={styles.empty}>Žiadne previerky.</Text>
       )}
-    </ScrollView>
+    </KeyboardScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.club50 },
-  back: { color: colors.club600, fontSize: 14, marginBottom: 8 },
-  title: { fontSize: 20, fontWeight: '700', color: colors.club900, marginBottom: 12 },
-  newBtn: { backgroundColor: colors.club600, borderRadius: 8, padding: 12, alignItems: 'center', marginBottom: 12 },
-  newBtnText: { color: colors.white, fontWeight: '700', fontSize: 15 },
+  container: { flex: 1, backgroundColor: ui.bg },
+  back: { color: ui.blueHi, fontSize: 14, marginBottom: 8 },
+  title: { fontSize: 22, fontWeight: '800', color: ui.ink, marginBottom: 12 },
+  newBtn: { backgroundColor: ui.blue, borderRadius: 8, padding: 12, alignItems: 'center', marginBottom: 12 },
+  newBtnText: { color: ui.onAccent, fontWeight: '700', fontSize: 15 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
-  chip: { borderWidth: 1, borderColor: colors.club100, backgroundColor: colors.white, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
-  chipActive: { backgroundColor: colors.club600, borderColor: colors.club600 },
-  chipText: { color: colors.club700, fontSize: 13 },
-  chipTextActive: { color: colors.white, fontWeight: '600' },
-  sectionLabel: { fontSize: 12, color: colors.gray, marginBottom: 4 },
-  input: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.club100, borderRadius: 8, padding: 10, marginBottom: 8, fontSize: 14 },
-  card: { backgroundColor: colors.white, borderRadius: 8, borderWidth: 1, borderColor: colors.club100, padding: 12, marginBottom: 8 },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: colors.club900 },
-  meta: { fontSize: 13, color: colors.gray, marginTop: 2 },
+  chip: { borderWidth: 1, borderColor: ui.line, backgroundColor: ui.panel, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
+  chipActive: { backgroundColor: ui.blue, borderColor: ui.blue },
+  chipText: { color: ui.ink, fontSize: 13 },
+  chipTextActive: { color: ui.onAccent, fontWeight: '600' },
+  sectionLabel: { fontSize: 12, color: ui.muted, marginBottom: 4 },
+  input: { color: ui.ink, backgroundColor: ui.panel, borderWidth: 1, borderColor: ui.line, borderRadius: 8, padding: 10, marginBottom: 8, fontSize: 14 },
+  card: { backgroundColor: ui.panel, borderRadius: 8, borderWidth: 1, borderColor: ui.line, padding: 12, marginBottom: 8 },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: ui.ink },
+  meta: { fontSize: 13, color: ui.muted, marginTop: 2 },
   valueRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 },
-  valueLabel: { fontSize: 13, color: colors.gray },
+  valueLabel: { fontSize: 13, color: ui.muted },
   value: { fontSize: 14 },
   actions: { flexDirection: 'row', gap: 8, marginTop: 8, marginBottom: 4 },
-  btn: { backgroundColor: colors.club600, borderRadius: 6, paddingHorizontal: 14, paddingVertical: 8 },
-  btnDanger: { backgroundColor: colors.danger },
-  btnText: { color: colors.white, fontWeight: '600', fontSize: 13 },
-  legend: { fontSize: 12, color: colors.gray, marginTop: 8 },
-  error: { color: colors.danger, marginBottom: 8 },
-  empty: { color: colors.gray, textAlign: 'center', marginTop: 24 },
+  btn: { backgroundColor: ui.blue, borderRadius: 6, paddingHorizontal: 14, paddingVertical: 8 },
+  btnDanger: { backgroundColor: ui.red },
+  btnText: { color: ui.onAccent, fontWeight: '600', fontSize: 13 },
+  legend: { fontSize: 12, color: ui.muted, marginTop: 8 },
+  error: { color: ui.red, marginBottom: 8 },
+  empty: { color: ui.muted, textAlign: 'center', marginTop: 24 },
 });

@@ -21,7 +21,8 @@
       "bundleIdentifier": "sk.fkknv.app",
       "supportsTablet": false,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSFaceIDUsageDescription": "Prihlásenie do portálu FK KNV pomocou Face ID."
       }
     },
     "android": {
@@ -35,6 +36,12 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Prihlásenie do portálu FK KNV pomocou Face ID."
+        }
+      ],
       [
         "expo-notifications",
         {

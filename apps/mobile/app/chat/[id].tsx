@@ -3,7 +3,10 @@ import {
   Alert,
   FlatList,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Linking,
   Platform,
   Pressable,
@@ -18,7 +21,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { io, type Socket } from 'socket.io-client';
 import { API_URL, api, getToken } from '@/api';
-import { colors } from '@/theme';
+import { ui } from '@/theme';
+import { inputProps } from '@/inputStyle';
 
 interface Attachment {
   id: string;
@@ -67,6 +71,33 @@ export default function ChatScreen() {
   const [meId, setMeId] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const listRef = useRef<FlatList<Message>>(null);
+  // posun na koniec: po prvom načítaní bez animácie, potom len ak je používateľ pri konci (alebo sám odoslal)
+  const atBottom = useRef(true);
+  const pendingInitial = useRef(true);
+  const forceScroll = useRef(false);
+  const [kbOpen, setKbOpen] = useState(false);
+
+  useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKbOpen(true));
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKbOpen(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  function onScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    atBottom.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - 80;
+  }
+  function onContentSizeChange() {
+    if (pendingInitial.current) {
+      listRef.current?.scrollToEnd({ animated: false });
+    } else if (forceScroll.current || atBottom.current) {
+      listRef.current?.scrollToEnd({ animated: true });
+      forceScroll.current = false;
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -84,6 +115,8 @@ export default function ChatScreen() {
   }, []);
 
   useEffect(() => {
+    pendingInitial.current = true;
+    atBottom.current = true;
     void load();
     // realtime cez WebSocket namiesto pollingu
     let socket: Socket | null = null;
@@ -96,7 +129,6 @@ export default function ChatScreen() {
         // striktne len správy tohto kanála (server posiela channelId vždy)
         if (message.channelId !== id) return;
         setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
-        listRef.current?.scrollToEnd({ animated: true });
       });
       socket.on('messageDeleted', (p: { channelId: string; messageId: string }) => {
         if (p.channelId !== id) return;
@@ -120,9 +152,10 @@ export default function ChatScreen() {
         method: 'POST',
         body: JSON.stringify({ body, replyToId }),
       });
+      forceScroll.current = true;
+      pendingInitial.current = false;
       // WS broadcast mohol tú istú správu doručiť skôr — nepridávaj ju druhýkrát
       setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
-      listRef.current?.scrollToEnd({ animated: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Odoslanie zlyhalo');
       setText(body); // vráť text, nech sa nestratí
@@ -151,8 +184,9 @@ export default function ChatScreen() {
         throw new Error(b.message ?? 'Nahranie zlyhalo');
       }
       const message = (await res.json()) as Message;
+      forceScroll.current = true;
+      pendingInitial.current = false;
       setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
-      listRef.current?.scrollToEnd({ animated: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Nahranie zlyhalo');
     }
@@ -211,8 +245,8 @@ export default function ChatScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={90}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       {error && <Text style={styles.error}>{error}</Text>}
       <FlatList
@@ -220,6 +254,13 @@ export default function ChatScreen() {
         data={messages}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: 16 }}
+        keyboardShouldPersistTaps="handled"
+        onScroll={onScroll}
+        scrollEventThrottle={100}
+        onContentSizeChange={onContentSizeChange}
+        onScrollBeginDrag={() => {
+          pendingInitial.current = false;
+        }}
         ListEmptyComponent={<Text style={styles.empty}>Zatiaľ žiadne správy — napíšte prvú!</Text>}
         renderItem={({ item }) => (
           <View style={styles.message}>
@@ -248,7 +289,7 @@ export default function ChatScreen() {
               </Pressable>
               {meId === item.sender.id ? (
                 <Pressable onPress={() => confirmDelete(item.id)} hitSlop={8}>
-                  <Text style={[styles.actionText, { color: colors.danger }]}>Vymazať</Text>
+                  <Text style={[styles.actionText, { color: ui.red }]}>Vymazať</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -270,12 +311,13 @@ export default function ChatScreen() {
           </Pressable>
         </View>
       ) : null}
-      <View style={[styles.inputRow, { paddingBottom: insets.bottom + 12 }]}>
+      <View style={[styles.inputRow, { paddingBottom: kbOpen ? 12 : insets.bottom + 12 }]}>
         <Pressable style={styles.attachBtn} onPress={chooseAttachment}>
           <Text style={styles.attachText}>📎</Text>
         </Pressable>
         <TextInput
           style={styles.input}
+          {...inputProps}
           placeholder="Napíšte správu…"
           value={text}
           onChangeText={setText}
@@ -306,91 +348,93 @@ function MessageAttachment({ att }: { att: Attachment }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.club50 },
-  error: { color: colors.danger, padding: 8, textAlign: 'center' },
-  empty: { color: colors.gray, textAlign: 'center', marginTop: 32 },
+  container: { flex: 1, backgroundColor: ui.bg },
+  error: { color: ui.red, padding: 8, textAlign: 'center' },
+  empty: { color: ui.muted, textAlign: 'center', marginTop: 32 },
   message: {
-    backgroundColor: colors.white,
+    backgroundColor: ui.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     padding: 10,
     marginBottom: 8,
   },
-  sender: { fontWeight: '700', color: colors.club800, fontSize: 13 },
-  time: { fontWeight: '400', color: colors.gray, fontSize: 11 },
-  body: { color: colors.club900, marginTop: 2, fontSize: 15 },
+  sender: { fontWeight: '800', color: ui.ink, fontSize: 13 },
+  time: { fontWeight: '400', color: ui.muted, fontSize: 11 },
+  body: { color: ui.ink, marginTop: 2, fontSize: 15 },
   quote: {
     borderLeftWidth: 3,
-    borderLeftColor: colors.club600,
-    backgroundColor: colors.club50,
+    borderLeftColor: ui.lime,
+    backgroundColor: ui.panel2,
     paddingHorizontal: 8,
     paddingVertical: 4,
     marginTop: 4,
     borderRadius: 4,
   },
-  quoteName: { fontWeight: '700', color: colors.club800, fontSize: 12 },
-  quoteText: { color: colors.gray, fontSize: 13 },
+  quoteName: { fontWeight: '700', color: ui.ink, fontSize: 12 },
+  quoteText: { color: ui.muted, fontSize: 13 },
   actions: { flexDirection: 'row', gap: 16, marginTop: 6 },
-  actionText: { color: colors.club600, fontSize: 12, fontWeight: '600' },
+  actionText: { color: ui.blueHi, fontSize: 12, fontWeight: '600' },
   replyBar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: colors.club50,
+    backgroundColor: ui.panel2,
     borderTopWidth: 1,
-    borderTopColor: colors.club100,
+    borderTopColor: ui.line,
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 8,
     padding: 12,
-    backgroundColor: colors.white,
+    backgroundColor: ui.panel,
     borderTopWidth: 1,
-    borderTopColor: colors.club100,
+    borderTopColor: ui.line,
   },
   input: {
     flex: 1,
+    color: ui.ink,
+    backgroundColor: ui.bar,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     borderRadius: 8,
     padding: 10,
     maxHeight: 100,
     fontSize: 15,
   },
   sendBtn: {
-    backgroundColor: colors.club600,
+    backgroundColor: ui.blue,
     borderRadius: 8,
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sendText: { color: colors.white, fontSize: 18 },
+  sendText: { color: ui.onAccent, fontSize: 18 },
   attachBtn: {
     width: 44,
     height: 44,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: ui.panel,
   },
   attachText: { fontSize: 20 },
-  attachImage: { width: 200, height: 200, borderRadius: 8, marginTop: 6, backgroundColor: colors.club50 },
+  attachImage: { width: 200, height: 200, borderRadius: 8, marginTop: 6, backgroundColor: ui.bg },
   docChip: {
     marginTop: 6,
     alignSelf: 'flex-start',
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: colors.club50,
+    backgroundColor: ui.panel2,
   },
-  docText: { color: colors.club700, fontSize: 14 },
+  docText: { color: ui.ink, fontSize: 14 },
 });

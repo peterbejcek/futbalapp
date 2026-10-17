@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { formatEventDateSk } from '@fkknv/shared';
 import { API_URL, api } from '@/api';
-import { colors } from '@/theme';
+import { ui } from '@/theme';
 import { JerseySwatch } from '@/JerseySwatch';
 
 interface PlayedMatch {
@@ -63,7 +63,7 @@ export default function PlayedMatchesScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <Text style={{ color: colors.gray }}>Načítavam…</Text>
+        <Text style={{ color: ui.muted }}>Načítavam…</Text>
       </View>
     );
   }
@@ -75,7 +75,7 @@ export default function PlayedMatchesScreen() {
         contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
         data={matches}
         keyExtractor={(m) => m.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ui.lime} colors={[ui.blue]} progressBackgroundColor={ui.panel} />}
         ListEmptyComponent={<Text style={styles.empty}>Zatiaľ žiadne odohrané zápasy.</Text>}
         renderItem={({ item }) => {
           const ourScore = item.scoreUs ?? 0;
@@ -152,27 +152,27 @@ export default function PlayedMatchesScreen() {
 const SCREEN_W = Dimensions.get('window').width;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.club50 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.club50 },
-  empty: { color: colors.gray, textAlign: 'center', marginTop: 40 },
+  container: { flex: 1, backgroundColor: ui.bg },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: ui.bg },
+  empty: { color: ui.muted, textAlign: 'center', marginTop: 40 },
   card: {
-    backgroundColor: colors.white,
+    backgroundColor: ui.panel,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.club100,
+    borderColor: ui.line,
     padding: 14,
     marginBottom: 12,
   },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  date: { color: colors.gray, fontSize: 12, fontWeight: '600' },
-  teams: { color: colors.club900, fontSize: 15, fontWeight: '600', marginTop: 4 },
-  score: { color: colors.club700, fontWeight: '800' },
-  videoLink: { color: colors.club600, fontWeight: '700', marginTop: 8 },
+  date: { color: ui.muted, fontSize: 12, fontWeight: '600' },
+  teams: { color: ui.ink, fontSize: 15, fontWeight: '600', marginTop: 4 },
+  score: { color: ui.ink, fontWeight: '800' },
+  videoLink: { color: ui.blueHi, fontWeight: '700', marginTop: 8 },
   thumbRow: { marginTop: 10 },
-  thumb: { width: 76, height: 76, borderRadius: 6, marginRight: 6, backgroundColor: colors.club100 },
+  thumb: { width: 76, height: 76, borderRadius: 6, marginRight: 6, backgroundColor: ui.panel2 },
   lightboxBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center' },
   closeBtn: { position: 'absolute', top: 44, right: 20, zIndex: 2, padding: 8 },
-  closeText: { color: colors.white, fontSize: 26, fontWeight: '700' },
+  closeText: { color: ui.onAccent, fontSize: 26, fontWeight: '700' },
   slide: { width: SCREEN_W, alignItems: 'center', justifyContent: 'center' },
   fullImage: { width: SCREEN_W, height: '100%' },
 });
