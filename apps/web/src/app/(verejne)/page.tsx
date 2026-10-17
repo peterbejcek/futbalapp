@@ -49,7 +49,7 @@ export default async function Home() {
         <div className="hero-grid" />
         <div>
           <div className="eyebrow">KOŠICKÁ NOVÁ VES · OD ROKU 1935</div>
-          <h1>NAŠA ŠTVRŤ.<br />NÁŠ <em>FUTBAL.</em></h1>
+          <h1>NÁŠ OKRES,<br />NÁŠ KLUB,<br />NÁŠ <em>FUTBAL.</em></h1>
           <p>Veľké sny sa začínajú na našom ihrisku.<br />Zaži futbal, ktorý nás spája.</p>
           <div className="hero-actions">
             <Link className="btn" href="/muzstva">Spoznaj naše tímy <span>↗</span></Link>
