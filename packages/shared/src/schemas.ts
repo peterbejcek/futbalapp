@@ -125,6 +125,8 @@ export const createEventSchema = z.object({
   type: z.enum(EVENT_TYPES),
   title: z.string().min(2).max(120),
   teamId: z.string().optional(), // null/prázdne = celoklubová udalosť
+  /// tréning pre viac družstiev naraz (teamId = prvé); pre každé vznikne vlastná udalosť
+  teamIds: z.array(z.string()).optional(),
   /// cieľové družstvá (napr. rodičovské združenie pre viac družstiev naraz);
   /// prázdne = celoklubová udalosť
   audienceTeamIds: z.array(z.string()).optional(),
@@ -155,6 +157,8 @@ export type CreatePitchInput = z.infer<typeof createPitchSchema>;
 export const createRecurringTrainingSchema = z.object({
   title: z.string().min(2).max(120),
   teamId: z.string().min(1),
+  /// viac družstiev naraz (teamId = prvé); pre každé vznikne vlastná séria
+  teamIds: z.array(z.string()).optional(),
   weekdays: z.array(z.number().int().min(0).max(6)).min(1),
   startTime: z.string().regex(/^\d{1,2}:\d{2}$/),
   endTime: z.string().regex(/^\d{1,2}:\d{2}$/).optional(),

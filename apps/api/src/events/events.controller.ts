@@ -51,6 +51,9 @@ export class EventsController {
     if (!canManageTeam(user, body.teamId ?? null) && body.teamId) {
       throw new ForbiddenException('Nemôžete vytvárať udalosti pre iné družstvo');
     }
+    if (body.teamIds?.some((id) => !canManageTeam(user, id))) {
+      throw new ForbiddenException('Nemôžete vytvárať udalosti pre iné družstvo');
+    }
     // cieľové družstvá (rodičovské združenie): tréner len svoje; celoklubové len vedenie
     const audience = body.audienceTeamIds ?? [];
     if (audience.length) {
@@ -69,7 +72,7 @@ export class EventsController {
     @Body(new ZodValidationPipe(createRecurringTrainingSchema)) body: CreateRecurringTrainingInput,
     @CurrentUser() user: AuthUser,
   ) {
-    if (!canManageTeam(user, body.teamId)) {
+    if (!canManageTeam(user, body.teamId) || body.teamIds?.some((id) => !canManageTeam(user, id))) {
       throw new ForbiddenException('Nemôžete vytvárať tréningy pre iné družstvo');
     }
     return this.eventsService.createRecurring(body, user.id, user.isDemo);

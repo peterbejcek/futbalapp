@@ -845,7 +845,8 @@ function TrainingModal({
 }) {
   const [recurring, setRecurring] = useState(true);
   const [pitchId, setPitchId] = useState('');
-  const [teamId, setTeamId] = useState('');
+  const [teamIds, setTeamIds] = useState<string[]>([]);
+  const teamId = teamIds[0] ?? '';
   const [title, setTitle] = useState('Tréning');
   const [location, setLocation] = useState('');
   const [address, setAddress] = useState('');
@@ -861,8 +862,8 @@ function TrainingModal({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open && teams[0] && !teamId) setTeamId(teams[0].id);
-  }, [open, teams, teamId]);
+    if (open && teams[0] && teamIds.length === 0) setTeamIds([teams[0].id]);
+  }, [open, teams, teamIds]);
   useEffect(() => {
     if (open && pitches[0] && !pitchId) setPitchId(pitches[0].id);
   }, [open, pitches, pitchId]);
@@ -893,7 +894,7 @@ function TrainingModal({
       if (recurring) {
         await api('/events/recurring', {
           method: 'POST',
-          body: JSON.stringify({ title, teamId, weekdays, startTime, endTime, from, until, ...placeFields(pitchId, location, surface), isPublic, address: address.trim() || undefined }),
+          body: JSON.stringify({ title, teamId, teamIds, weekdays, startTime, endTime, from, until, ...placeFields(pitchId, location, surface), isPublic, address: address.trim() || undefined }),
         });
       } else {
         await api('/events', {
@@ -902,6 +903,7 @@ function TrainingModal({
             type: 'TRAINING',
             title,
             teamId,
+            teamIds,
             startAt: `${date}T${startTime}:00.000Z`,
             endAt: endTime ? `${date}T${endTime}:00.000Z` : undefined,
             ...placeFields(pitchId, location, surface),
@@ -930,14 +932,22 @@ function TrainingModal({
           </Button>
         </div>
         <div>
-          <label className={labelCls}>Družstvo</label>
-          <select value={teamId} onChange={(e) => setTeamId(e.target.value)} className={inputCls}>
-            {teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
+          <label className={labelCls}>Družstvá (možno vybrať viac)</label>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {teams.map((tm) => {
+              const on = teamIds.includes(tm.id);
+              return (
+                <button
+                  key={tm.id}
+                  type="button"
+                  onClick={() => setTeamIds((prev) => (on ? prev.filter((x) => x !== tm.id) : [...prev, tm.id]))}
+                  className={`rounded px-2 py-1 text-sm ${on ? 'bg-club-600 text-white' : 'bg-club-50 text-club-700'}`}
+                >
+                  {tm.name}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div>
           <label className={labelCls}>Názov</label>

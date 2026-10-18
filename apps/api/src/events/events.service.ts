@@ -210,13 +210,29 @@ export class EventsService {
    * pri MATCH/TOURNAMENT vytvorí Match záznam.
    */
   async create(input: CreateEventInput, createdById: string, isDemo = false) {
+    const ids = input.type === 'TRAINING' ? [...new Set(input.teamIds?.length ? input.teamIds : input.teamId ? [input.teamId] : [])] : [];
+    if (ids.length <= 1) return this.createOne({ ...input, teamId: ids[0] ?? input.teamId }, createdById, isDemo);
+    // tréning pre viac družstiev: každé má vlastnú udalosť (dochádzka, e-maily); plocha sa overí raz
+    for (const id of ids) await this.resolveTeam(id);
+    const pitch = await this.resolvePitch(input.pitchId);
+    this.assertEndAfterStart(input.startAt, input.endAt, !!pitch);
+    if (pitch) await this.assertPitchFree(pitch.id, [{ startAt: input.startAt, endAt: input.endAt }]);
+    let first;
+    for (const id of ids) {
+      const ev = await this.createOne({ ...input, teamId: id, teamIds: undefined }, createdById, isDemo, true);
+      first ??= ev;
+    }
+    return first;
+  }
+
+  private async createOne(input: CreateEventInput, createdById: string, isDemo = false, skipPitchCheck = false) {
     const season = await this.prisma.season.findFirst({ where: { isActive: true } });
     if (!season) throw new BadRequestException('Neexistuje aktívna sezóna');
     const team = await this.resolveTeam(input.teamId);
     const isMatch = input.type === 'MATCH' || input.type === 'TOURNAMENT';
     const pitch = await this.resolvePitch(input.pitchId);
     this.assertEndAfterStart(input.startAt, input.endAt, !!pitch);
-    if (pitch) {
+    if (pitch && !skipPitchCheck) {
       await this.assertPitchFree(pitch.id, [{ startAt: input.startAt, endAt: input.endAt }]);
     }
 
@@ -270,6 +286,20 @@ export class EventsService {
    * ako samostatné udalosti so spoločným recurrenceGroupId.
    */
   async createRecurring(input: CreateRecurringTrainingInput, createdById: string, isDemo = false) {
+    const ids = [...new Set(input.teamIds?.length ? input.teamIds : [input.teamId])];
+    if (ids.length <= 1) return this.createRecurringOne({ ...input, teamId: ids[0]! }, createdById, isDemo);
+    for (const id of ids) await this.resolveTeam(id);
+    let created = 0;
+    let recurrenceGroupId = '';
+    for (const [i, id] of ids.entries()) {
+      const r = await this.createRecurringOne({ ...input, teamId: id, teamIds: undefined }, createdById, isDemo, i > 0);
+      created += r.created;
+      recurrenceGroupId ||= r.recurrenceGroupId;
+    }
+    return { recurrenceGroupId, created };
+  }
+
+  private async createRecurringOne(input: CreateRecurringTrainingInput, createdById: string, isDemo = false, skipPitchCheck = false) {
     const season = await this.prisma.season.findFirst({ where: { isActive: true } });
     if (!season) throw new BadRequestException('Neexistuje aktívna sezóna');
     const team = await this.resolveTeam(input.teamId);
@@ -288,7 +318,7 @@ export class EventsService {
     const pitch = await this.resolvePitch(input.pitchId);
     if (pitch && !input.endTime) throw new BadRequestException('Pri vybranej hracej ploche zadajte koniec');
     for (const occ of occurrences) this.assertEndAfterStart(occ.startAt, occ.endAt, !!pitch);
-    if (pitch) await this.assertPitchFree(pitch.id, occurrences);
+    if (pitch && !skipPitchCheck) await this.assertPitchFree(pitch.id, occurrences);
     const recurrenceGroupId = randomUUID();
 
     for (const occ of occurrences) {
