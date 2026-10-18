@@ -1,7 +1,9 @@
+import Image from 'next/image';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import PageTop from '@/components/verejne/PageTop';
+import ClubLogo from '@/components/verejne/ClubLogo';
 import StateBadge from '@/components/verejne/StateBadge';
 import { pageMeta } from '@/lib/verejne/seo';
 import { getEvent } from '@/lib/verejne/public-api';
@@ -40,6 +42,13 @@ export default async function EventPage({ params }: Props) {
       <section className="section">
         {m && (
           <>
+            <div className="match-clubs" style={{ marginBottom: 24 }}>
+              {m.isHome ? <Image src="/logo.png" alt="" width={31} height={49} /> : <ClubLogo src={m.opponentLogoUrl} name={m.homeName} />}
+              <span className="club-name">{m.homeName}</span>
+              <span className="versus">{score ?? 'VS'}</span>
+              <span className="club-name">{m.awayName}</span>
+              {m.isHome ? <ClubLogo src={m.opponentLogoUrl} name={m.awayName} /> : <Image src="/logo.png" alt="" width={31} height={49} />}
+            </div>
             <div className="detail-row"><span>Domáci</span><b>{m.homeName}</b></div>
             <div className="detail-row"><span>Hostia</span><b>{m.awayName}</b></div>
           </>

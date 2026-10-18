@@ -41,6 +41,7 @@ function match(id, teamId, offset, hour, opponent, isHome, extra = {}) {
   const startAt = at(offset, hour);
   const m = {
     homeName: isHome ? ours : opponent, awayName: isHome ? opponent : ours, isHome, opponent,
+    opponentLogoUrl: opponent.length % 2 ? `http://localhost:${process.env.MOCK_PORT ?? 3101}/mock-logo.svg` : null,
     competition: 'Liga (FIKTÍVNA)', homeScore: null, awayScore: null,
   };
   Object.assign(m, extra.match ?? {});
@@ -120,6 +121,10 @@ const server = http.createServer((req, res) => {
   if (req.method !== 'GET') return json(res, 405, { message: 'Method Not Allowed' });
 
   const url = new URL(req.url, 'http://localhost');
+  if (url.pathname === '/mock-logo.svg') {
+    res.writeHead(200, { 'Content-Type': 'image/svg+xml' });
+    return res.end('<svg xmlns="http://www.w3.org/2000/svg" width="37" height="42" viewBox="0 0 37 42"><path d="M0 0h37v31L18.5 42 0 31z" fill="#d81f2a"/><text x="18.5" y="25" font-size="14" font-family="Arial" font-weight="700" fill="#fff" text-anchor="middle">LOGO</text></svg>');
+  }
   if (!url.pathname.startsWith(PREFIX)) return json(res, 404, { message: 'Not Found' });
   const parts = url.pathname.slice(PREFIX.length).split('/').filter(Boolean);
   const q = url.searchParams;

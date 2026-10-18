@@ -48,6 +48,8 @@ export interface PublicMatchDto {
   awayName: string;
   isHome: boolean;
   opponent: string;
+  /** Logo súpera (http/https URL z registra klubov / zápasu), alebo null. */
+  opponentLogoUrl: string | null;
   competition: string | null;
   /** Skóre z pohľadu domácich/hostí; null ak zápas nebol odohraný. */
   homeScore: number | null;

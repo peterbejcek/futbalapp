@@ -40,7 +40,7 @@ export const PUBLIC_EVENT_SELECT = {
     select: { id: true, name: true, teamCategory: { select: { code: true, name: true } } },
   },
   match: {
-    select: { opponent: true, isHome: true, competition: true, scoreUs: true, scoreThem: true, state: true },
+    select: { opponent: true, opponentLogo: true, isHome: true, competition: true, scoreUs: true, scoreThem: true, state: true },
   },
 } as const;
 
@@ -147,6 +147,7 @@ export interface PublicEventRow {
   team: { id: string; name: string; teamCategory: { code: string; name: string } } | null;
   match: {
     opponent: string;
+    opponentLogo?: string | null;
     isHome: boolean;
     competition: string | null;
     scoreUs: number | null;
@@ -155,7 +156,29 @@ export interface PublicEventRow {
   } | null;
 }
 
-export function toEventDto(e: PublicEventRow, club: PublicClubDto): PublicEventDto | null {
+/** Logo súpera smie byť len http(s) URL (nikdy data:/javascript:), rozumnej dĺžky. */
+export function safeLogoUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const v = value.trim();
+  if (v.length === 0 || v.length > 1000 || /[\s\u0000-\u001f]/.test(v)) return null;
+  try {
+    const u = new URL(v);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Mená súperov, ktorým chýba platné logo priamo v zápase (doplnia sa z registra klubov). */
+export function opponentsMissingLogo(rows: PublicEventRow[]): string[] {
+  return [...new Set(rows.filter((r) => r.match && !safeLogoUrl(r.match.opponentLogo)).map((r) => r.match!.opponent))];
+}
+
+export function toEventDto(
+  e: PublicEventRow,
+  club: PublicClubDto,
+  clubLogos: ReadonlyMap<string, string | null> = new Map(),
+): PublicEventDto | null {
   if (!e.team) return null;
   if (e.type !== 'MATCH' && e.type !== 'TOURNAMENT' && e.type !== 'TRAINING') return null;
   const state = mapState(e.type, e.match?.state);
@@ -171,6 +194,7 @@ export function toEventDto(e: PublicEventRow, club: PublicClubDto): PublicEventD
       awayName: home ? e.match.opponent : us,
       isHome: home,
       opponent: e.match.opponent,
+      opponentLogoUrl: safeLogoUrl(e.match.opponentLogo) ?? safeLogoUrl(clubLogos.get(e.match.opponent)),
       competition: e.match.competition,
       homeScore: home ? scoreUs : scoreThem,
       awayScore: home ? scoreThem : scoreUs,

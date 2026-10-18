@@ -37,6 +37,7 @@ import {
   toArticleListItem,
   toDocumentDto,
   toEventDto,
+  opponentsMissingLogo,
   toPageDto,
   toPersonDto,
   toSeasonDto,
@@ -81,6 +82,17 @@ export class PublicService {
   }
 
   /** Platné členstvo v družstve v aktívnej sezóne (aktívny, nie demo hráč). */
+  /** Logá súperov z registra klubov (Club.logoUrl) pre zápasy, ktoré ho nemajú priamo v Match.opponentLogo. */
+  private async clubLogos(rows: PublicEventRow[]): Promise<Map<string, string | null>> {
+    const names = opponentsMissingLogo(rows);
+    if (names.length === 0) return new Map();
+    const clubs = await this.prisma.club.findMany({
+      where: { name: { in: names }, logoUrl: { not: null } },
+      select: { name: true, logoUrl: true },
+    });
+    return new Map(clubs.map((c) => [c.name, c.logoUrl]));
+  }
+
   private activeMembershipWhere(seasonId: string, now: Date): Prisma.TeamMembershipWhereInput {
     return {
       seasonId,
@@ -229,8 +241,9 @@ export class PublicService {
       take: limit,
       select: PUBLIC_EVENT_SELECT,
     });
+    const clubLogos = await this.clubLogos(rows as PublicEventRow[]);
     const events = (rows as PublicEventRow[])
-      .map((r) => toEventDto(r, club))
+      .map((r) => toEventDto(r, club, clubLogos))
       .filter((e): e is PublicEventDto => e !== null);
     return { club, season: toSeasonDto(season), events };
   }
@@ -242,7 +255,7 @@ export class PublicService {
       where: { AND: [{ id }, this.publicEventWhere(season.id)] },
       select: PUBLIC_EVENT_SELECT,
     });
-    const event = row ? toEventDto(row as PublicEventRow, club) : null;
+    const event = row ? toEventDto(row as PublicEventRow, club, await this.clubLogos([row as PublicEventRow])) : null;
     if (!event) throw new NotFoundException('Udalosť neexistuje');
     return { club, event };
   }

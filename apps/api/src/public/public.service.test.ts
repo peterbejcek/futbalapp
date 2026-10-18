@@ -4,6 +4,8 @@ import { PublicService } from './public.service';
 import {
   decodePhotoDataUrl,
   documentFileHeaders,
+  opponentsMissingLogo,
+  safeLogoUrl,
   parseSections,
   splitParagraphs,
   toEventDto,
@@ -222,10 +224,25 @@ describe('udalosti', () => {
       awayName: 'Lokomotíva',
       isHome: true,
       opponent: 'Lokomotíva',
+      opponentLogoUrl: null,
       competition: 'Liga',
       homeScore: 3,
       awayScore: 1,
     });
+  });
+
+  it('logo súpera: z Match.opponentLogo, inak z registra klubov; nebezpečné URL sa zahodia', () => {
+    const base = eventRow();
+    const withLogo = toEventDto(eventRow({ match: { ...base.match!, opponentLogo: 'https://cdn.example.sk/l.png' } }), CLUB)!;
+    expect(withLogo.match!.opponentLogoUrl).toBe('https://cdn.example.sk/l.png');
+    const fromRegistry = toEventDto(base, CLUB, new Map([['Lokomotíva', 'https://reg.example.sk/x.png']]))!;
+    expect(fromRegistry.match!.opponentLogoUrl).toBe('https://reg.example.sk/x.png');
+    const evil = toEventDto(eventRow({ match: { ...base.match!, opponentLogo: 'javascript:alert(1)' } }), CLUB, new Map([['Lokomotíva', 'data:image/png;base64,AAAA']]))!;
+    expect(evil.match!.opponentLogoUrl).toBeNull();
+    expect(safeLogoUrl('ftp://x/y.png')).toBeNull();
+    expect(safeLogoUrl('https://x.sk/a b.png')).toBeNull();
+    expect(opponentsMissingLogo([base])).toEqual(['Lokomotíva']);
+    expect(opponentsMissingLogo([eventRow({ match: { ...base.match!, opponentLogo: 'https://cdn.example.sk/l.png' } })])).toEqual([]);
   });
 
   it('vonku: isHome=false → súper domáci, skóre otočené; názov s družstvom', () => {

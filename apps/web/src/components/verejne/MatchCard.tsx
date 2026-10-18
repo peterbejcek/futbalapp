@@ -3,13 +3,12 @@ import Link from 'next/link';
 import type { PublicEventDto } from '@fkknv/shared';
 import { eventScore, fmtDay, fmtMonthOnly, fmtTime } from '@/lib/verejne/format';
 import StateBadge from './StateBadge';
+import ClubLogo from './ClubLogo';
 
-const abbrOf = (name: string) => name.replace(/[^\p{L}]/gu, '').slice(0, 3).toUpperCase();
-
-function Side({ name, ours }: { name: string; ours: boolean }) {
+function Side({ name, ours, logo }: { name: string; ours: boolean; logo?: string | null }) {
   return (
     <>
-      {ours ? <Image src="/logo.png" alt="" width={31} height={49} /> : <span className="club-icon" aria-hidden="true">{abbrOf(name)}</span>}
+      {ours ? <Image src="/logo.png" alt="" width={31} height={49} /> : <ClubLogo src={logo ?? null} name={name} />}
       <span className="club-name">{name}</span>
     </>
   );
@@ -29,9 +28,9 @@ export default function MatchCard({ event, tz, featured, label }: { event: Publi
         </span>
       </div>
       <div className="match-clubs">
-        <Side name={home} ours={!m || m.isHome} />
+        <Side name={home} ours={!m || m.isHome} logo={m?.opponentLogoUrl} />
         {score ? <span className="versus score">{score}</span> : <span className="versus">VS</span>}
-        {m && <Side name={away} ours={!m.isHome} />}
+        {m && <Side name={away} ours={!m.isHome} logo={m.opponentLogoUrl} />}
       </div>
       <div className="match-bottom">
         <b>{fmtDay(event.startAt, tz)}. {fmtMonthOnly(event.startAt, tz)} · {fmtTime(event.startAt, tz)}</b>
