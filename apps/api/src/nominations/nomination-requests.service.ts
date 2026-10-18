@@ -163,7 +163,13 @@ export class NominationRequestsService {
       })
       .filter((c) => isAgeEligible(c.order, matchOrder))
       .filter((c) => !needle || `${c.firstName} ${c.lastName}`.toLowerCase().includes(needle) || `${c.lastName} ${c.firstName}`.toLowerCase().includes(needle))
-      .sort((a, b) => a.lastName.localeCompare(b.lastName, 'sk') || a.firstName.localeCompare(b.firstName, 'sk'))
+      // nominovaní hráči najprv, potom ostatní; v oboch skupinách abecedne (slovenské radenie)
+      .sort(
+        (a, b) =>
+          Number(b.nominated) - Number(a.nominated) ||
+          a.lastName.localeCompare(b.lastName, 'sk') ||
+          a.firstName.localeCompare(b.firstName, 'sk'),
+      )
       .map(({ order: _order, ...rest }) => rest);
   }
 
@@ -208,6 +214,33 @@ export class NominationRequestsService {
 
     void this.notifyApprovers(request.id, teams.map((t) => t.id)).catch(() => undefined);
     return { result: 'REQUESTED' as const, request };
+  }
+
+  /**
+   * Zrušenie nominácie hráča z iného družstva: odoberie ho z nominácie zápasu
+   * (záznam ostáva pre históriu ako REMOVED) a čakajúcu žiadosť o povolenie zruší
+   * (zmaže). Smie to rovnaký používateľ, ktorý môže nomináciu spravovať
+   * (tréner družstva zápasu alebo vedenie).
+   */
+  async cancel(matchId: string, memberId: string, user: AuthUser) {
+    await this.loadMatchForManager(matchId, user);
+    const nomination = await this.prisma.matchNomination.findUnique({
+      where: { matchId_memberId: { matchId, memberId } },
+    });
+    const request = await this.prisma.nominationRequest.findUnique({
+      where: { matchId_memberId: { matchId, memberId } },
+    });
+    const hasNomination = !!nomination && nomination.status !== 'REMOVED';
+    const hasPending = request?.status === 'PENDING';
+    if (!hasNomination && !hasPending) throw new NotFoundException('Nominácia ani čakajúca žiadosť neexistuje');
+    if (hasNomination) {
+      await this.prisma.matchNomination.update({
+        where: { matchId_memberId: { matchId, memberId } },
+        data: { status: 'REMOVED' },
+      });
+    }
+    if (hasPending && request) await this.prisma.nominationRequest.delete({ where: { id: request.id } });
+    return { result: hasNomination ? ('REMOVED' as const) : ('CANCELLED' as const) };
   }
 
   /** Žiadosti, o ktorých môže používateľ rozhodnúť, a žiadosti, ktoré sám podal. */

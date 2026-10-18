@@ -65,6 +65,7 @@ function make(opts: {
         nominations.find((n) => n.memberId === where.matchId_memberId.memberId) ?? null,
       ),
       upsert: vi.fn(async ({ create }: { create: Record<string, unknown> }) => ({ id: 'nom', ...create })),
+      update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'nom', ...data })),
     },
     nominationRequest: {
       findMany: vi.fn(async () => requests),
@@ -85,6 +86,7 @@ function make(opts: {
       }),
       create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'req-new', ...data })),
       update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'req', ...data })),
+      delete: vi.fn(async () => ({})),
     },
     userRole: { findMany: vi.fn(async () => []) },
   };
@@ -191,5 +193,61 @@ describe('NominationRequestsService', () => {
   it('neaktívneho hráča neschváli', async () => {
     const { service } = make({ players, memberStatus: 'INACTIVE', requests: [{ id: 'r1', memberId: 'mladsi', status: 'PENDING' }] });
     await expect(service.decide('r1', admin, true)).rejects.toThrow(/aktívny/);
+  });
+});
+
+describe('zrušenie nominácie z iného družstva a radenie', () => {
+  const three: Player[] = [
+    { id: 'a', birthYear: 2014, teams: [U13] },
+    { id: 'b', birthYear: 2014, teams: [U13] },
+    { id: 'c', birthYear: 2014, teams: [U13] },
+  ];
+
+  it('nominovaní hráči sú v zozname najprv, ostatní až potom (v oboch skupinách abecedne)', async () => {
+    const { service } = make({ players: three, nominations: [{ memberId: 'c', status: 'NOMINATED' }] });
+    const list = await service.candidates('m1', coachOf('t-u15'));
+    expect(list.map((x) => x.id)).toEqual(['c', 'a', 'b']);
+    expect(list[0]!.nominated).toBe(true);
+  });
+
+  it('odobratá nominácia (REMOVED) sa radí medzi ostatných', async () => {
+    const { service } = make({ players: three, nominations: [{ memberId: 'b', status: 'REMOVED' }] });
+    const list = await service.candidates('m1', coachOf('t-u15'));
+    expect(list.map((x) => x.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('zruší existujúcu nomináciu (status REMOVED)', async () => {
+    const { service, prisma } = make({ players: three, nominations: [{ memberId: 'a', status: 'NOMINATED' }] });
+    await expect(service.cancel('m1', 'a', coachOf('t-u15'))).resolves.toEqual({ result: 'REMOVED' });
+    expect(prisma.matchNomination.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: 'REMOVED' } }),
+    );
+    expect(prisma.nominationRequest.delete).not.toHaveBeenCalled();
+  });
+
+  it('zruší čakajúcu žiadosť (zmaže ju) a nominácie sa nedotkne', async () => {
+    const { service, prisma } = make({
+      players: three,
+      requests: [{ id: 'r1', memberId: 'a', status: 'PENDING' }],
+    });
+    await expect(service.cancel('m1', 'a', coachOf('t-u15'))).resolves.toEqual({ result: 'CANCELLED' });
+    expect(prisma.nominationRequest.delete).toHaveBeenCalledWith({ where: { id: 'r1' } });
+    expect(prisma.matchNomination.update).not.toHaveBeenCalled();
+  });
+
+  it('bez nominácie aj bez čakajúcej žiadosti vráti 404; schválená žiadosť sa nemaže', async () => {
+    const { service, prisma } = make({ players: three, requests: [{ id: 'r2', memberId: 'a', status: 'APPROVED' }] });
+    await expect(service.cancel('m1', 'a', coachOf('t-u15'))).rejects.toThrow(/neexistuje/);
+    expect(prisma.nominationRequest.delete).not.toHaveBeenCalled();
+  });
+
+  it('tréner cudzieho družstva nominácie rušiť nemôže', async () => {
+    const { service } = make({ players: three, nominations: [{ memberId: 'a', status: 'NOMINATED' }] });
+    await expect(service.cancel('m1', 'a', coachOf('t-u13'))).rejects.toThrow(/svoje družstvo/);
+  });
+
+  it('vedenie (admin) môže zrušiť nomináciu', async () => {
+    const { service } = make({ players: three, nominations: [{ memberId: 'a', status: 'NOMINATED' }] });
+    await expect(service.cancel('m1', 'a', admin)).resolves.toEqual({ result: 'REMOVED' });
   });
 });

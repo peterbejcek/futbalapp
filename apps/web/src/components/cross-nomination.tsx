@@ -205,6 +205,31 @@ export function CrossNomination({ matchId, onChange }: { matchId: string; onChan
     }
   }
 
+  async function cancel(c: Candidate) {
+    const what = c.nominated ? 'nomináciu' : 'žiadosť o povolenie';
+    if (!window.confirm(`Zrušiť ${what} hráča ${c.lastName} ${c.firstName}?`)) return;
+    setBusyId(c.id);
+    setError(null);
+    setInfo(null);
+    try {
+      const res = await api<{ result: 'REMOVED' | 'CANCELLED' }>(
+        `/nomination-requests/match/${matchId}/${encodeURIComponent(c.id)}`,
+        { method: 'DELETE' },
+      );
+      setInfo(
+        res.result === 'REMOVED'
+          ? `Nominácia hráča ${c.lastName} ${c.firstName} bola zrušená.`
+          : `Žiadosť o ${c.lastName} ${c.firstName} bola zrušená.`,
+      );
+      await Promise.all([loadCandidates(), loadRequests()]);
+      if (res.result === 'REMOVED') onChange?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Zrušenie zlyhalo');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   const needle = q.trim().toLowerCase();
   const shown = (candidates ?? []).filter(
     (c) =>
@@ -251,9 +276,27 @@ export function CrossNomination({ matchId, onChange }: { matchId: string; onChan
                       </span>
                     </span>
                     {c.nominated ? (
-                      <span className="shrink-0 text-club-600">✓ v nominácii</span>
+                      <span className="flex shrink-0 items-center gap-3">
+                        <span className="text-club-600">✓ v nominácii</span>
+                        <button
+                          onClick={() => cancel(c)}
+                          disabled={busyId === c.id}
+                          className="text-red-600 hover:underline disabled:opacity-50"
+                        >
+                          zrušiť nomináciu
+                        </button>
+                      </span>
                     ) : pending ? (
-                      <span className="shrink-0 text-amber-600">čaká na schválenie</span>
+                      <span className="flex shrink-0 items-center gap-3">
+                        <span className="text-amber-600">čaká na schválenie</span>
+                        <button
+                          onClick={() => cancel(c)}
+                          disabled={busyId === c.id}
+                          className="text-red-600 hover:underline disabled:opacity-50"
+                        >
+                          zrušiť žiadosť
+                        </button>
+                      </span>
                     ) : (
                       <button
                         onClick={() => nominate(c)}

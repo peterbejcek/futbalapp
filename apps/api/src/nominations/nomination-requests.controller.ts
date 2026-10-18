@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
 import { NominationRequestsService } from './nomination-requests.service';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
@@ -37,6 +37,12 @@ export class NominationRequestsController {
     @Body(new ZodValidationPipe(nominateSchema)) body: z.infer<typeof nominateSchema>,
   ) {
     return this.service.nominate(matchId, body.memberId, user, body.note);
+  }
+
+  /** Zrušiť nomináciu hráča z iného družstva (alebo jeho čakajúcu žiadosť). */
+  @Delete('match/:matchId/:memberId')
+  cancel(@Param('matchId') matchId: string, @Param('memberId') memberId: string, @CurrentUser() user: AuthUser) {
+    return this.service.cancel(matchId, memberId, user);
   }
 
   @Post(':id/approve')
