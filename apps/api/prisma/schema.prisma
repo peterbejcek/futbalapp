@@ -632,6 +632,8 @@ model Pitch {
   name      String   @unique
   /// PT | UT | VT | MT | MI
   surface   String
+  /// Adresa plochy (pre odkaz / mapu Google Maps); použije sa pri udalosti bez vlastnej adresy.
+  address   String?
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
 

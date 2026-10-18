@@ -83,7 +83,7 @@ export class MatchesService {
         jerseyColor: true,
         videoUrl: true,
         highlightsUrl: true,
-        event: { select: { title: true, startAt: true, team: { select: { name: true } } } },
+        event: { select: { title: true, startAt: true, location: true, address: true, team: { select: { name: true } } } },
         photos: { select: { id: true }, orderBy: { createdAt: 'asc' } },
         videos: { select: { id: true, mimeType: true, title: true }, orderBy: { createdAt: 'asc' } },
       },

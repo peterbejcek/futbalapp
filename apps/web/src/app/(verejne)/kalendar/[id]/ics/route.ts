@@ -3,7 +3,7 @@ import { isMatchType } from '@/lib/verejne/format';
 
 export const dynamic = 'force-dynamic';
 
-const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\r\n|\r|\n/g, '\\n');
+const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r\n|\r|\n/g, '\\n');
 const utc = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 const safeId = (id: string) => id.replace(/[^A-Za-z0-9._-]/g, '');
 
@@ -38,6 +38,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const start = new Date(e.startAt);
   const end = e.endAt ? new Date(e.endAt) : new Date(start.getTime() + 90 * 60000);
   const summary = isMatchType(e.type) && e.match ? `${e.match.homeName} – ${e.match.awayName}` : e.title;
+  const loc = e.location && e.address ? `${e.location} — ${e.address}` : (e.location ?? e.address ?? '');
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -49,7 +50,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     `DTSTART:${utc(start)}`,
     `DTEND:${utc(end)}`,
     `SUMMARY:${esc(summary)}`,
-    ...(e.location ? [`LOCATION:${esc(e.location)}`] : []),
+    ...(loc ? [`LOCATION:${esc(loc)}`] : []),
     ...(e.state === 'CANCELLED' ? ['STATUS:CANCELLED'] : []),
     'END:VEVENT',
     'END:VCALENDAR',

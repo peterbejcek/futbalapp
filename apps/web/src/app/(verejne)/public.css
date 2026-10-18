@@ -106,4 +106,8 @@ nav.club-tabs a.active:after{display:none}
 .gallery-tile.art:after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,#08111cee,#08111c22);z-index:-1}
 .gallery-tile-li{display:flex}.gallery-tile-li>a{flex:1}
 @media(max-width:800px){.article-card .news-card-link{display:grid;grid-template-columns:35% 1fr}.doc-row{flex-direction:column;align-items:flex-start}.doc-actions{text-align:left}.contact-grid{grid-template-columns:1fr}}
+.detail-row b a{color:var(--lime);text-decoration:underline;text-underline-offset:3px}
+.detail-row b{text-align:right}
+.map-toggle{margin-top:12px}
+.map-frame{display:block;width:100%;height:320px;border:1px solid var(--line);margin-top:12px;background:#0000}
 }

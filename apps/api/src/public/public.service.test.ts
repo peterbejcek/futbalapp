@@ -57,6 +57,7 @@ function eventRow(over: Partial<PublicEventRow> = {}): PublicEventRow {
     startAt: new Date('2030-09-12T17:00:00Z'),
     endAt: null,
     location: 'Ihrisko KNV',
+    address: 'Futbalová 1, Nové Veselé',
     team: { id: 't1', name: 'U10', teamCategory: { code: 'U10', name: 'Prípravka U10' } },
     match: { opponent: 'Lokomotíva', isHome: true, competition: 'Liga', scoreUs: 3, scoreThem: 1, state: 'FINISHED' },
     ...over,
@@ -214,6 +215,12 @@ describe('udalosti', () => {
     await expect(service.events({ type: 'club' })).rejects.toBeInstanceOf(BadRequestException);
     await expect(service.events({ from: '2030-13-01' })).rejects.toBeInstanceOf(BadRequestException);
     await expect(service.events({ limit: 'abc' })).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('toEventDto vracia address (orezanú) alebo null', () => {
+    expect(toEventDto(eventRow({ address: '  Futbalová 1  ' }), CLUB)!.address).toBe('Futbalová 1');
+    expect(toEventDto(eventRow({ address: null }), CLUB)!.address).toBeNull();
+    expect(toEventDto(eventRow({ address: '   ' }), CLUB)!.address).toBeNull();
   });
 
   it('domáci: isHome=true → my domáci, skóre z pohľadu domácich', () => {

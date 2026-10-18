@@ -113,6 +113,14 @@ export const createMemberSchema = z.object({
 });
 export type CreateMemberInput = z.infer<typeof createMemberSchema>;
 
+/// adresa udalosti: orezaná, max 300 znakov, prázdny reťazec → null
+export const eventAddressSchema = z
+  .string()
+  .trim()
+  .max(300)
+  .nullish()
+  .transform((v) => (v === undefined ? undefined : v === null || v === '' ? null : v));
+
 export const createEventSchema = z.object({
   type: z.enum(EVENT_TYPES),
   title: z.string().min(2).max(120),
@@ -123,6 +131,7 @@ export const createEventSchema = z.object({
   startAt: z.coerce.date(),
   endAt: z.coerce.date().optional(),
   location: z.string().max(200).optional(),
+  address: eventAddressSchema,
   surface: z.enum(SURFACE_CODES).optional(),
   /// hracia plocha z nastavení; ak je zadaná, miesto a povrch sa preberú z nej
   pitchId: z.string().optional(),
@@ -139,6 +148,7 @@ export type CreateEventInput = z.infer<typeof createEventSchema>;
 export const createPitchSchema = z.object({
   name: z.string().trim().min(2).max(80),
   surface: z.enum(SURFACE_CODES),
+  address: eventAddressSchema,
 });
 export type CreatePitchInput = z.infer<typeof createPitchSchema>;
 
@@ -151,6 +161,7 @@ export const createRecurringTrainingSchema = z.object({
   from: z.coerce.date(),
   until: z.coerce.date(),
   location: z.string().max(200).optional(),
+  address: eventAddressSchema,
   surface: z.enum(SURFACE_CODES).optional(),
   pitchId: z.string().optional(),
   /// zobraziť v kalendári na verejnom webe

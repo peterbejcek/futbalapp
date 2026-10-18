@@ -24,6 +24,7 @@ export function EventAdminActions({
   kind,
   title,
   location,
+  address,
   surface,
   matchId,
   matchState,
@@ -36,6 +37,7 @@ export function EventAdminActions({
   kind: 'match' | 'training';
   title?: string;
   location?: string | null;
+  address?: string | null;
   surface?: string | null;
   matchId?: string;
   matchState?: string;
@@ -50,6 +52,7 @@ export function EventAdminActions({
   const [endTime, setEndTime] = useState(e0 ? `${pad(e0.getUTCHours())}:${pad(e0.getUTCMinutes())}` : '');
   const [titleVal, setTitleVal] = useState(title ?? '');
   const [locationVal, setLocationVal] = useState(location ?? '');
+  const [addressVal, setAddressVal] = useState(address ?? '');
   const [surfaceVal, setSurfaceVal] = useState(surface ?? '');
   const [moveOpen, setMoveOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -80,6 +83,7 @@ export function EventAdminActions({
         startAt: new Date(startMs).toISOString(),
         location: locationVal || undefined,
         surface: surfaceVal || undefined,
+        address: addressVal.trim() || null,
       };
       if (titleVal.trim()) body.title = titleVal.trim();
       if (endTime) {
@@ -185,6 +189,10 @@ export function EventAdminActions({
                 <option key={v} value={v} />
               ))}
             </datalist>
+          </div>
+          <div>
+            <label className={labelCls}>Adresa (pre mapu)</label>
+            <input value={addressVal} onChange={(e) => setAddressVal(e.target.value)} maxLength={300} className={inputCls} placeholder="Agátová 1, 040 14 Košice" />
           </div>
           <div>
             <label className={labelCls}>Povrch</label>

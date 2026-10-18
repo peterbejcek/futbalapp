@@ -6,6 +6,8 @@ import { SURFACE_LABELS_SK, formatEventDateTimeSk, type SurfaceCode } from '@fkk
 import { api } from '@/lib/api';
 import { coachTeams, isStaff, useMe } from '@/lib/auth';
 import { Card } from '@/components/ui';
+import { AddressLink } from '@/components/AddressLink';
+import { MapEmbed } from '@/components/MapEmbed';
 import { EventAdminActions } from '@/components/event-admin-actions';
 
 interface AttendanceRow {
@@ -19,6 +21,7 @@ interface EventDetail {
   startAt: string;
   endAt: string | null;
   location: string | null;
+  address: string | null;
   surface: SurfaceCode | null;
   recurrenceGroupId: string | null;
   team: { id: string; name: string } | null;
@@ -94,6 +97,12 @@ export default function AttendancePage({ params }: { params: Promise<{ id: strin
               {event.surface ? ` · ${SURFACE_LABELS_SK[event.surface]}` : ''} · Prítomní: {present}/
               {event.attendances.length}
             </p>
+            {event.address && (
+              <div className="mt-1 text-sm text-gray-600">
+                <AddressLink address={event.address} />
+                <MapEmbed address={event.address} />
+              </div>
+            )}
             {canEdit && event.team && (
               <div className="mt-3">
                 <Link
@@ -113,6 +122,7 @@ export default function AttendancePage({ params }: { params: Promise<{ id: strin
                   kind="training"
                   title={event.title}
                   location={event.location}
+                  address={event.address}
                   surface={event.surface}
                   recurrenceGroupId={event.recurrenceGroupId}
                   onChanged={load}

@@ -7,6 +7,7 @@ import { formatEventDateTimeSk } from '@fkknv/shared';
 import { categoryColor } from '@/lib/colors';
 import { canManage, coachTeams, isParent, isPlayer, isStaff, useMe } from '@/lib/auth';
 import { Card } from '@/components/ui';
+import { AddressLink } from '@/components/AddressLink';
 import { NominationRequestsPanel } from '@/components/cross-nomination';
 
 interface EventItem {
@@ -15,6 +16,7 @@ interface EventItem {
   title: string;
   startAt: string;
   location: string | null;
+  address: string | null;
   team: { name: string; teamCategory?: { code: string } } | null;
   match: { id: string; opponent: string; isHome: boolean; opponentLogo: string | null } | null;
 }
@@ -187,6 +189,7 @@ function EventList({ title, events }: { title: string; events: EventItem[] }) {
                     <div className="mt-1 truncate text-xs text-gray-500">
                       {time}
                       {e.location ? ` · ${e.location}` : ''}
+                      {e.address ? ` · ${e.address}` : ''}
                     </div>
                   </div>
                   <span
@@ -301,6 +304,7 @@ interface Nomination {
   isHome: boolean;
   startAt: string;
   location: string | null;
+  address?: string | null;
   team: string | null;
   category: string | null;
 }
@@ -346,6 +350,12 @@ function MatchConfirmations() {
                   {n.isHome ? 'doma' : 'vonku'} vs {n.opponent} ·{' '}
                   {formatEventDateTimeSk(n.startAt)}
                   {n.location ? ` · ${n.location}` : ''}
+                  {n.address && (
+                    <>
+                      {' · '}
+                      <AddressLink address={n.address} />
+                    </>
+                  )}
                 </span>
               </div>
               <div className="flex items-center gap-2">

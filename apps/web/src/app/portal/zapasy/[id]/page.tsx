@@ -18,6 +18,8 @@ import {
 import { api } from '@/lib/api';
 import { coachTeams, isStaff, useMe } from '@/lib/auth';
 import { Button, Card } from '@/components/ui';
+import { AddressLink } from '@/components/AddressLink';
+import { MapEmbed } from '@/components/MapEmbed';
 import { EventAdminActions } from '@/components/event-admin-actions';
 import { CrossNomination } from '@/components/cross-nomination';
 import { MatchMedia, type MatchPhotoItem, type MatchVideoItem } from '@/components/match-media';
@@ -65,6 +67,7 @@ interface MatchDetail {
     startAt: string;
     endAt: string | null;
     location: string | null;
+    address: string | null;
     surface: SurfaceCode | null;
     team: { id: string; name: string } | null;
   };
@@ -538,6 +541,12 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           {match.event.location ? ` · ${match.event.location}` : ''}
           {match.event.surface ? ` · ${SURFACE_LABELS_SK[match.event.surface]}` : ''}
         </p>
+        {match.event.address && (
+          <div className="mt-1 text-sm text-gray-600">
+            <AddressLink address={match.event.address} />
+            <MapEmbed address={match.event.address} />
+          </div>
+        )}
 
         {manage && (
           <div className="mt-3 flex items-end justify-center gap-2">
@@ -592,6 +601,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
               kind="match"
               title={match.event.title}
               location={match.event.location}
+              address={match.event.address}
               surface={match.event.surface}
               matchId={match.id}
               matchState={match.state}

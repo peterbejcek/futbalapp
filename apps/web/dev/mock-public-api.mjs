@@ -47,14 +47,14 @@ function match(id, teamId, offset, hour, opponent, isHome, extra = {}) {
   Object.assign(m, extra.match ?? {});
   return {
     id, type: 'MATCH', state: extra.state ?? 'SCHEDULED', teamId, teamName: t.name, categoryCode: t.categoryCode, categoryName: t.categoryName,
-    title: `${t.name} vs ${opponent}`, startAt, endAt: end(startAt, 90), location: isHome ? 'ihrisko KNV' : `ihrisko ${opponent}`, match: m,
+    title: `${t.name} vs ${opponent}`, startAt, endAt: end(startAt, 90), location: isHome ? 'ihrisko KNV' : `ihrisko ${opponent}`, address: isHome ? 'Agátová 1, 040 14 Košice' : null, match: m,
   };
 }
 const training = (id, teamId, offset, hour) => {
   const t = T[teamId];
   const startAt = at(offset, hour);
   return { id, type: 'TRAINING', state: 'SCHEDULED', teamId, teamName: t.name, categoryCode: t.categoryCode, categoryName: t.categoryName,
-    title: `Tréning ${t.name}`, startAt, endAt: end(startAt, 75), location: 'ihrisko KNV', match: null };
+    title: `Tréning ${t.name}`, startAt, endAt: end(startAt, 75), location: 'ihrisko KNV', address: null, match: null };
 };
 
 const events = [

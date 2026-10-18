@@ -36,6 +36,7 @@ export const PUBLIC_EVENT_SELECT = {
   startAt: true,
   endAt: true,
   location: true,
+  address: true,
   team: {
     select: { id: true, name: true, teamCategory: { select: { code: true, name: true } } },
   },
@@ -144,6 +145,7 @@ export interface PublicEventRow {
   startAt: Date;
   endAt: Date | null;
   location: string | null;
+  address: string | null;
   team: { id: string; name: string; teamCategory: { code: string; name: string } } | null;
   match: {
     opponent: string;
@@ -212,6 +214,7 @@ export function toEventDto(
     startAt: wallClockToInstant(e.startAt, club.timezone).toISOString(),
     endAt: e.endAt ? wallClockToInstant(e.endAt, club.timezone).toISOString() : null,
     location: e.location,
+    address: e.address?.trim() || null,
     match,
   };
 }

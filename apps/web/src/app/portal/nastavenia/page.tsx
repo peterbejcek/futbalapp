@@ -9,6 +9,7 @@ interface PitchRow {
   id: string;
   name: string;
   surface: SurfaceCode;
+  address?: string | null;
 }
 
 /** Hracie plochy klubu: názov + povrch; ponúkajú sa pri tvorbe tréningu/zápasu a v kalendári (obsadenosť). */
@@ -16,6 +17,7 @@ function PitchesCard({ onErr }: { onErr: (m: string | null) => void }) {
   const [pitches, setPitches] = useState<PitchRow[]>([]);
   const [name, setName] = useState('');
   const [surface, setSurface] = useState<SurfaceCode>('PT');
+  const [address, setAddress] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -68,6 +70,17 @@ function PitchesCard({ onErr }: { onErr: (m: string | null) => void }) {
                 </option>
               ))}
             </select>
+            <input
+              defaultValue={p.address ?? ''}
+              maxLength={300}
+              placeholder="Adresa (pre mapu)"
+              title="Adresa (pre mapu)"
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (v !== (p.address ?? '')) void run(() => api(`/pitches/${p.id}`, { method: 'PATCH', body: JSON.stringify({ address: v || null }) }));
+              }}
+              className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+            />
             <Button
               variant="ghost"
               onClick={() => {
@@ -88,12 +101,14 @@ function PitchesCard({ onErr }: { onErr: (m: string | null) => void }) {
             </option>
           ))}
         </select>
+        <input value={address} maxLength={300} onChange={(e) => setAddress(e.target.value)} placeholder="Adresa (pre mapu)" className="min-w-[14rem] flex-1 rounded border border-gray-300 px-2 py-1 text-sm" />
         <Button
           onClick={() =>
             run(async () => {
               if (!name.trim()) return;
-              await api('/pitches', { method: 'POST', body: JSON.stringify({ name: name.trim(), surface }) });
+              await api('/pitches', { method: 'POST', body: JSON.stringify({ name: name.trim(), surface, address: address.trim() || null }) });
               setName('');
+              setAddress('');
             })
           }
         >

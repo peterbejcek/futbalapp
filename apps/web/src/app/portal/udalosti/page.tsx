@@ -43,6 +43,7 @@ interface EventItem {
   startAt: string;
   endAt: string | null;
   location: string | null;
+  address: string | null;
   surface: SurfaceCode | null;
   recurrenceGroupId: string | null;
   team: { id: string; name: string; teamCategory: { code: string } } | null;
@@ -502,10 +503,12 @@ function EventList({
                   </div>
                 )}
                 {audience && <div className="mt-1 text-xs text-club-700">Pre: {audience}</div>}
-                {(e.location || e.surface) && (
+                {(e.location || e.address || e.surface) && (
                   <div className="mt-1 text-xs text-gray-500">
                     {e.location}
-                    {e.location && e.surface ? ' · ' : ''}
+                    {e.location && e.address ? ' · ' : ''}
+                    {e.address}
+                    {(e.location || e.address) && e.surface ? ' · ' : ''}
                     {e.surface ? SURFACE_LABELS_SK[e.surface] : ''}
                   </div>
                 )}
@@ -703,6 +706,8 @@ function PitchPicker({
   onLocation,
   surface,
   onSurface,
+  address,
+  onAddress,
 }: {
   pitches: Pitch[];
   pitchId: string;
@@ -711,6 +716,8 @@ function PitchPicker({
   onLocation: (v: string) => void;
   surface: string;
   onSurface: (v: string) => void;
+  address: string;
+  onAddress: (v: string) => void;
 }) {
   const other = !pitchId;
   return (
@@ -747,7 +754,17 @@ function PitchPicker({
           </div>
         </>
       )}
+      <AddressField value={address} onChange={onAddress} />
     </>
+  );
+}
+
+function AddressField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <label className={labelCls}>Adresa (pre mapu)</label>
+      <input value={value} onChange={(e) => onChange(e.target.value)} maxLength={300} className={inputCls} placeholder="Agátová 1, 040 14 Košice" />
+    </div>
   );
 }
 
@@ -831,6 +848,7 @@ function TrainingModal({
   const [teamId, setTeamId] = useState('');
   const [title, setTitle] = useState('Tréning');
   const [location, setLocation] = useState('');
+  const [address, setAddress] = useState('');
   const [weekdays, setWeekdays] = useState<number[]>([2, 5]);
   const [surface, setSurface] = useState('');
   const [startTime, setStartTime] = useState('16:00');
@@ -875,7 +893,7 @@ function TrainingModal({
       if (recurring) {
         await api('/events/recurring', {
           method: 'POST',
-          body: JSON.stringify({ title, teamId, weekdays, startTime, endTime, from, until, ...placeFields(pitchId, location, surface), isPublic }),
+          body: JSON.stringify({ title, teamId, weekdays, startTime, endTime, from, until, ...placeFields(pitchId, location, surface), isPublic, address: address.trim() || undefined }),
         });
       } else {
         await api('/events', {
@@ -888,6 +906,7 @@ function TrainingModal({
             endAt: endTime ? `${date}T${endTime}:00.000Z` : undefined,
             ...placeFields(pitchId, location, surface),
             isPublic,
+            address: address.trim() || undefined,
           }),
         });
       }
@@ -971,7 +990,7 @@ function TrainingModal({
             <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={inputCls} />
           </div>
         </div>
-        <PitchPicker pitches={pitches} pitchId={pitchId} onPitch={setPitchId} location={location} onLocation={setLocation} surface={surface} onSurface={setSurface} />
+        <PitchPicker pitches={pitches} pitchId={pitchId} onPitch={setPitchId} location={location} onLocation={setLocation} surface={surface} onSurface={setSurface} address={address} onAddress={setAddress} />
 
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />
@@ -1017,6 +1036,7 @@ function MatchModal({
   const [time, setTime] = useState('10:00');
   const [endTime, setEndTime] = useState('11:30');
   const [location, setLocation] = useState('');
+  const [address, setAddress] = useState('');
   const [surface, setSurface] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1059,6 +1079,7 @@ function MatchModal({
           opponent,
           isHome,
           jerseyColor: jerseyColor || undefined,
+          address: address.trim() || undefined,
         }),
       });
       onDone();
@@ -1138,9 +1159,9 @@ function MatchModal({
           </div>
         </div>
         {isHome ? (
-          <PitchPicker pitches={pitches} pitchId={pitchId} onPitch={setPitchId} location={location} onLocation={setLocation} surface={surface} onSurface={setSurface} />
+          <PitchPicker pitches={pitches} pitchId={pitchId} onPitch={setPitchId} location={location} onLocation={setLocation} surface={surface} onSurface={setSurface} address={address} onAddress={setAddress} />
         ) : (
-          <PitchPicker pitches={[]} pitchId="" onPitch={() => {}} location={location} onLocation={setLocation} surface={surface} onSurface={setSurface} />
+          <PitchPicker pitches={[]} pitchId="" onPitch={() => {}} location={location} onLocation={setLocation} surface={surface} onSurface={setSurface} address={address} onAddress={setAddress} />
         )}
         <ErrorText>{error}</ErrorText>
         <div className="flex justify-end gap-2">
@@ -1176,6 +1197,7 @@ function ParentMeetingModal({
   const [date, setDate] = useState('');
   const [time, setTime] = useState('17:00');
   const [location, setLocation] = useState('');
+  const [address, setAddress] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1199,6 +1221,7 @@ function ParentMeetingModal({
           title,
           startAt: `${date}T${time}:00.000Z`,
           location: location || undefined,
+          address: address.trim() || undefined,
           audienceTeamIds: wholeClub ? [] : teamIds,
         }),
       });
@@ -1256,6 +1279,7 @@ function ParentMeetingModal({
           <label className={labelCls}>Miesto</label>
           <input value={location} onChange={(e) => setLocation(e.target.value)} className={inputCls} list="venue-list" placeholder="Klubovňa / ihrisko KNV" />
         </div>
+        <AddressField value={address} onChange={setAddress} />
 
         <ErrorText>{error}</ErrorText>
         <div className="flex justify-end gap-2">

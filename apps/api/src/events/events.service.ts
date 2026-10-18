@@ -239,6 +239,7 @@ export class EventsService {
         startAt: input.startAt,
         endAt: input.endAt,
         location: pitch ? pitch.name : input.location,
+        address: pitch ? (input.address ?? pitch.address) : input.address,
         surface: pitch ? pitch.surface : input.surface,
         pitchId: pitch?.id,
         isPublic: input.type === 'TRAINING' ? (input.isPublic ?? false) : false,
@@ -301,6 +302,7 @@ export class EventsService {
           startAt: occ.startAt,
           endAt: occ.endAt,
           location: pitch ? pitch.name : input.location,
+          address: pitch ? (input.address ?? pitch.address) : input.address,
           surface: pitch ? pitch.surface : input.surface,
           pitchId: pitch?.id,
           recurrenceGroupId,
@@ -336,6 +338,7 @@ export class EventsService {
         startAt: input.startAt,
         endAt: input.endAt,
         location: pitch ? pitch.name : input.location,
+        address: pitch ? (input.address ?? pitch.address) : input.address,
         surface: pitch ? pitch.surface : input.surface,
         pitchId: pitch ? pitch.id : undefined,
         // verejnosť len pre tréning; pri iných typoch ignoruj

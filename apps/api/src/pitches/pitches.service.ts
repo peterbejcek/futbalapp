@@ -15,7 +15,7 @@ export class PitchesService {
     if (exists) throw new BadRequestException('Plocha s týmto názvom už existuje');
     const last = await this.prisma.pitch.aggregate({ _max: { sortOrder: true } });
     return this.prisma.pitch.create({
-      data: { name: input.name, surface: input.surface, sortOrder: (last._max.sortOrder ?? 0) + 1 },
+      data: { name: input.name, surface: input.surface, address: input.address ?? null, sortOrder: (last._max.sortOrder ?? 0) + 1 },
     });
   }
 
@@ -26,9 +26,16 @@ export class PitchesService {
       const exists = await this.prisma.pitch.findUnique({ where: { name: input.name } });
       if (exists) throw new BadRequestException('Plocha s týmto názvom už existuje');
     }
-    const updated = await this.prisma.pitch.update({ where: { id }, data: { name: input.name, surface: input.surface } });
+    const updated = await this.prisma.pitch.update({ where: { id }, data: { name: input.name, surface: input.surface, address: input.address } });
     // udalosti viazané na plochu držia kópiu názvu/povrchu — udrž ich zhodné
     await this.prisma.event.updateMany({ where: { pitchId: id }, data: { location: updated.name, surface: updated.surface } });
+    // adresu prepíš len udalostiam bez vlastnej odlišnej adresy
+    if (input.address !== undefined && updated.address !== pitch.address) {
+      await this.prisma.event.updateMany({
+        where: { pitchId: id, OR: [{ address: null }, { address: pitch.address }] },
+        data: { address: updated.address },
+      });
+    }
     return updated;
   }
 
