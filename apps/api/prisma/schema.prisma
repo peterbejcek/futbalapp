@@ -594,6 +594,8 @@ model Event {
   startAt  DateTime
   endAt    DateTime?
   location String?
+  /// Adresa miesta konania (pre odkaz / mapu Google Maps). Voliteľná, nezávislá od `location`.
+  address  String?
   /// Povrch ihriska: PT | UT | VT | MT | MI (prír./umelá tráva, veľká/malá telocvičňa, multifunkčné)
   surface  String?
   /// Hracia plocha zo zoznamu v nastaveniach (null = iné miesto zadané textom)

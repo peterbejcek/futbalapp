@@ -68,6 +68,8 @@ export interface PublicEventDto {
   startAt: string; // ISO UTC
   endAt: string | null;
   location: string | null;
+  /** Adresa miesta (pre odkaz na mapu), alebo null. */
+  address: string | null;
   match: PublicMatchDto | null;
 }
 
