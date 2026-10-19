@@ -10,6 +10,16 @@ import { Card } from '@/components/ui';
 import { AddressLink } from '@/components/AddressLink';
 import { NominationRequestsPanel } from '@/components/cross-nomination';
 
+interface PlayedMatch {
+  id: string;
+  opponent: string;
+  opponentLogo: string | null;
+  isHome: boolean;
+  scoreUs: number | null;
+  scoreThem: number | null;
+  event: { startAt: string; team: { name: string } | null };
+}
+
 interface EventItem {
   id: string;
   type: string;
@@ -83,8 +93,10 @@ const typeLabels: Record<string, string> = {
 export default function DashboardPage() {
   const { me } = useMe();
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [played, setPlayed] = useState<PlayedMatch[]>([]);
 
   useEffect(() => {
+    api<PlayedMatch[]>('/matches/played?mine=true&limit=6').then(setPlayed).catch(() => {});
     const from = new Date().toISOString();
     api<EventItem[]>(`/events?mine=true&from=${from}`).then((l) => setEvents(l.slice(0, 50))).catch(() => {});
   }, []);
@@ -149,7 +161,56 @@ export default function DashboardPage() {
         <EventList title="Najbližšie zápasy" events={events.filter((e) => e.match).slice(0, 6)} />
         <EventList title="Najbližšie tréningy" events={events.filter((e) => e.type === 'TRAINING').slice(0, 6)} />
       </div>
+
+      <PlayedMatches matches={played} />
     </div>
+  );
+}
+
+/** Posledných 6 odohraných zápasov: dva stĺpce po troch (od najnovšieho, po stĺpcoch). */
+function PlayedMatches({ matches }: { matches: PlayedMatch[] }) {
+  return (
+    <section>
+      <h2 className="mb-3 font-bold text-club-900">Odohraté zápasy</h2>
+      {matches.length === 0 ? (
+        <Card className="text-sm text-gray-500">Zatiaľ žiadne odohraté zápasy.</Card>
+      ) : (
+        <ul className="grid gap-x-6 border-club-100 sm:grid-flow-col sm:grid-cols-2 sm:grid-rows-3">
+          {matches.map((m) => {
+            const us = m.scoreUs ?? 0;
+            const them = m.scoreThem ?? 0;
+            const result = us > them ? 'V' : us < them ? 'P' : 'R';
+            const resultCls = result === 'V' ? 'bg-green-100 text-green-800' : result === 'P' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-700';
+            const d = new Date(m.event.startAt); // nástenný čas v UTC
+            const ourName = m.event.team?.name ?? 'FK KNV';
+            const home = m.isHome ? { name: ourName, logo: OUR_LOGO, score: us } : { name: m.opponent, logo: m.opponentLogo, score: them };
+            const away = m.isHome ? { name: m.opponent, logo: m.opponentLogo, score: them } : { name: ourName, logo: OUR_LOGO, score: us };
+            return (
+              <li key={m.id} className="mb-2 border border-club-100 bg-white">
+                <Link href={`/portal/zapasy/${m.id}`} className="grid grid-cols-[3rem_1fr_auto] items-center gap-3 px-3 py-2 hover:bg-club-50">
+                  <div className="text-center text-xs leading-tight text-gray-500">
+                    <div className="text-base font-bold text-club-900">{d.getUTCDate()}.{d.getUTCMonth() + 1}.</div>
+                    <div>{d.getUTCFullYear()}</div>
+                  </div>
+                  <div className="min-w-0 space-y-0.5 text-sm">
+                    {[home, away].map((t, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        {t.logo && <DashLogo src={t.logo} />}
+                        <span className="min-w-0 flex-1 truncate font-medium text-club-900">{t.name}</span>
+                        <span className="font-bold text-club-900">{t.score}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <span className={`rounded px-2 py-0.5 text-[11px] font-bold ${resultCls}`} title={result === 'V' ? 'Výhra' : result === 'P' ? 'Prehra' : 'Remíza'}>
+                    {result}
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 

@@ -4,7 +4,7 @@ import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../notifications/push.service';
 import { EmailService } from '../notifications/email.service';
-import { coachBlockedFromTeam } from '../auth/scope';
+import { coachBlockedFromTeam, coachTeamIds, isStaff } from '../auth/scope';
 import { VeoService } from '../veo/veo.service';
 import type { AuthUser } from '../auth/current-user.decorator';
 import { applyTimerAction } from './match-timer';
@@ -71,9 +71,23 @@ export class MatchesService {
   }
 
   /** Odohrané (ukončené) zápasy — archív s videom a fotkami, od najnovšieho. */
-  async playedMatches(user: AuthUser) {
+  async playedMatches(user: AuthUser, opts: { mine?: boolean; limit?: number } = {}) {
+    // „moje" (prehľad): vedenie všetko; ostatní len družstvá, kde sú tréner/hráč/rodič
+    let teamFilter: { teamId: { in: string[] } } | undefined;
+    if (opts.mine && !isStaff(user)) {
+      const ids = new Set<string>(coachTeamIds(user));
+      const memberIds = await this.myMemberIds(user.id);
+      if (memberIds.length) {
+        const rows = await this.prisma.teamMembership.findMany({
+          where: { memberId: { in: memberIds }, leftAt: null, season: { isActive: true } },
+          select: { teamId: true },
+        });
+        for (const r of rows) ids.add(r.teamId);
+      }
+      teamFilter = { teamId: { in: [...ids] } };
+    }
     return this.prisma.match.findMany({
-      where: { state: 'FINISHED', event: { isDemo: !!user.isDemo } },
+      where: { state: 'FINISHED', event: { isDemo: !!user.isDemo, ...teamFilter } },
       select: {
         id: true,
         opponent: true,
@@ -89,7 +103,7 @@ export class MatchesService {
         videos: { select: { id: true, mimeType: true, title: true }, orderBy: { createdAt: 'asc' } },
       },
       orderBy: { event: { startAt: 'desc' } },
-      take: 200,
+      take: opts.limit ?? 200,
     });
   }
 
