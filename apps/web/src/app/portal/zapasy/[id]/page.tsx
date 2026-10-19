@@ -910,36 +910,6 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           )}
         </Card>
 
-        {manage && (
-          <Card>
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="font-semibold text-club-800">Kontrola s futbalnetom</h2>
-              <Button variant="ghost" onClick={syncFutbalnet} disabled={syncBusy}>
-                {syncBusy ? 'Kontrolujem…' : 'Skontrolovať teraz'}
-              </Button>
-            </div>
-            <p className="mb-2 text-sm text-gray-500">
-              Každý večer o 20:00 sa v deň zápasu načíta výsledok a strelci z futbalnetu, porovnajú sa so zapísanými a
-              rozdiely sa opravia. Úpravy sa zaznamenajú sem.
-            </p>
-            <ul className="space-y-2 text-sm">
-              {(match.syncLogs ?? []).map((l) => (
-                <li key={l.id} className="border-b border-club-50 pb-1">
-                  <span className="font-medium text-club-700">
-                    {new Date(l.createdAt).toLocaleString('sk-SK', { timeZone: 'Europe/Bratislava', dateStyle: 'medium', timeStyle: 'short' })} · {l.source === 'CRON' ? 'automaticky' : 'ručne'}
-                  </span>
-                  <ul className="ml-4 list-disc text-gray-700">
-                    {l.changes.map((c, i) => (
-                      <li key={i}>{c}</li>
-                    ))}
-                  </ul>
-                </li>
-              ))}
-              {(match.syncLogs ?? []).length === 0 && <li className="text-gray-500">Zatiaľ žiadna kontrola.</li>}
-            </ul>
-          </Card>
-        )}
-
         {/* Živý zápis */}
         <Card>
           <h2 className="mb-3 font-semibold text-club-800">Priebeh zápasu</h2>
@@ -992,6 +962,37 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
                   )}
                 </p>
               )}
+
+              {/* kontrola s futbalnetom */}
+              <div className="border-t border-club-100 pt-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-club-800">Kontrola s Futbalnetom</p>
+                    <p className="text-xs text-gray-500">
+                      Porovná výsledok a strelcov s futbalnetom a opraví rozdiely (automaticky aj každý večer o 20:00).
+                    </p>
+                  </div>
+                  <Button variant="ghost" onClick={syncFutbalnet} disabled={syncBusy}>
+                    {syncBusy ? 'Kontrolujem…' : 'Skontrolovať teraz'}
+                  </Button>
+                </div>
+                {(match.syncLogs ?? []).length > 0 && (
+                  <ul className="mt-2 space-y-1 text-xs">
+                    {(match.syncLogs ?? []).slice(0, 3).map((l) => (
+                      <li key={l.id}>
+                        <span className="font-medium text-club-700">
+                          {new Date(l.createdAt).toLocaleString('sk-SK', { timeZone: 'Europe/Bratislava', dateStyle: 'medium', timeStyle: 'short' })} · {l.source === 'CRON' ? 'automaticky' : 'ručne'}
+                        </span>
+                        <ul className="ml-4 list-disc text-gray-700">
+                          {l.changes.map((c, i) => (
+                            <li key={i}>{c}</li>
+                          ))}
+                        </ul>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
 
               {/* výber hráča */}
               <div>
