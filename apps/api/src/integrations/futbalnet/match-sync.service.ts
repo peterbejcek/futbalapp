@@ -63,12 +63,26 @@ export class MatchSyncService {
     return this.syncMatch(matchId, 'MANUAL');
   }
 
-  private async resolveUrl(match: { sportnetUrl: string | null; event: { futbalnetId: string | null; team: { sportnetProgramUrl: string | null } | null } }) {
-    if (match.sportnetUrl) return match.sportnetUrl;
+  /**
+   * Kandidáti na URL stránky zápasu. appSpace v URL musí sedieť so súťažou zápasu
+   * (inak sportnet vráti 404), preto sa skúša uložený odkaz, potom appSpace z programov
+   * družstiev a nakoniec `vsfz`.
+   */
+  private async candidateUrls(match: { sportnetUrl: string | null; event: { futbalnetId: string | null } }): Promise<string[]> {
     const id = match.event.futbalnetId?.startsWith('sn:') ? match.event.futbalnetId.slice(3) : null;
-    if (!id) return null;
-    const appSpace = /\/futbalnet\/[a-z]\/([^/]+)\//.exec(match.event.team?.sportnetProgramUrl ?? '')?.[1] ?? 'vsfz';
-    return MATCH_URL(appSpace, id);
+    const urls: string[] = [];
+    if (match.sportnetUrl) urls.push(match.sportnetUrl);
+    if (id) {
+      const teams = await this.prisma.team.findMany({ where: { sportnetProgramUrl: { not: null } }, select: { sportnetProgramUrl: true } });
+      const spaces = new Set<string>();
+      for (const t of teams) {
+        const space = /\/futbalnet\/[a-z]\/([^/]+)\//.exec(t.sportnetProgramUrl ?? '')?.[1];
+        if (space) spaces.add(space.toLowerCase());
+      }
+      spaces.add('vsfz');
+      for (const space of spaces) urls.push(MATCH_URL(space, id));
+    }
+    return [...new Set(urls)];
   }
 
   async syncMatch(matchId: string, source: 'CRON' | 'MANUAL'): Promise<{ status: SyncStatus; changes: string[] }> {
@@ -86,23 +100,36 @@ export class MatchSyncService {
       await this.prisma.matchSyncLog.create({ data: { matchId, source, status, changes } });
     };
 
-    const url = await this.resolveUrl(match);
-    if (!url) {
+    const candidates = await this.candidateUrls(match);
+    if (candidates.length === 0) {
       if (source === 'MANUAL') throw new BadRequestException('Zápas nie je prepojený s futbalnetom — zadajte odkaz na zápas.');
       return { status: 'NO_RESULT', changes: [] };
     }
 
-    let html: string;
-    try {
-      const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (fkknv.sk portal)' } });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      html = await response.text();
-    } catch (error) {
-      const msg = `Stránku zápasu sa nepodarilo načítať (${error instanceof Error ? error.message : error})`;
+    let html: string | null = null;
+    let url = candidates[0]!;
+    let lastError = '';
+    for (const candidate of candidates) {
+      try {
+        const response = await fetch(candidate, { headers: { 'User-Agent': 'Mozilla/5.0 (fkknv.sk portal)' } });
+        if (!response.ok) {
+          lastError = `HTTP ${response.status}`;
+          continue; // iný appSpace môže byť správny
+        }
+        html = await response.text();
+        url = candidate;
+        break;
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
+      }
+    }
+    if (html === null) {
+      const msg = `Stránku zápasu sa nepodarilo načítať (${lastError}; skúšané: ${candidates.join(', ')})`;
       await log('ERROR', [msg]);
       if (source === 'MANUAL') throw new BadRequestException(msg);
       return { status: 'ERROR', changes: [msg] };
     }
+    if (url !== match.sportnetUrl) await this.prisma.match.update({ where: { id: matchId }, data: { sportnetUrl: url } });
     const parsed = parseSportnetMatch(html);
     if (!parsed) {
       const msg = 'Na stránke zápasu sa nenašli údaje (zmenila sa štruktúra futbalnetu?)';

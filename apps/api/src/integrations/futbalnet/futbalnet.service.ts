@@ -100,6 +100,7 @@ export class FutbalnetService {
       const title = homeIsUs ? `${team.name} vs ${opponent}` : `${opponent} vs ${team.name}`;
       const externalId = sportnetMatchKey(f);
       keptIds.push(externalId);
+      const matchUrl = f.appSpace ? `https://sportnet.sme.sk/futbalnet/z/${f.appSpace}/zapas/${f.id}/` : null;
 
       const existing = await this.prisma.event.findUnique({
         where: { futbalnetId: externalId },
@@ -113,7 +114,7 @@ export class FutbalnetService {
         if (existing.match) {
           await this.prisma.match.update({
             where: { id: existing.match.id },
-            data: { opponent, isHome: homeIsUs, opponentLogo },
+            data: { opponent, isHome: homeIsUs, opponentLogo, sportnetUrl: matchUrl },
           });
         }
         updated++;
@@ -127,7 +128,7 @@ export class FutbalnetService {
             startAt,
             source: 'FUTBALNET',
             futbalnetId: externalId,
-            match: { create: { opponent, isHome: homeIsUs, opponentLogo } },
+            match: { create: { opponent, isHome: homeIsUs, opponentLogo, sportnetUrl: matchUrl } },
           },
         });
         created++;

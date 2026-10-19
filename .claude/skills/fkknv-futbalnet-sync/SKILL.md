@@ -13,7 +13,7 @@ Kód: `apps/api/src/integrations/futbalnet/`. Žiadne oficiálne API — sťahuj
 
 ## Kontrola výsledku a strelcov (večer o 20:00)
 - `MatchSyncService` (`match-sync.service.ts`): `@Cron('0 20 * * *', { timeZone: 'Europe/Bratislava' })` — zápasy dňa s `futbalnetId` začínajúcim `sn:` alebo s `Match.sportnetUrl`.
-- URL zápasu: `https://sportnet.sme.sk/futbalnet/z/<appSpace>/zapas/<id>/`; appSpace sa berie z `sportnetProgramUrl` družstva (fallback `vsfz`), alebo z `Match.sportnetUrl` (zadaný ručne).
+- URL zápasu: `https://sportnet.sme.sk/futbalnet/z/<appSpace>/zapas/<id>/` — appSpace MUSÍ sedieť so súťažou zápasu (inak 404; U13A hrá `vsfz`, iné družstvá napr. `mfz-kosice`). Import rozpisu ukladá celý odkaz do `Match.sportnetUrl` (appSpace z fixture). Ak chýba, sync skúša kandidátov: uložený odkaz → appSpace z programov všetkých družstiev → `vsfz`, a funkčný uloží.
 - `sportnet-match.parser.ts` číta z protokolu skóre, tímy a gólové udalosti (hráč, tím, minúta). `match-sync.plan.ts` (čistá funkcia, testovaná) porovná so zapísanými `MatchEvent` a vráti plán: futbalnet je zdroj pravdy pre skóre a strelcov; strelci sa párujú podľa mena (bez diakritiky, na poradí nezáleží) v súpiske/nomináciách; ak zoznam strelcov nie je úplný, upraví sa len počet gólov; minúty zapísaných gólov sa nemenia; zápas sa označí ako ukončený.
 - Každá kontrola sa zapisuje do `MatchSyncLog` (čo sa upravilo) a zobrazuje v detaile zápasu („Kontrola s futbalnetom"). Cron loguje len zmeny/chyby.
 - Ručne: `POST /matches/:id/futbalnet-sync` (ADMIN/MANAGER/COACH svojho družstva), voliteľne `{ url }` — zápas sa nalinkuje a over sa zhoda súpera. V UI tlačidlo „Skontrolovať teraz".

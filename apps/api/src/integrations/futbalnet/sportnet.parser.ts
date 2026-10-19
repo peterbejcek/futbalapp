@@ -7,6 +7,8 @@
 export interface SportnetFixture {
   /** Stabilné ID zápasu zo sportnetu (nemení sa pri preložení termínu). */
   id: string;
+  /** appSpace súťaže (malými písmenami) — súčasť URL stránky zápasu */
+  appSpace: string;
   startAt: Date;
   home: string;
   homeLogo: string | null;
@@ -18,7 +20,7 @@ export interface SportnetFixture {
 // id je zachytené na začiatku objektu zápasu (za ním nasleduje appSpace), aby sa
 // spoľahlivo viazalo na správny zápas.
 const FIXTURE_RE =
-  /\\"id\\":\\"([a-f0-9]{24})\\",\\"appSpace\\"[\s\S]*?date\\":\\"\$D([0-9T:.Z-]+)\\",\\"homeTeam\\":\{\\"name\\":\\"([^\\]+)\\"[\s\S]*?\\"logo\\":\{\\"src\\":\\"([^\\]+)\\"[\s\S]*?\\"awayTeam\\":\{\\"name\\":\\"([^\\]+)\\"[\s\S]*?\\"logo\\":\{\\"src\\":\\"([^\\]+)\\"/g;
+  /\\"id\\":\\"([a-f0-9]{24})\\",\\"appSpace\\":\\"([^\\]+)\\"[\s\S]*?date\\":\\"\$D([0-9T:.Z-]+)\\",\\"homeTeam\\":\{\\"name\\":\\"([^\\]+)\\"[\s\S]*?\\"logo\\":\{\\"src\\":\\"([^\\]+)\\"[\s\S]*?\\"awayTeam\\":\{\\"name\\":\\"([^\\]+)\\"[\s\S]*?\\"logo\\":\{\\"src\\":\\"([^\\]+)\\"/g;
 
 export function parseSportnetProgram(html: string): SportnetFixture[] {
   const out: SportnetFixture[] = [];
@@ -26,7 +28,7 @@ export function parseSportnetProgram(html: string): SportnetFixture[] {
   let m: RegExpExecArray | null;
   FIXTURE_RE.lastIndex = 0;
   while ((m = FIXTURE_RE.exec(html))) {
-    const [, id, iso, home, homeLogo, away, awayLogo] = m;
+    const [, id, appSpace, iso, home, homeLogo, away, awayLogo] = m;
     if (!id || !iso || !home || !away) continue;
     const startAt = new Date(iso);
     if (Number.isNaN(startAt.getTime())) continue;
@@ -34,6 +36,7 @@ export function parseSportnetProgram(html: string): SportnetFixture[] {
     seen.add(id);
     out.push({
       id,
+      appSpace: (appSpace ?? '').toLowerCase(),
       startAt,
       home: home.trim(),
       homeLogo: homeLogo || null,
