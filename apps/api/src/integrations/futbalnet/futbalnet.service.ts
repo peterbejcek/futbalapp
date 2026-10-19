@@ -17,7 +17,7 @@ interface OurMatch extends NormalizedMatch {
  * (17:00 v Košiciach = 17:00Z), aby sa zobrazoval rovnaký čas ako na sportnete.
  * Táto funkcia prevedie okamih na bratislavský nástenný čas uložený v UTC.
  */
-function toBratislavaWallClock(instant: Date): Date {
+export function toBratislavaWallClock(instant: Date): Date {
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/Bratislava',
     year: 'numeric',

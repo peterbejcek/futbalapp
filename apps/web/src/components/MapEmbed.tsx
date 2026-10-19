@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { mapsEmbedUrl } from '@/lib/maps';
 
 /** Mapa sa z Googlu načíta až po kliknutí (súkromie). */
-export function MapEmbed({ address }: { address: string }) {
-  const [open, setOpen] = useState(false);
+export function MapEmbed({ address, defaultOpen = false }: { address: string; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="mt-3">
       <button

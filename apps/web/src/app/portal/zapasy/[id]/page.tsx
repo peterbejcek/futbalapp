@@ -68,6 +68,7 @@ interface MatchDetail {
     endAt: string | null;
     location: string | null;
     address: string | null;
+    futbalnetId?: string | null;
     surface: SurfaceCode | null;
     team: { id: string; name: string } | null;
   };
@@ -76,6 +77,9 @@ interface MatchDetail {
   photos: MatchPhotoItem[];
   /** Videá nahrané z telefónu (staršie API pole nemusí posielať). */
   videos?: MatchVideoItem[];
+  sportnetUrl?: string | null;
+  /** posledné kontroly proti futbalnetu (nové → staré) */
+  syncLogs?: Array<{ id: string; createdAt: string; source: 'CRON' | 'MANUAL'; status: string; changes: string[] }>;
 }
 
 // logo nášho klubu (FK Košická Nová Ves) z futbalnetu
@@ -430,6 +434,27 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
     await load();
   }
 
+  const [syncBusy, setSyncBusy] = useState(false);
+  async function syncFutbalnet() {
+    if (!match) return;
+    let url: string | undefined;
+    if (!match.sportnetUrl && !match.event.futbalnetId) {
+      const entered = window.prompt('Vložte odkaz na zápas z futbalnetu (sportnet.sme.sk/futbalnet/z/…/zapas/…):');
+      if (!entered) return;
+      url = entered.trim();
+    }
+    setSyncBusy(true);
+    setError(null);
+    try {
+      await api(`/matches/${match.id}/futbalnet-sync`, { method: 'POST', body: JSON.stringify({ url }) });
+      await reloadMatch();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Synchronizácia zlyhala');
+    } finally {
+      setSyncBusy(false);
+    }
+  }
+
   async function saveScore() {
     setError(null);
     await api(`/matches/${id}/score`, {
@@ -542,9 +567,12 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
           {match.event.surface ? ` · ${SURFACE_LABELS_SK[match.event.surface]}` : ''}
         </p>
         {match.event.address && (
-          <div className="mt-1 text-sm text-gray-600">
-            <AddressLink address={match.event.address} />
-            <MapEmbed address={match.event.address} />
+          <div className="mx-auto mt-3 max-w-xl rounded-lg border-2 border-club-200 bg-club-50 p-3 text-left">
+            <p className="text-xs font-semibold uppercase tracking-wide text-club-600">Miesto zápasu</p>
+            <p className="mt-0.5 text-base font-bold text-club-900">
+              📍 <AddressLink address={match.event.address} className="text-club-800 underline hover:text-club-900" />
+            </p>
+            <MapEmbed address={match.event.address} defaultOpen />
           </div>
         )}
 
@@ -881,6 +909,36 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
             </ul>
           )}
         </Card>
+
+        {manage && (
+          <Card>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-semibold text-club-800">Kontrola s futbalnetom</h2>
+              <Button variant="ghost" onClick={syncFutbalnet} disabled={syncBusy}>
+                {syncBusy ? 'Kontrolujem…' : 'Skontrolovať teraz'}
+              </Button>
+            </div>
+            <p className="mb-2 text-sm text-gray-500">
+              Každý večer o 20:00 sa v deň zápasu načíta výsledok a strelci z futbalnetu, porovnajú sa so zapísanými a
+              rozdiely sa opravia. Úpravy sa zaznamenajú sem.
+            </p>
+            <ul className="space-y-2 text-sm">
+              {(match.syncLogs ?? []).map((l) => (
+                <li key={l.id} className="border-b border-club-50 pb-1">
+                  <span className="font-medium text-club-700">
+                    {new Date(l.createdAt).toLocaleString('sk-SK', { timeZone: 'Europe/Bratislava', dateStyle: 'medium', timeStyle: 'short' })} · {l.source === 'CRON' ? 'automaticky' : 'ručne'}
+                  </span>
+                  <ul className="ml-4 list-disc text-gray-700">
+                    {l.changes.map((c, i) => (
+                      <li key={i}>{c}</li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+              {(match.syncLogs ?? []).length === 0 && <li className="text-gray-500">Zatiaľ žiadna kontrola.</li>}
+            </ul>
+          </Card>
+        )}
 
         {/* Živý zápis */}
         <Card>

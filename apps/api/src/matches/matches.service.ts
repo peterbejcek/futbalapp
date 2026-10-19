@@ -55,6 +55,7 @@ export class MatchesService {
           },
           orderBy: [{ minute: 'asc' }, { createdAt: 'asc' }],
         },
+        syncLogs: { orderBy: { createdAt: 'desc' }, take: 10 },
         photos: { select: { id: true, mimeType: true, size: true, createdAt: true }, orderBy: { createdAt: 'asc' } },
         videos: {
           select: { id: true, mimeType: true, size: true, filename: true, title: true, createdAt: true },
