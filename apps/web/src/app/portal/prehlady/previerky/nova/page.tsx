@@ -6,8 +6,8 @@ import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { coachTeams, isStaff, useMe } from '@/lib/auth';
 import { Card, ErrorText, inputCls } from '@/components/ui';
-import { enduranceMinutesFor } from '@fkknv/shared';
-import { DISCIPLINES, fitnessDisciplineLabel, type DisciplineKey, type FitnessTest } from '@/components/fitness';
+import { enduranceMinutesFor, FITNESS_CATEGORIES, type FitnessCategory } from '@fkknv/shared';
+import { CategoryTabs, DISCIPLINES, disciplinesOf, fitnessDisciplineLabel, type DisciplineKey, type FitnessTest } from '@/components/fitness';
 
 interface Team {
   id: string;
@@ -35,6 +35,16 @@ const today = () => {
 };
 const toNum = (s: string) => (s.trim() === '' ? null : Number(s.replace(',', '.')));
 const collator = new Intl.Collator('sk');
+const SEL_KEY = 'fkknv.previerky.disciplines';
+const loadSelected = (): DisciplineKey[] => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SEL_KEY) ?? 'null');
+    if (Array.isArray(raw)) return raw.filter((k): k is DisciplineKey => DISCIPLINES.some((d) => d.key === k));
+  } catch {
+    /* localStorage nedostupný */
+  }
+  return DISCIPLINES.map((d) => d.key);
+};
 
 function NewTestForm() {
   const params = useSearchParams();
@@ -45,6 +55,21 @@ function NewTestForm() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [rows, setRows] = useState<Record<string, Row>>({});
   const [loading, setLoading] = useState(false);
+  const [category, setCategory] = useState<FitnessCategory>('SILOVE');
+  const [selected, setSelected] = useState<DisciplineKey[]>(() => DISCIPLINES.map((d) => d.key));
+  useEffect(() => setSelected(loadSelected()), []);
+  function toggle(key: DisciplineKey) {
+    setSelected((cur) => {
+      const next = cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key];
+      try {
+        localStorage.setItem(SEL_KEY, JSON.stringify(next));
+      } catch {
+        /* ignoruj */
+      }
+      return next;
+    });
+  }
+  const shown = disciplinesOf(category).filter((d) => selected.includes(d.key));
   const [error, setError] = useState<string | null>(null);
 
   // z tréningu je družstvo dané; z menu sa ponúka na výber
@@ -83,6 +108,9 @@ function NewTestForm() {
         if (t) for (const d of DISCIPLINES) values[d.key] = t[d.key]?.toString() ?? '';
         next[p.id] = { testId: t?.id ?? null, values, saved: { ...values }, busy: false, error: null };
       }
+      // disciplíny s už uloženými hodnotami sa zobrazia vždy
+      const filled = DISCIPLINES.filter((d) => Object.values(next).some((r) => r.values[d.key] !== '')).map((d) => d.key);
+      if (filled.length) setSelected((cur) => [...new Set([...cur, ...filled])]);
       setPlayers(sorted);
       setRows(next);
     } catch (e) {
@@ -105,8 +133,9 @@ function NewTestForm() {
   async function save(playerId: string) {
     const row = rows[playerId]!;
     const body: Record<string, unknown> = { testedAt: date };
-    for (const d of DISCIPLINES) body[d.key] = toNum(row.values[d.key]);
-    if (DISCIPLINES.every((d) => body[d.key] == null)) {
+    const active = DISCIPLINES.filter((d) => selected.includes(d.key));
+    for (const d of active) body[d.key] = toNum(row.values[d.key]);
+    if (active.every((d) => body[d.key] == null)) {
       patchRow(playerId, { error: 'Zadajte aspoň jednu hodnotu' });
       return;
     }
@@ -162,6 +191,28 @@ function NewTestForm() {
         </div>
       </div>
 
+      <div className="space-y-2">
+        <CategoryTabs value={category} onChange={setCategory} />
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-gray-500">Disciplíny v previerke:</span>
+          {disciplinesOf(category).map((d) => {
+            const on = selected.includes(d.key);
+            return (
+              <button
+                key={d.key}
+                type="button"
+                onClick={() => toggle(d.key)}
+                aria-pressed={on}
+                className={`rounded-full border px-2.5 py-0.5 text-xs ${on ? 'border-club-600 bg-club-600 text-white' : 'border-gray-300 bg-white text-gray-600 hover:bg-club-50'}`}
+              >
+                {on ? '✓ ' : ''}
+                {d.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <ErrorText>{error}</ErrorText>
 
       {!teamId ? (
@@ -170,20 +221,22 @@ function NewTestForm() {
         <Card className="text-sm text-gray-500">Načítavam…</Card>
       ) : players.length === 0 ? (
         <Card className="text-sm text-gray-500">Družstvo nemá žiadnych hráčov.</Card>
+      ) : shown.length === 0 ? (
+        <Card className="text-sm text-gray-500">V kategórii „{FITNESS_CATEGORIES.find((c) => c.key === category)?.label}“ nie je vybraná žiadna disciplína.</Card>
       ) : (
         <div className="rounded-lg border border-club-100 bg-white md:overflow-visible overflow-x-auto">
-          <table className="min-w-[44rem] w-full table-fixed border-collapse text-xs sm:text-sm">
+          <table className="min-w-[32rem] w-full table-fixed border-collapse text-xs sm:text-sm">
             <colgroup>
-              <col className="w-[15%]" />
-              {DISCIPLINES.map((d) => (
-                <col key={d.key} className="w-[9.5%]" />
+              <col className="w-[16%]" />
+              {shown.map((d) => (
+                <col key={d.key} />
               ))}
-              <col className="w-[18%]" />
+              <col className="w-[16%]" />
             </colgroup>
             <thead className="bg-club-50 align-bottom text-club-800">
               <tr>
                 <th className="px-2 py-2 text-left text-xs font-medium">Hráč</th>
-                {DISCIPLINES.map((d) => (
+                {shown.map((d) => (
                   <th key={d.key} className="px-1 py-2 text-left text-xs font-medium leading-tight">
                     {fitnessDisciplineLabel(d, minutes)} ({d.unit})
                   </th>
@@ -201,7 +254,7 @@ function NewTestForm() {
                     <td className="px-2 py-1.5 text-sm font-medium leading-tight">
                       {p.lastName} {p.firstName}
                     </td>
-                    {DISCIPLINES.map((d) => (
+                    {shown.map((d) => (
                       <td key={d.key} className="px-1 py-1.5">
                         <input
                           type="number"
@@ -233,7 +286,7 @@ function NewTestForm() {
         </div>
       )}
       <p className="text-xs text-gray-500">
-        Čas zadávajte v sekundách (napr. 2,35), skok v cm. Tlačidlom na konci riadka sa uloží previerka daného hráča.
+        Čas zadávajte v sekundách (napr. 2,35), skok v cm, ostatné podľa jednotky v hlavičke. Disciplíny vyberte tlačidlami nad tabuľkou. Tlačidlom na konci riadka sa uloží previerka daného hráča.
       </p>
     </div>
   );

@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
-import { enduranceMinutesFor } from '@fkknv/shared';
+import { FITNESS_DISCIPLINES, enduranceMinutesFor, validateFitnessValue } from '@fkknv/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamIds, isStaff } from '../auth/scope';
 import type { AuthUser } from '../auth/current-user.decorator';
@@ -10,15 +10,19 @@ export interface FitnessTestInput {
   teamId?: string | null;
   testedAt?: string;
   run10m?: number | null;
-  run20m?: number | null;
   run30m?: number | null;
   shuttleRun?: number | null;
   dribbleSlalom?: number | null;
   enduranceRun?: number | null;
   standingJump?: number | null;
+  pullUpHang?: number | null;
+  shuttleEndurance?: number | null;
+  sitUps30?: number | null;
+  medicineBallThrow?: number | null;
+  juggling?: number | null;
+  passesRunning?: number | null;
+  shooting?: number | null;
 }
-
-const TIME_FIELDS = ['run10m', 'run20m', 'run30m', 'shuttleRun', 'dribbleSlalom'] as const;
 
 const include = {
   member: { select: { id: true, firstName: true, lastName: true } },
@@ -108,27 +112,13 @@ export class FitnessTestsService {
       }
       data.testedAt = new Date(`${body.testedAt}T00:00:00.000Z`);
     }
-    for (const f of TIME_FIELDS) {
-      const v = body[f];
+    // disciplíny a ich pravidlá (celé čísla, rozsahy) sú definované v @fkknv/shared
+    for (const d of FITNESS_DISCIPLINES) {
+      const v = (body as Record<string, unknown>)[d.key];
       if (v === undefined) continue;
-      if (v !== null && (typeof v !== 'number' || !Number.isFinite(v) || v <= 0 || v > 600)) {
-        throw new BadRequestException(`Neplatný čas (${f})`);
-      }
-      data[f] = v;
-    }
-    if (body.standingJump !== undefined) {
-      const v = body.standingJump;
-      if (v !== null && (!Number.isInteger(v) || v <= 0 || v > 600)) {
-        throw new BadRequestException('Skok do diaľky zadajte v cm (celé číslo)');
-      }
-      data.standingJump = v;
-    }
-    if (body.enduranceRun !== undefined) {
-      const v = body.enduranceRun;
-      if (v !== null && (!Number.isInteger(v) || v <= 0 || v > 10000)) {
-        throw new BadRequestException('Vytrvalostný beh zadajte v metroch (celé číslo)');
-      }
-      data.enduranceRun = v;
+      const err = validateFitnessValue(d, v);
+      if (err) throw new BadRequestException(err);
+      data[d.key] = v;
     }
     return data;
   }

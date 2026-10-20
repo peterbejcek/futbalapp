@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import type { FitnessCategory } from '@fkknv/shared';
 import { api } from '@/lib/api';
 import { Card, ErrorText, inputCls } from '@/components/ui';
 import {
-  DISCIPLINES,
+  CategoryTabs,
   LEGEND,
   ValueCell,
+  disciplinesOf,
   enduranceNote,
   formatDate,
   previousOf,
@@ -29,6 +31,7 @@ export default function FitnessTestsPage() {
   const [sortBy, setSortBy] = useState<'name' | 'team' | 'date'>('name');
   const [sel, setSel] = useState<Sel>(null);
   const [teamFilter, setTeamFilter] = useState('');
+  const [category, setCategory] = useState<FitnessCategory>('SILOVE');
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -124,12 +127,13 @@ export default function FitnessTestsPage() {
           ← Previerky
         </button>
         <h1 className="text-2xl font-bold text-club-900">{member ? fullName(member) : 'Hráč'}</h1>
+        <CategoryTabs value={category} onChange={setCategory} />
         <div className="overflow-x-auto rounded-lg border border-club-100 bg-white">
           <table className="w-full border-collapse text-sm">
             <thead className="bg-club-50 text-club-800">
               <tr>
                 <th className={thCls}>Dátum</th>
-                {DISCIPLINES.map((d) => (
+                {disciplinesOf(category).map((d) => (
                   <th key={d.key} className={thCls}>
                     {d.label} ({d.unit})
                   </th>
@@ -140,7 +144,7 @@ export default function FitnessTestsPage() {
               {rows.map((t) => (
                 <tr key={t.id}>
                   <td className="whitespace-nowrap px-3 py-2 font-medium">{formatDate(t.testedAt)}</td>
-                  {DISCIPLINES.map((d) => (
+                  {disciplinesOf(category).map((d) => (
                     <td key={d.key} className="whitespace-nowrap px-3 py-2">
                       <ValueCell value={t[d.key]} previous={previousOf(tests, t, d.key)} discipline={d} note={enduranceNote(t, d.key)} />
                     </td>
@@ -168,13 +172,14 @@ export default function FitnessTestsPage() {
           Previerka {formatDate(sel.date)}
           {rows[0]?.team ? ` — ${rows[0].team.name}` : ''}
         </h1>
+        <CategoryTabs value={category} onChange={setCategory} />
         <div className="overflow-x-auto rounded-lg border border-club-100 bg-white">
           <table className="w-full border-collapse text-sm">
             <thead className="bg-club-50 text-club-800">
               <tr>
                 <th className={thCls}>Meno hráča</th>
                 <th className={thCls}>Družstvo</th>
-                {DISCIPLINES.map((d) => (
+                {disciplinesOf(category).map((d) => (
                   <th key={d.key} className={thCls}>
                     {d.label} ({d.unit})
                   </th>
@@ -186,7 +191,7 @@ export default function FitnessTestsPage() {
                 <tr key={t.id}>
                   <td className="whitespace-nowrap px-3 py-2 font-medium">{fullName(t.member)}</td>
                   <td className="whitespace-nowrap px-3 py-2">{t.team?.name ?? '—'}</td>
-                  {DISCIPLINES.map((d) => (
+                  {disciplinesOf(category).map((d) => (
                     <td key={d.key} className="whitespace-nowrap px-3 py-2">
                       <ValueCell value={t[d.key]} previous={previousOf(tests, t, d.key)} discipline={d} note={enduranceNote(t, d.key)} />
                     </td>

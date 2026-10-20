@@ -33,7 +33,7 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
 function TestValues({ test, all }: { test: FitnessTest; all: FitnessTest[] }) {
   return (
     <View style={{ marginTop: 4 }}>
-      {FITNESS_DISCIPLINES.map((d) => {
+      {FITNESS_DISCIPLINES.filter((d) => test[d.key] != null).map((d) => {
         const { text, trend } = fitnessDelta(test[d.key], previousFitnessValue(all, test, d.key), d);
         return (
           <View key={d.key} style={styles.valueRow}>

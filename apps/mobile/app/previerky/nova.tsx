@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import {
+  FITNESS_CATEGORIES,
   FITNESS_DISCIPLINES,
+  type FitnessCategory,
   enduranceMinutesFor,
   fitnessDisciplineLabel,
   type FitnessDisciplineKey,
@@ -47,6 +49,7 @@ export default function NewFitnessTestScreen() {
   const [date, setDate] = useState(params.date ?? todayIso());
   const [players, setPlayers] = useState<Player[]>([]);
   const [rows, setRows] = useState<Record<string, Row>>({});
+  const [category, setCategory] = useState<FitnessCategory>('SILOVE');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -146,6 +149,14 @@ export default function NewFitnessTestScreen() {
         </View>
       )}
 
+      <View style={[styles.chipRow, { marginTop: 10 }]}>
+        {FITNESS_CATEGORIES.map((c) => (
+          <Pressable key={c.key} onPress={() => setCategory(c.key)} style={[styles.chip, category === c.key && styles.chipActive]}>
+            <Text style={[styles.chipText, category === c.key && styles.chipTextActive]}>{c.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+
       {error && <Text style={styles.error}>{error}</Text>}
       {!teamId ? (
         <Text style={styles.empty}>Vyberte družstvo.</Text>
@@ -164,7 +175,7 @@ export default function NewFitnessTestScreen() {
                 {p.lastName} {p.firstName}
               </Text>
               <View style={styles.grid}>
-                {FITNESS_DISCIPLINES.map((d) => (
+                {FITNESS_DISCIPLINES.filter((d) => d.category === category).map((d) => (
                   <View key={d.key} style={styles.cell}>
                     <Text style={styles.cellLabel}>
                       {fitnessDisciplineLabel(d, minutes)} ({d.unit})

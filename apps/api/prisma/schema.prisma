@@ -950,6 +950,7 @@ model FitnessTest {
   testedAt      DateTime @db.Date
   /// Časy v sekundách
   run10m        Float?
+  /// (zrušená disciplína, stĺpec ostáva kvôli starým dátam)
   run20m        Float?
   run30m        Float?
   shuttleRun    Float?
@@ -961,6 +962,20 @@ model FitnessTest {
   enduranceMinutes Int?
   /// Skok do diaľky z miesta v cm
   standingJump  Int?
+  /// Výdrž v zhybe nadhmatom v sekundách
+  pullUpHang        Float?
+  /// Vytrvalostný člnkový beh — počet úsekov
+  shuttleEndurance  Int?
+  /// Ľah-sed za 30 s — počet
+  sitUps30          Int?
+  /// Hod 2 kg plnou loptou vpred v metroch
+  medicineBallThrow Float?
+  /// Juggling – počet dotykov
+  juggling          Int?
+  /// Prihrávky v behu — počet úspešných
+  passesRunning     Int?
+  /// Strelba (presnosť) — počet zásahov
+  shooting          Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

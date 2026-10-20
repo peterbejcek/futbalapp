@@ -1,0 +1,8 @@
+-- AlterTable
+ALTER TABLE "FitnessTest" ADD COLUMN "pullUpHang" DOUBLE PRECISION,
+ADD COLUMN "shuttleEndurance" INTEGER,
+ADD COLUMN "sitUps30" INTEGER,
+ADD COLUMN "medicineBallThrow" DOUBLE PRECISION,
+ADD COLUMN "juggling" INTEGER,
+ADD COLUMN "passesRunning" INTEGER,
+ADD COLUMN "shooting" INTEGER;

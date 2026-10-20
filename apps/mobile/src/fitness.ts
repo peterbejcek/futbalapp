@@ -4,13 +4,19 @@ export interface FitnessTest {
   teamId: string | null;
   testedAt: string; // YYYY-MM-DD
   run10m: number | null;
-  run20m: number | null;
   run30m: number | null;
   shuttleRun: number | null;
   dribbleSlalom: number | null;
   enduranceRun: number | null;
   enduranceMinutes: number | null;
   standingJump: number | null;
+  pullUpHang: number | null;
+  shuttleEndurance: number | null;
+  sitUps30: number | null;
+  medicineBallThrow: number | null;
+  juggling: number | null;
+  passesRunning: number | null;
+  shooting: number | null;
   member: { id: string; firstName: string; lastName: string };
   team: { id: string; name: string } | null;
 }

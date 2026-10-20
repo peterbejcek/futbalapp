@@ -8,6 +8,8 @@ import {
   previousFitnessValue,
   enduranceMinutesFor,
   fitnessDisciplineLabel,
+  FITNESS_CATEGORIES,
+  type FitnessCategory,
   type FitnessDiscipline,
   type FitnessDisciplineKey,
 } from '@fkknv/shared';
@@ -21,13 +23,19 @@ export interface FitnessTest {
   teamId: string | null;
   testedAt: string; // YYYY-MM-DD
   run10m: number | null;
-  run20m: number | null;
   run30m: number | null;
   shuttleRun: number | null;
   dribbleSlalom: number | null;
   enduranceRun: number | null;
   enduranceMinutes: number | null;
   standingJump: number | null;
+  pullUpHang: number | null;
+  shuttleEndurance: number | null;
+  sitUps30: number | null;
+  medicineBallThrow: number | null;
+  juggling: number | null;
+  passesRunning: number | null;
+  shooting: number | null;
   member: { id: string; firstName: string; lastName: string };
   team: { id: string; name: string } | null;
 }
@@ -36,6 +44,26 @@ export type DisciplineKey = FitnessDisciplineKey;
 export const DISCIPLINES = FITNESS_DISCIPLINES;
 export const formatDate = formatFitnessDate;
 export { fitnessDisciplineLabel };
+
+export const disciplinesOf = (category: FitnessCategory) => FITNESS_DISCIPLINES.filter((d) => d.category === category);
+
+/** Prepínač kategórií disciplín (Silové / Vytrvalostné / Technické). */
+export function CategoryTabs({ value, onChange }: { value: FitnessCategory; onChange: (c: FitnessCategory) => void }) {
+  return (
+    <div className="inline-flex overflow-hidden rounded-md border border-club-300 text-sm">
+      {FITNESS_CATEGORIES.map((c) => (
+        <button
+          key={c.key}
+          type="button"
+          onClick={() => onChange(c.key)}
+          className={`px-3 py-1.5 ${value === c.key ? 'bg-club-600 text-white' : 'bg-white text-club-700 hover:bg-club-50'}`}
+        >
+          {c.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /** Poznámka k vytrvalostnému behu (dĺžka v minútach) pri hodnote v tabuľke. */
 export const enduranceNote = (t: Pick<FitnessTest, 'enduranceMinutes'>, key: DisciplineKey) =>
@@ -80,13 +108,7 @@ export const LEGEND = (
 const emptyForm = () => ({
   testedAt: new Date().toISOString().slice(0, 10),
   teamId: '',
-  run10m: '',
-  run20m: '',
-  run30m: '',
-  shuttleRun: '',
-  dribbleSlalom: '',
-  enduranceRun: '',
-  standingJump: '',
+  ...(Object.fromEntries(DISCIPLINES.map((d) => [d.key, ''])) as Record<DisciplineKey, string>),
 });
 
 /** Zoznam previerok hráča + pridanie / úprava / zmazanie (karta hráča). */
@@ -102,6 +124,7 @@ export function PlayerFitnessPanel({
   const [form, setForm] = useState(emptyForm);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [category, setCategory] = useState<FitnessCategory>('SILOVE');
 
   const load = useCallback(() => {
     api<FitnessTest[]>(`/fitness-tests?member=${memberId}`)
@@ -118,15 +141,10 @@ export function PlayerFitnessPanel({
       return;
     }
     setForm({
+      ...emptyForm(),
       testedAt: t.testedAt,
       teamId: t.teamId ?? '',
-      run10m: t.run10m?.toString() ?? '',
-      run20m: t.run20m?.toString() ?? '',
-      run30m: t.run30m?.toString() ?? '',
-      shuttleRun: t.shuttleRun?.toString() ?? '',
-      dribbleSlalom: t.dribbleSlalom?.toString() ?? '',
-      enduranceRun: t.enduranceRun?.toString() ?? '',
-      standingJump: t.standingJump?.toString() ?? '',
+      ...(Object.fromEntries(DISCIPLINES.map((d) => [d.key, t[d.key]?.toString() ?? ''])) as Record<DisciplineKey, string>),
     });
     setEditing(t.id);
   }
@@ -137,13 +155,7 @@ export function PlayerFitnessPanel({
     const num = (s: string) => (s.trim() === '' ? null : Number(s.replace(',', '.')));
     const body = {
       testedAt: form.testedAt,
-      run10m: num(form.run10m),
-      run20m: num(form.run20m),
-      run30m: num(form.run30m),
-      shuttleRun: num(form.shuttleRun),
-      dribbleSlalom: num(form.dribbleSlalom),
-      enduranceRun: num(form.enduranceRun),
-      standingJump: num(form.standingJump),
+      ...(Object.fromEntries(DISCIPLINES.map((d) => [d.key, num(form[d.key])])) as Record<DisciplineKey, number | null>),
       ...(editing === 'new' ? { memberId, teamId: form.teamId || null } : {}),
     };
     try {
@@ -208,7 +220,10 @@ export function PlayerFitnessPanel({
                 </select>
               </div>
             )}
-            {DISCIPLINES.map((d) => (
+            <div className="col-span-2">
+              <CategoryTabs value={category} onChange={setCategory} />
+            </div>
+            {disciplinesOf(category).map((d) => (
               <div key={d.key}>
                 <label className={labelCls}>
                   {fitnessDisciplineLabel(d, formMinutes)} ({d.unit})
@@ -241,12 +256,14 @@ export function PlayerFitnessPanel({
       {desc.length === 0 ? (
         <p className="text-xs text-gray-500">Zatiaľ žiadne previerky.</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="space-y-2">
+          {editing === null && <CategoryTabs value={category} onChange={setCategory} />}
+          <div className="overflow-x-auto">
           <table className="w-full border-collapse text-xs">
             <thead className="text-gray-500">
               <tr>
                 <th className="px-1 py-1 text-left">Dátum</th>
-                {DISCIPLINES.map((d) => (
+                {disciplinesOf(category).map((d) => (
                   <th key={d.key} className="whitespace-nowrap px-1 py-1 text-left font-medium">
                     {d.label}
                   </th>
@@ -258,7 +275,7 @@ export function PlayerFitnessPanel({
               {desc.map((t) => (
                 <tr key={t.id}>
                   <td className="whitespace-nowrap px-1 py-1">{formatDate(t.testedAt)}</td>
-                  {DISCIPLINES.map((d) => (
+                  {disciplinesOf(category).map((d) => (
                     <td key={d.key} className="whitespace-nowrap px-1 py-1">
                       <ValueCell value={t[d.key]} previous={previousOf(tests, t, d.key)} discipline={d} note={enduranceNote(t, d.key)} />
                     </td>
@@ -275,6 +292,7 @@ export function PlayerFitnessPanel({
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
       {desc.length > 1 && LEGEND}
