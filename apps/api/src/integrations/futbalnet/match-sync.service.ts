@@ -100,6 +100,14 @@ export class MatchSyncService {
       await this.prisma.matchSyncLog.create({ data: { matchId, source, status, changes } });
     };
 
+    // priebeh sa importuje až po termíne ukončenia zápasu (endAt, inak začiatok + 2 polčasy + 15 min);
+    // čas udalosti je „nástenný" v UTC, preto sa porovnáva s bratislavským nástenným časom
+    const endsAt = match.event.endAt ?? new Date(match.event.startAt.getTime() + (match.halfLengthMin * 2 + 15) * 60_000);
+    if (toBratislavaWallClock(new Date()).getTime() < endsAt.getTime()) {
+      const msg = 'Zápas ešte nie je po termíne ukončenia — priebeh sa importuje z futbalnetu až potom.';
+      return { status: 'NO_RESULT', changes: [msg] };
+    }
+
     const candidates = await this.candidateUrls(match);
     if (candidates.length === 0) {
       if (source === 'MANUAL') throw new BadRequestException('Zápas nie je prepojený s futbalnetom — zadajte odkaz na zápas.');

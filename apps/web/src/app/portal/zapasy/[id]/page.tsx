@@ -435,6 +435,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
   }
 
   const [syncBusy, setSyncBusy] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
   async function syncFutbalnet() {
     if (!match) return;
     let url: string | undefined;
@@ -446,7 +447,11 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
     setSyncBusy(true);
     setError(null);
     try {
-      await api(`/matches/${match.id}/futbalnet-sync`, { method: 'POST', body: JSON.stringify({ url }) });
+      const res = await api<{ status: string; changes: string[] }>(`/matches/${match.id}/futbalnet-sync`, {
+        method: 'POST',
+        body: JSON.stringify({ url }),
+      });
+      setSyncMsg(res.status === 'NO_CHANGE' ? 'Bez rozdielov — zapísané údaje sedia s futbalnetom.' : res.changes.join(' · '));
       await reloadMatch();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Synchronizácia zlyhala');
@@ -529,6 +534,39 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
 
   const nominatedIds = new Set(match.nominations.map((n) => n.member.id));
   const recording = manage && (match.state === 'LIVE' || match.state === 'FINISHED');
+
+  const syncBlock = (
+      <div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold text-club-800">Kontrola s Futbalnetom</p>
+            <p className="text-xs text-gray-500">
+              Porovná výsledok a strelcov s futbalnetom a opraví rozdiely (automaticky aj každý večer o 20:00).
+            </p>
+          </div>
+          <Button variant="ghost" onClick={syncFutbalnet} disabled={syncBusy}>
+            {syncBusy ? 'Kontrolujem…' : 'Skontrolovať teraz'}
+          </Button>
+        </div>
+        {syncMsg && <p className="mt-2 text-xs font-medium text-club-700">{syncMsg}</p>}
+        {(match.syncLogs ?? []).length > 0 && (
+          <ul className="mt-2 space-y-1 text-xs">
+            {(match.syncLogs ?? []).slice(0, 3).map((l) => (
+              <li key={l.id}>
+                <span className="font-medium text-club-700">
+                  {new Date(l.createdAt).toLocaleString('sk-SK', { timeZone: 'Europe/Bratislava', dateStyle: 'medium', timeStyle: 'short' })} · {l.source === 'CRON' ? 'automaticky' : 'ručne'}
+                </span>
+                <ul className="ml-4 list-disc text-gray-700">
+                  {l.changes.map((c, i) => (
+                    <li key={i}>{c}</li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+  );
 
   return (
     <div className="space-y-5">
@@ -913,6 +951,8 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
         {/* Živý zápis */}
         <Card>
           <h2 className="mb-3 font-semibold text-club-800">Priebeh zápasu</h2>
+          {/* kontrola s futbalnetom je dostupná aj pred výkopom / bez spustenia zápasu */}
+          {manage && !recording && <div className="mb-4 rounded-md bg-club-50 p-3">{syncBlock}</div>}
           {recording && (
             <div className="mb-4 space-y-3 rounded-md bg-club-50 p-3">
               {/* minúta + nadstavenie */}
@@ -964,35 +1004,7 @@ export default function MatchPage({ params }: { params: Promise<{ id: string }> 
               )}
 
               {/* kontrola s futbalnetom */}
-              <div className="border-t border-club-100 pt-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold text-club-800">Kontrola s Futbalnetom</p>
-                    <p className="text-xs text-gray-500">
-                      Porovná výsledok a strelcov s futbalnetom a opraví rozdiely (automaticky aj každý večer o 20:00).
-                    </p>
-                  </div>
-                  <Button variant="ghost" onClick={syncFutbalnet} disabled={syncBusy}>
-                    {syncBusy ? 'Kontrolujem…' : 'Skontrolovať teraz'}
-                  </Button>
-                </div>
-                {(match.syncLogs ?? []).length > 0 && (
-                  <ul className="mt-2 space-y-1 text-xs">
-                    {(match.syncLogs ?? []).slice(0, 3).map((l) => (
-                      <li key={l.id}>
-                        <span className="font-medium text-club-700">
-                          {new Date(l.createdAt).toLocaleString('sk-SK', { timeZone: 'Europe/Bratislava', dateStyle: 'medium', timeStyle: 'short' })} · {l.source === 'CRON' ? 'automaticky' : 'ručne'}
-                        </span>
-                        <ul className="ml-4 list-disc text-gray-700">
-                          {l.changes.map((c, i) => (
-                            <li key={i}>{c}</li>
-                          ))}
-                        </ul>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+              <div className="border-t border-club-100 pt-3">{syncBlock}</div>
 
               {/* výber hráča */}
               <div>
