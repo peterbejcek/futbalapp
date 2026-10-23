@@ -22,3 +22,6 @@ Kód: `apps/api/src/events/events.service.ts` (+controller), `apps/api/src/pitch
 ## Poznámky
 - Detail zápasu má zvýraznenú adresu a mapu predvolene otvorenú (`MapEmbed defaultOpen`); inde sa mapa načíta po kliknutí.
 - Pri novej funkcii nezabudni na verejný web (`isPublic`, zápasy sa zverejňujú vždy) — viď `fkknv-verejny-web`.
+
+## Jednorazové priradenie plôch k starým udalostiam
+`apps/api/prisma/assign-pitches.ts` (+ čistý plán `src/pitches/pitch-assign.plan.ts`, test): tréningy a domáce zápasy bez `pitchId` s textovým miestom spáruje s `Pitch` (ručné `--map` → presný názov → jediná čiastočná zhoda). Predvolene DRY-RUN a len budúce udalosti; `--apply` zapisuje, `--include-past` berie aj minulé. Čiastočné prekryvy = konflikt (preskočí sa), rovnaký čas je povolený. Spúšťa sa v kontajneri `api`.
